@@ -499,5 +499,3 @@ API (server):
 | `GET /api/admin/competition-date` | No auth check (public read via service role) |
 
 ---
-
-*Generated from repository file review. Last updated: June 2026.*
