@@ -38,6 +38,14 @@ function isUuidLike(value) {
     : false;
 }
 
+function safeParseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 async function findPitchByColumn(supabaseAdmin, column, value) {
   const { data, error } = await supabaseAdmin
     .from("pitches")
@@ -115,9 +123,45 @@ async function updatePitch(supabaseAdmin, pitchId, update) {
   return data;
 }
 
-export async function POST(request) {
+async function writeWebhookLog(supabaseAdmin, entry) {
   try {
-    const rawBody = await request.text();
+    await supabaseAdmin.from("mux_webhook_logs").insert(entry);
+  } catch (error) {
+    console.error("[Mux webhook] failed to persist webhook log", {
+      error: error.message,
+    });
+  }
+}
+
+function buildWebhookLog({
+  status,
+  message,
+  event,
+  identifiers,
+  pitch,
+  matchedBy,
+  payload,
+}) {
+  return {
+    event_type: event?.type || payload?.type || null,
+    status,
+    upload_id: identifiers?.uploadId || null,
+    asset_id: identifiers?.assetId || null,
+    playback_id: identifiers?.playbackId || pitch?.mux_playback_id || null,
+    passthrough: identifiers?.passthrough || null,
+    matched_pitch_id: pitch?.id || null,
+    matched_by: matchedBy || null,
+    message,
+    payload: payload || event || null,
+  };
+}
+
+export async function POST(request) {
+  const rawBody = await request.text();
+  const parsedPayload = safeParseJson(rawBody);
+  const supabaseAdmin = getSupabaseAdmin();
+
+  try {
     const mux = getMuxClient();
     const webhookSecret = getMuxWebhookSecret();
 
@@ -125,13 +169,31 @@ export async function POST(request) {
     try {
       event = await mux.webhooks.unwrap(rawBody, request.headers, webhookSecret);
     } catch (error) {
+      const parsedIdentifiers = parsedPayload
+        ? getEventIdentifiers(parsedPayload)
+        : {
+            uploadId: null,
+            assetId: null,
+            playbackId: null,
+            passthrough: null,
+          };
+
+      await writeWebhookLog(
+        supabaseAdmin,
+        buildWebhookLog({
+          status: "invalid_signature",
+          message: error.message,
+          identifiers: parsedIdentifiers,
+          payload: parsedPayload,
+        })
+      );
+
       console.warn("[Mux webhook] invalid signature", {
         error: error.message,
       });
       return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
     const { pitch, identifiers, matchedBy } = await resolvePitch(event, supabaseAdmin);
 
     console.info("[Mux webhook] received", {
@@ -145,6 +207,17 @@ export async function POST(request) {
     });
 
     if (!pitch) {
+      await writeWebhookLog(
+        supabaseAdmin,
+        buildWebhookLog({
+          status: "no_match",
+          message: "No row matched by mux_asset_id, mux_upload_id, or passthrough pitch id.",
+          event,
+          identifiers,
+          matchedBy,
+        })
+      );
+
       console.warn("[Mux webhook] no matching pitch row", {
         eventType: event.type,
         uploadId: identifiers.uploadId,
@@ -169,6 +242,21 @@ export async function POST(request) {
         matchedPitchId: pitch.id,
         updateResult: updatedPitch,
       });
+
+      await writeWebhookLog(
+        supabaseAdmin,
+        buildWebhookLog({
+          status: "updated",
+          message: "Stored mux_asset_id from video.upload.asset_created.",
+          event,
+          identifiers: {
+            ...identifiers,
+            playbackId: updatedPitch.mux_playback_id,
+          },
+          pitch: updatedPitch,
+          matchedBy,
+        })
+      );
     } else if (event.type === "video.asset.ready") {
       const playbackId = await ensurePlaybackId(
         mux,
@@ -199,11 +287,44 @@ export async function POST(request) {
         matchedPitchId: pitch.id,
         updateResult: updatedPitch,
       });
+
+      await writeWebhookLog(
+        supabaseAdmin,
+        buildWebhookLog({
+          status: playbackId || updatedPitch.mux_playback_id ? "updated" : "ready_missing_playback",
+          message:
+            playbackId || updatedPitch.mux_playback_id
+              ? "Stored ready asset and playback ID."
+              : readyWithoutPlaybackMessage,
+          event,
+          identifiers: {
+            ...identifiers,
+            playbackId: playbackId || updatedPitch.mux_playback_id,
+          },
+          pitch: updatedPitch,
+          matchedBy,
+        })
+      );
     } else if (
       event.type === "video.asset.errored" ||
       event.type === "video.upload.errored"
     ) {
       if (pitch.mux_playback_id) {
+        await writeWebhookLog(
+          supabaseAdmin,
+          buildWebhookLog({
+            status: "skipped_errored",
+            message: "Skipped errored update because the pitch already has a playback ID.",
+            event,
+            identifiers: {
+              ...identifiers,
+              playbackId: pitch.mux_playback_id,
+            },
+            pitch,
+            matchedBy,
+          })
+        );
+
         console.warn("[Mux webhook] skipped errored update because playback is already available", {
           eventType: event.type,
           matchedPitchId: pitch.id,
@@ -226,7 +347,31 @@ export async function POST(request) {
         matchedPitchId: pitch.id,
         updateResult: updatedPitch,
       });
+
+      await writeWebhookLog(
+        supabaseAdmin,
+        buildWebhookLog({
+          status: "updated",
+          message: updatedPitch.mux_error || "Stored errored asset state.",
+          event,
+          identifiers,
+          pitch: updatedPitch,
+          matchedBy,
+        })
+      );
     } else {
+      await writeWebhookLog(
+        supabaseAdmin,
+        buildWebhookLog({
+          status: "ignored",
+          message: "Received an unsupported Mux event type.",
+          event,
+          identifiers,
+          pitch,
+          matchedBy,
+        })
+      );
+
       console.info("[Mux webhook] ignored unsupported event", {
         eventType: event.type,
       });
@@ -234,6 +379,25 @@ export async function POST(request) {
 
     return NextResponse.json({ message: "ok" });
   } catch (error) {
+    const parsedIdentifiers = parsedPayload
+      ? getEventIdentifiers(parsedPayload)
+      : {
+          uploadId: null,
+          assetId: null,
+          playbackId: null,
+          passthrough: null,
+        };
+
+    await writeWebhookLog(
+      supabaseAdmin,
+      buildWebhookLog({
+        status: "handler_error",
+        message: error.message,
+        identifiers: parsedIdentifiers,
+        payload: parsedPayload,
+      })
+    );
+
     console.error("[Mux webhook] handler failed", {
       error: error.message,
     });

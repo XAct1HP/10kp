@@ -104,6 +104,7 @@ export default function AdminPage() {
 
   const [pitches, setPitches] = useState([]);
   const [expandedPitch, setExpandedPitch] = useState(null);
+  const [webhookLogs, setWebhookLogs] = useState([]);
 
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState("");
@@ -112,6 +113,7 @@ export default function AdminPage() {
     date: true,
     pitches: true,
     tags: true,
+    webhookLogs: true,
   });
   const [error, setError] = useState("");
 
@@ -170,13 +172,25 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchWebhookLogs = useCallback(async () => {
+    try {
+      const data = await apiFetch("/api/admin/mux-webhook-logs");
+      setWebhookLogs(data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingState((s) => ({ ...s, webhookLogs: false }));
+    }
+  }, []);
+
   useEffect(() => {
     if (user && isAdmin) {
       fetchDate();
       fetchPitches();
       fetchTags();
+      fetchWebhookLogs();
     }
-  }, [user, isAdmin, fetchDate, fetchPitches, fetchTags]);
+  }, [user, isAdmin, fetchDate, fetchPitches, fetchTags, fetchWebhookLogs]);
 
   // Handlers
   const handleSaveDate = async () => {
@@ -297,6 +311,77 @@ export default function AdminPage() {
       </section>
 
       {/* ── All Pitches ───────────────────────────────────── */}
+      <section className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Mux Webhook Logs</h2>
+            <p className="text-sm text-gray-500">
+              Latest webhook attempts recorded by the server.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setLoadingState((s) => ({ ...s, webhookLogs: true }));
+              fetchWebhookLogs();
+            }}
+            className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Refresh Logs
+          </button>
+        </div>
+
+        {loadingState.webhookLogs ? (
+          <p className="text-gray-500">Loading logs...</p>
+        ) : webhookLogs.length === 0 ? (
+          <p className="text-gray-500">No webhook logs recorded yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {webhookLogs.map((log) => (
+              <article
+                key={log.id}
+                className="border border-gray-200 rounded-md p-4 bg-gray-50 space-y-2"
+              >
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  <span className="font-medium text-gray-900">
+                    {log.event_type || "unknown event"}
+                  </span>
+                  <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-700 rounded-full">
+                    {log.status}
+                  </span>
+                  <span className="text-gray-500">
+                    {new Date(log.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <p className="text-sm text-gray-700">
+                  {log.message || "No message recorded."}
+                </p>
+
+                <div className="grid gap-2 sm:grid-cols-2 text-xs text-gray-600">
+                  <p>Pitch: {log.matched_pitch_id || "none"}</p>
+                  <p>Matched by: {log.matched_by || "none"}</p>
+                  <p>Upload ID: {log.upload_id || "none"}</p>
+                  <p>Asset ID: {log.asset_id || "none"}</p>
+                  <p>Playback ID: {log.playback_id || "none"}</p>
+                  <p>Passthrough: {log.passthrough || "none"}</p>
+                </div>
+
+                {log.payload && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-gray-600">
+                      View payload
+                    </summary>
+                    <pre className="mt-2 p-3 bg-white border border-gray-200 rounded-md overflow-x-auto whitespace-pre-wrap text-gray-700">
+                      {JSON.stringify(log.payload, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="bg-white border border-gray-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           All Pitches{" "}
