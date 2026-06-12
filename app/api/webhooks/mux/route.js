@@ -4,7 +4,8 @@ import { getMuxClient, getMuxWebhookSecret } from "../../../../lib/mux";
 
 function getEventIdentifiers(event) {
   const data = event.data || {};
-  const isUploadEvent = event.type.startsWith("video.upload.");
+  const eventType = typeof event.type === "string" ? event.type : "";
+  const isUploadEvent = eventType.startsWith("video.upload.");
 
   return {
     uploadId: isUploadEvent ? data.id || data.upload_id || null : data.upload_id || null,
@@ -122,7 +123,7 @@ export async function POST(request) {
 
     let event;
     try {
-      event = mux.webhooks.unwrap(rawBody, request.headers, webhookSecret);
+      event = await mux.webhooks.unwrap(rawBody, request.headers, webhookSecret);
     } catch (error) {
       console.warn("[Mux webhook] invalid signature", {
         error: error.message,
