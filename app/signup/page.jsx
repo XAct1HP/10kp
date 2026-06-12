@@ -45,8 +45,8 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-sm border border-gray-200">
+    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4">
+      <div className="w-full max-w-md p-6 sm:p-8 bg-white rounded-lg shadow-sm border border-gray-200">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Sign Up</h1>
         <p className="text-sm text-gray-500 mb-6">
           Use your <span className="font-medium">@umich.edu</span> email to create an account.

@@ -77,15 +77,15 @@ function CountdownTimer({ targetDate }) {
   }
 
   return (
-    <div className="flex gap-4 text-center">
+    <div className="flex gap-2 sm:gap-4 text-center flex-wrap">
       {[
         { label: "Days", value: timeLeft.days },
         { label: "Hours", value: timeLeft.hours },
         { label: "Minutes", value: timeLeft.minutes },
         { label: "Seconds", value: timeLeft.seconds },
       ].map(({ label, value }) => (
-        <div key={label} className="bg-gray-900 text-white rounded-lg px-4 py-3 min-w-[72px]">
-          <div className="text-2xl font-mono font-bold">{pad(value)}</div>
+        <div key={label} className="bg-gray-900 text-white rounded-lg px-3 sm:px-4 py-2 sm:py-3 min-w-[60px] sm:min-w-[72px]">
+          <div className="text-xl sm:text-2xl font-mono font-bold">{pad(value)}</div>
           <div className="text-xs text-gray-400 mt-1">{label}</div>
         </div>
       ))}
@@ -264,25 +264,27 @@ export default function AdminPage() {
             )}
 
             {editingDate ? (
-              <div className="mt-4 flex items-center gap-3">
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
                 <input
                   type="datetime-local"
                   value={dateInput}
                   onChange={(e) => setDateInput(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
-                <button
-                  onClick={handleSaveDate}
-                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingDate(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  Cancel
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleSaveDate}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingDate(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             ) : (
               <button
@@ -312,7 +314,9 @@ export default function AdminPage() {
         ) : pitches.length === 0 ? (
           <p className="text-gray-500">No pitches submitted yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-500 uppercase border-b border-gray-200">
                 <tr>
@@ -369,53 +373,103 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
-
-            {/* Expanded pitch description */}
-            {expandedPitch && (
-              <div className="mt-2 p-4 bg-gray-50 rounded-md border border-gray-200">
-                {(() => {
-                  const pitch = pitches.find((p) => p.id === expandedPitch);
-                  if (!pitch) return null;
-
-                  const isVideo = (pitch.file_type || "file") === "video";
-                  const canPlayVideo = Boolean(pitch.mux_playback_id);
-                  const videoMessage =
-                    pitch.mux_error ||
-                    `Video is ${pitch.mux_status || "processing"}...`;
-
-                  return (
-                    <>
-                      <p className="text-sm text-gray-500 mb-1 font-medium">Description</p>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap mb-4">
-                        {pitch.description}
-                      </p>
-
-                      {isVideo && (
-                        <>
-                          <p className="text-sm text-gray-500 mb-2 font-medium">Video Preview</p>
-                          {canPlayVideo ? (
-                            <MuxPlayer
-                              playbackId={pitch.mux_playback_id}
-                              accentColor="#111827"
-                              style={{ maxWidth: "720px", width: "100%" }}
-                            />
-                          ) : (
-                            <p
-                              className={`text-sm ${
-                                pitch.mux_error ? "text-red-600" : "text-gray-600"
-                              }`}
-                            >
-                              {videoMessage}
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
           </div>
+
+          {/* Mobile card list */}
+          <div className="md:hidden space-y-3">
+            {pitches.map((pitch) => (
+              <div
+                key={pitch.id}
+                className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() =>
+                  setExpandedPitch(
+                    expandedPitch === pitch.id ? null : pitch.id
+                  )
+                }
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-gray-900">{pitch.name}</p>
+                    <p className="text-sm text-gray-700">{pitch.title}</p>
+                  </div>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                    {new Date(pitch.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                {pitch.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {pitch.tags.map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full"
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-2">
+                  {(pitch.file_type || "file") === "video" ? (
+                    <span className="inline-flex items-center gap-1">
+                      {pitch.file_name || "Video upload"}
+                      <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded-full">
+                        {pitch.mux_playback_id ? "ready" : pitch.mux_status || "pending"}
+                      </span>
+                    </span>
+                  ) : (
+                    pitch.file_name || "—"
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Expanded pitch description */}
+          {expandedPitch && (
+            <div className="mt-2 p-4 bg-gray-50 rounded-md border border-gray-200">
+              {(() => {
+                const pitch = pitches.find((p) => p.id === expandedPitch);
+                if (!pitch) return null;
+
+                const isVideo = (pitch.file_type || "file") === "video";
+                const canPlayVideo = Boolean(pitch.mux_playback_id);
+                const videoMessage =
+                  pitch.mux_error ||
+                  `Video is ${pitch.mux_status || "processing"}...`;
+
+                return (
+                  <>
+                    <p className="text-sm text-gray-500 mb-1 font-medium">Description</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap mb-4">
+                      {pitch.description}
+                    </p>
+
+                    {isVideo && (
+                      <>
+                        <p className="text-sm text-gray-500 mb-2 font-medium">Video Preview</p>
+                        {canPlayVideo ? (
+                          <MuxPlayer
+                            playbackId={pitch.mux_playback_id}
+                            accentColor="#111827"
+                            style={{ maxWidth: "720px", width: "100%" }}
+                          />
+                        ) : (
+                          <p
+                            className={`text-sm ${
+                              pitch.mux_error ? "text-red-600" : "text-gray-600"
+                            }`}
+                          >
+                            {videoMessage}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+          </>
         )}
       </section>
 
@@ -453,13 +507,13 @@ export default function AdminPage() {
             </div>
 
             {/* Add new tag */}
-            <form onSubmit={handleCreateTag} className="flex gap-2">
+            <form onSubmit={handleCreateTag} className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 placeholder="New tag name"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
               <button
                 type="submit"

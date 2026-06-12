@@ -4,8 +4,8 @@ import Link from "next/link";
 
 export default function VerifyEmailPage() {
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-sm border border-gray-200 text-center">
+    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4">
+      <div className="w-full max-w-md p-6 sm:p-8 bg-white rounded-lg shadow-sm border border-gray-200 text-center">
         <div className="mb-4 text-4xl">📬</div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h1>
         <p className="text-sm text-gray-500 mb-6">
