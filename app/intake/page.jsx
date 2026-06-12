@@ -158,6 +158,7 @@ export default function IntakePage() {
           file_type: isVideoUpload ? "video" : "file",
           file_name: file.name,
           mux_status: isVideoUpload ? "pending" : null,
+          mux_error: null,
         })
         .select()
         .single();
@@ -219,7 +220,7 @@ export default function IntakePage() {
         // Upload is done; Mux may still be processing before ready state.
         const { error: muxStateError } = await supabase
           .from("pitches")
-          .update({ mux_status: "processing" })
+          .update({ mux_status: "processing", mux_error: null })
           .eq("id", pitch.id);
         if (muxStateError) throw muxStateError;
       } else {
@@ -258,7 +259,7 @@ export default function IntakePage() {
       if (createdPitchId && VIDEO_FILE_TYPES.includes(file?.type)) {
         await supabase
           .from("pitches")
-          .update({ mux_status: "errored" })
+          .update({ mux_status: "errored", mux_error: err.message || "Video upload failed." })
           .eq("id", createdPitchId);
       }
       setError(err.message || "Something went wrong. Please try again.");

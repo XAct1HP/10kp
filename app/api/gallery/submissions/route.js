@@ -14,7 +14,9 @@ export async function GET() {
         description,
         file_name,
         file_type,
+        mux_asset_id,
         mux_status,
+        mux_error,
         mux_playback_id,
         created_at,
         pitch_tags (

@@ -50,6 +50,10 @@ export default function GalleryPage() {
         <div className="grid gap-6 md:grid-cols-2">
           {submissions.map((pitch) => {
             const isVideo = (pitch.file_type || "file") === "video";
+            const canPlayVideo = Boolean(pitch.mux_playback_id);
+            const videoMessage =
+              pitch.mux_error ||
+              `Video is ${pitch.mux_status || "processing"}...`;
 
             return (
               <article
@@ -77,7 +81,7 @@ export default function GalleryPage() {
                 <p className="text-sm text-gray-700 whitespace-pre-wrap">{pitch.description}</p>
 
                 {isVideo ? (
-                  pitch.mux_status === "ready" && pitch.mux_playback_id ? (
+                  canPlayVideo ? (
                     <>
                       <img
                         src={`https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1`}
@@ -91,8 +95,12 @@ export default function GalleryPage() {
                       />
                     </>
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      Video is {pitch.mux_status || "processing"}...
+                    <p
+                      className={`text-sm ${
+                        pitch.mux_error ? "text-red-600" : "text-gray-500"
+                      }`}
+                    >
+                      {videoMessage}
                     </p>
                   )
                 ) : (

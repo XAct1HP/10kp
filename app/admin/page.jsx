@@ -355,7 +355,7 @@ export default function AdminPage() {
                         <span className="inline-flex items-center gap-2">
                           <span>{pitch.file_name || "Video upload"}</span>
                           <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full">
-                            {pitch.mux_status || "pending"}
+                            {pitch.mux_playback_id ? "ready" : pitch.mux_status || "pending"}
                           </span>
                         </span>
                       ) : (
@@ -378,6 +378,10 @@ export default function AdminPage() {
                   if (!pitch) return null;
 
                   const isVideo = (pitch.file_type || "file") === "video";
+                  const canPlayVideo = Boolean(pitch.mux_playback_id);
+                  const videoMessage =
+                    pitch.mux_error ||
+                    `Video is ${pitch.mux_status || "processing"}...`;
 
                   return (
                     <>
@@ -389,18 +393,20 @@ export default function AdminPage() {
                       {isVideo && (
                         <>
                           <p className="text-sm text-gray-500 mb-2 font-medium">Video Preview</p>
-                          {pitch.mux_status !== "ready" ? (
-                            <p className="text-sm text-gray-600">
-                              Video is {pitch.mux_status || "processing"}...
-                            </p>
-                          ) : pitch.mux_playback_id ? (
+                          {canPlayVideo ? (
                             <MuxPlayer
                               playbackId={pitch.mux_playback_id}
                               accentColor="#111827"
                               style={{ maxWidth: "720px", width: "100%" }}
                             />
                           ) : (
-                            <p className="text-sm text-red-600">Could not load video playback.</p>
+                            <p
+                              className={`text-sm ${
+                                pitch.mux_error ? "text-red-600" : "text-gray-600"
+                              }`}
+                            >
+                              {videoMessage}
+                            </p>
                           )}
                         </>
                       )}

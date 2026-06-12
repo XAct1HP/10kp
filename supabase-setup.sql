@@ -30,6 +30,7 @@ alter table public.pitches
   add column if not exists mux_upload_id text,
   add column if not exists mux_asset_id text,
   add column if not exists mux_playback_id text,
+  add column if not exists mux_error text,
   add column if not exists mux_status text default 'pending';
 
 create index if not exists pitches_mux_status_idx on public.pitches (mux_status);

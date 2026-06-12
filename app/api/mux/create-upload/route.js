@@ -36,7 +36,7 @@ export async function POST(request) {
       cors_origin: siteUrl,
       new_asset_settings: {
         passthrough: pitchId,
-        playback_policy: ["public"],
+        playback_policies: ["public"],
         video_quality: "basic",
       },
     });
@@ -45,7 +45,10 @@ export async function POST(request) {
       .from("pitches")
       .update({
         mux_upload_id: upload.id,
+        mux_asset_id: null,
+        mux_playback_id: null,
         mux_status: "uploading",
+        mux_error: null,
       })
       .eq("id", pitchId);
 
