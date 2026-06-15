@@ -101,6 +101,10 @@ export default function AdminPage() {
   const [competitionDate, setCompetitionDate] = useState(null);
   const [editingDate, setEditingDate] = useState(false);
   const [dateInput, setDateInput] = useState("");
+  const [competitionDescription, setCompetitionDescription] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionInput, setDescriptionInput] = useState("");
+  const [savingDescription, setSavingDescription] = useState(false);
 
   const [pitches, setPitches] = useState([]);
   const [expandedPitch, setExpandedPitch] = useState(null);
@@ -136,6 +140,8 @@ export default function AdminPage() {
     try {
       const data = await apiFetch("/api/admin/competition-date");
       setCompetitionDate(data.competition_date);
+      setCompetitionDescription(data.competition_description || "");
+      setDescriptionInput(data.competition_description || "");
       if (data.competition_date) {
         // Pre-fill the edit input with the current date in local datetime format
         const d = new Date(data.competition_date);
@@ -193,6 +199,23 @@ export default function AdminPage() {
       setEditingDate(false);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    setError("");
+    setSavingDescription(true);
+    try {
+      const data = await apiFetch("/api/admin/competition-date", {
+        method: "PUT",
+        body: JSON.stringify({ competition_description: descriptionInput }),
+      });
+      setCompetitionDescription(data.competition_description || "");
+      setEditingDescription(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingDescription(false);
     }
   };
 
@@ -294,6 +317,64 @@ export default function AdminPage() {
                 {competitionDate ? "Edit Date" : "Set Date"}
               </button>
             )}
+          </>
+        )}
+      </section>
+
+      {/* ── Competition Description ─────────────────────── */}
+      <section className="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Competition Description
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          This description is shown on the pitch submission landing page.
+        </p>
+
+        {editingDescription ? (
+          <div className="space-y-3">
+            <textarea
+              value={descriptionInput}
+              onChange={(e) => setDescriptionInput(e.target.value)}
+              rows={5}
+              placeholder="Describe the competition, rules, prizes, and what participants should expect..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-y"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleSaveDescription}
+                disabled={savingDescription}
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                {savingDescription ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditingDescription(false);
+                  setDescriptionInput(competitionDescription);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {competitionDescription ? (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap mb-4">
+                {competitionDescription}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 italic mb-4">
+                No description set yet.
+              </p>
+            )}
+            <button
+              onClick={() => setEditingDescription(true)}
+              className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              {competitionDescription ? "Edit Description" : "Set Description"}
+            </button>
           </>
         )}
       </section>
