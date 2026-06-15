@@ -130,14 +130,15 @@ export default function Home() {
               >
                 Competition starts in
               </p>
-              <div className="flex gap-3 sm:gap-5 justify-end">
+              {/* Numbers row */}
+              <div className="flex items-center justify-end gap-3 sm:gap-5">
                 {[
                   { label: "Days", value: timeLeft.days },
                   { label: "Hours", value: timeLeft.hours },
                   { label: "Min", value: timeLeft.minutes },
                   { label: "Sec", value: timeLeft.seconds },
                 ].map(({ label, value }, i) => (
-                  <div key={label} className="flex items-end gap-3 sm:gap-5">
+                  <div key={label} className="flex items-center gap-3 sm:gap-5">
                     <div className="text-center">
                       <div
                         className="font-mono font-bold leading-none"
@@ -157,12 +158,9 @@ export default function Home() {
                       </div>
                     </div>
                     {i < 3 && (
-                      <div
-                        className="font-mono font-bold leading-none flex flex-col items-center gap-3 sm:gap-4 pb-6 sm:pb-7"
-                        style={{ opacity: 0.6 }}
-                      >
-                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517" }} />
-                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517" }} />
+                      <div className="flex flex-col items-center gap-2 sm:gap-3 mb-5">
+                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517", opacity: 0.7 }} />
+                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517", opacity: 0.7 }} />
                       </div>
                     )}
                   </div>
