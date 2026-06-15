@@ -42,18 +42,19 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] flex items-center justify-end bg-cover bg-center p-6 lg:p-10"
-      style={{ backgroundImage: "url('/login-bg.png')" }}
+      className="relative min-h-[calc(100vh-4rem)] flex items-center bg-cover bg-center p-6 lg:p-8"
+      style={{ backgroundImage: "url('/login-bg.png')", justifyContent: "center", paddingRight: "8%" }}
     >
-      {/* ───── Dark glass card ───── */}
+      {/* ───── Frosted glass card ───── */}
       <div
-        className="relative z-10 w-full lg:w-[560px] flex items-center justify-center px-10 py-14"
+        className="relative z-10 w-full flex items-center justify-center px-10 py-14"
         style={{
-          background: "rgba(11, 26, 59, 0.75)",
-          backdropFilter: "blur(28px)",
-          WebkitBackdropFilter: "blur(28px)",
+          maxWidth: "670px",
+          background: "rgba(255, 255, 255, 0.08)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
           borderRadius: "2rem",
-          boxShadow: "0 8px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08) inset",
+          boxShadow: "0 8px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.1) inset",
         }}
       >
         <div className="w-full max-w-sm">
@@ -220,7 +221,7 @@ export default function LoginPage() {
               <div className="w-full" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="px-3 tracking-wider" style={{ color: "rgba(255,255,255,0.35)", background: "rgba(11, 26, 59, 0.75)" }}>New here?</span>
+              <span className="px-3 tracking-wider" style={{ color: "rgba(255,255,255,0.35)", background: "transparent" }}>New here?</span>
             </div>
           </div>
 
