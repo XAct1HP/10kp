@@ -49,7 +49,7 @@ export default function LoginPage() {
           className="absolute inset-0 bg-cover bg-center"
           style={{
             backgroundImage:
-              "url('https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=1200&q=80')",
+              "url('/login-bg.png')",
           }}
         />
         {/* Navy + maize overlay blend */}
@@ -121,12 +121,14 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Bottom corner accent */}
-        <div className="absolute bottom-0 left-0 w-full h-1.5 bg-gradient-to-r from-maize via-maize/70 to-maize/20" />
+
       </div>
 
       {/* ───── Right form panel ───── */}
-      <div className="flex flex-1 items-center justify-center px-6 py-12 bg-gray-50 lg:rounded-l-[2.5rem] relative z-10">
+      <div
+        className="flex flex-1 items-center justify-center px-6 py-12 bg-gray-50 relative z-10"
+        style={{ borderTopLeftRadius: "2.5rem", borderBottomLeftRadius: "2.5rem" }}
+      >
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex justify-center mb-8">
