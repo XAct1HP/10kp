@@ -42,49 +42,53 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] flex items-center justify-end bg-cover bg-center"
+      className="relative min-h-[calc(100vh-4rem)] flex items-center justify-end bg-cover bg-center p-6 lg:p-10"
       style={{ backgroundImage: "url('/login-bg.png')" }}
     >
-      {/* Subtle dark vignette for readability */}
-      <div className="absolute inset-0 bg-black/20" />
-
-      {/* ───── Glass card ───── */}
+      {/* ───── Dark glass card ───── */}
       <div
-        className="relative z-10 w-full lg:w-[480px] min-h-[calc(100vh-4rem)] flex items-center justify-center px-8 py-12 lg:mr-12"
+        className="relative z-10 w-full lg:w-[560px] flex items-center justify-center px-10 py-14"
         style={{
-          background: "rgba(255, 255, 255, 0.85)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          background: "rgba(11, 26, 59, 0.75)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
           borderRadius: "2rem",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.6) inset",
+          boxShadow: "0 8px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08) inset",
         }}
       >
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="flex justify-center mb-10">
             <Image
-              src="/10kp_logo_enhanced.png"
+              src="/10kp_tspnt.png"
               alt="10KP Logo"
-              width={180}
-              height={60}
-              className="w-auto h-14 drop-shadow-lg"
+              width={270}
+              height={90}
+              className="w-auto h-[5.25rem] drop-shadow-lg"
               priority
             />
           </div>
 
           {/* Header */}
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-navy tracking-tight">
+            <h1 className="text-3xl font-bold text-white tracking-tight">
               Welcome back
             </h1>
-            <p className="text-gray-500 mt-2 text-sm">
+            <p className="text-white/50 mt-2 text-sm">
               Sign in to your 10KP account
             </p>
           </div>
 
           {/* Error */}
           {error && (
-            <div className="mb-6 flex items-start gap-3 p-4 text-sm text-red-700 bg-red-50/80 border border-red-200 rounded-xl">
+            <div
+              className="mb-6 flex items-start gap-3 p-4 text-sm rounded-xl"
+              style={{
+                color: "#fca5a5",
+                background: "rgba(239, 68, 68, 0.12)",
+                border: "1px solid rgba(239, 68, 68, 0.25)",
+              }}
+            >
               <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -96,19 +100,19 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-navy mb-2">
+              <label htmlFor="email" className="block text-sm font-semibold text-white/80 mb-2">
                 Email
               </label>
               <div
                 className="relative rounded-xl transition-all duration-200"
                 style={{
-                  border: focusedField === "email" ? "2px solid #F2B517" : "2px solid rgba(0,0,0,0.08)",
-                  boxShadow: focusedField === "email" ? "0 0 0 3px rgba(242,181,23,0.15)" : "none",
-                  background: "rgba(255,255,255,0.7)",
+                  border: focusedField === "email" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
+                  boxShadow: focusedField === "email" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
+                  background: "rgba(255,255,255,0.07)",
                 }}
               >
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "email" ? "#F2B517" : "#9ca3af" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "email" ? "#F2B517" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
@@ -121,26 +125,26 @@ export default function LoginPage() {
                   onFocus={() => setFocusedField("email")}
                   onBlur={() => setFocusedField(null)}
                   required
-                  className="w-full pl-12 pr-4 py-3.5 bg-transparent rounded-xl text-sm text-navy placeholder-gray-400 focus:outline-none"
+                  className="w-full pl-12 pr-4 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Password field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-navy mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-white/80 mb-2">
                 Password
               </label>
               <div
                 className="relative rounded-xl transition-all duration-200"
                 style={{
-                  border: focusedField === "password" ? "2px solid #F2B517" : "2px solid rgba(0,0,0,0.08)",
-                  boxShadow: focusedField === "password" ? "0 0 0 3px rgba(242,181,23,0.15)" : "none",
-                  background: "rgba(255,255,255,0.7)",
+                  border: focusedField === "password" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
+                  boxShadow: focusedField === "password" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
+                  background: "rgba(255,255,255,0.07)",
                 }}
               >
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "password" ? "#F2B517" : "#9ca3af" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "password" ? "#F2B517" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
@@ -153,12 +157,15 @@ export default function LoginPage() {
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}
                   required
-                  className="w-full pl-12 pr-12 py-3.5 bg-transparent rounded-xl text-sm text-navy placeholder-gray-400 focus:outline-none"
+                  className="w-full pl-12 pr-12 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-navy transition-colors"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center transition-colors"
+                  style={{ color: "rgba(255,255,255,0.35)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "rgba(255,255,255,0.7)"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = "rgba(255,255,255,0.35)"}
                   tabIndex={-1}
                 >
                   {showPassword ? (
@@ -180,9 +187,10 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="relative w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden
-                bg-navy text-white hover:shadow-lg hover:shadow-navy/25 hover:-translate-y-0.5
+                text-black hover:shadow-lg hover:-translate-y-0.5
                 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none
                 active:translate-y-0 active:shadow-md group"
+              style={{ background: "#F2B517" }}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
                 {loading ? (
@@ -202,36 +210,36 @@ export default function LoginPage() {
                   </>
                 )}
               </span>
-              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             </button>
           </form>
 
           {/* Divider */}
           <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full" style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }} />
+              <div className="w-full" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="px-3 text-gray-400 tracking-wider" style={{ background: "rgba(255,255,255,0.85)" }}>New here?</span>
+              <span className="px-3 tracking-wider" style={{ color: "rgba(255,255,255,0.35)", background: "rgba(11, 26, 59, 0.75)" }}>New here?</span>
             </div>
           </div>
 
           {/* Sign up link */}
           <Link
             href="/signup"
-            className="flex items-center justify-center w-full py-3.5 text-sm font-semibold rounded-xl
-              text-navy transition-all duration-200 group"
+            className="flex items-center justify-center w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-200 group"
             style={{
-              border: "2px solid #F2B517",
-              background: "rgba(255,255,255,0.5)",
+              border: "2px solid rgba(255,255,255,0.15)",
+              color: "rgba(255,255,255,0.8)",
+              background: "transparent",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#F2B517";
-              e.currentTarget.style.color = "#000";
+              e.currentTarget.style.borderColor = "#F2B517";
+              e.currentTarget.style.color = "#F2B517";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.5)";
-              e.currentTarget.style.color = "";
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+              e.currentTarget.style.color = "rgba(255,255,255,0.8)";
             }}
           >
             Create an account
