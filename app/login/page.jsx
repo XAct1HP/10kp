@@ -42,22 +42,11 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] flex items-center bg-cover bg-center p-6 lg:p-8"
-      style={{ backgroundImage: "url('/login-bg.png')", justifyContent: "center", paddingRight: "8%" }}
+      className="relative min-h-[calc(100vh-4rem)] flex items-center justify-end bg-cover bg-center"
+      style={{ backgroundImage: "url('/login-bg.png')" }}
     >
-      {/* ───── Frosted glass card ───── */}
-      <div
-        className="relative z-10 w-full flex items-center justify-center px-10 py-14"
-        style={{
-          maxWidth: "670px",
-          background: "rgba(255, 255, 255, 0.08)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          borderRadius: "2rem",
-          boxShadow: "0 8px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.1) inset",
-        }}
-      >
-        <div className="w-full max-w-sm">
+      {/* ───── Form (no card) ───── */}
+      <div className="relative z-10 w-full max-w-md lg:mr-[8%] px-8 py-12">
           {/* Logo */}
           <div className="flex justify-center mb-10">
             <Image
@@ -109,7 +98,7 @@ export default function LoginPage() {
                 style={{
                   border: focusedField === "email" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
                   boxShadow: focusedField === "email" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
-                  background: "rgba(255,255,255,0.07)",
+                  background: "rgba(255,255,255,0.05)",
                 }}
               >
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -141,7 +130,7 @@ export default function LoginPage() {
                 style={{
                   border: focusedField === "password" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
                   boxShadow: focusedField === "password" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
-                  background: "rgba(255,255,255,0.07)",
+                  background: "rgba(255,255,255,0.05)",
                 }}
               >
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -248,7 +237,6 @@ export default function LoginPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
           </Link>
-        </div>
       </div>
     </div>
   );
