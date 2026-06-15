@@ -43,12 +43,24 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
       {/* ───── Left brand panel (desktop only) ───── */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-navy overflow-hidden items-center justify-center">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center">
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=1200&q=80')",
+          }}
+        />
+        {/* Navy + maize overlay blend */}
+        <div className="absolute inset-0 bg-navy/85" />
+        <div className="absolute inset-0 bg-gradient-to-br from-maize/20 via-transparent to-maize/10" />
+
         {/* Animated gradient orbs */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-maize/10 blur-3xl animate-pulse" />
+          <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-maize/15 blur-3xl animate-pulse" />
           <div
-            className="absolute bottom-12 right-12 w-72 h-72 rounded-full bg-maize/5 blur-2xl"
+            className="absolute bottom-12 right-12 w-72 h-72 rounded-full bg-maize/10 blur-2xl"
             style={{ animation: "pulse 4s ease-in-out infinite 1s" }}
           />
           <div
@@ -58,7 +70,7 @@ export default function LoginPage() {
         </div>
 
         {/* Diagonal decorative lines */}
-        <div className="absolute inset-0 opacity-[0.04]">
+        <div className="absolute inset-0 opacity-[0.06]">
           <div className="absolute top-0 left-0 w-full h-full"
             style={{
               backgroundImage:
@@ -110,11 +122,11 @@ export default function LoginPage() {
         </div>
 
         {/* Bottom corner accent */}
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-maize via-maize/50 to-transparent" />
+        <div className="absolute bottom-0 left-0 w-full h-1.5 bg-gradient-to-r from-maize via-maize/70 to-maize/20" />
       </div>
 
       {/* ───── Right form panel ───── */}
-      <div className="flex flex-1 items-center justify-center px-6 py-12 bg-gray-50">
+      <div className="flex flex-1 items-center justify-center px-6 py-12 bg-gray-50 lg:rounded-l-[2.5rem] relative z-10">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex justify-center mb-8">
