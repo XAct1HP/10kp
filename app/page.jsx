@@ -64,87 +64,11 @@ export default function Home() {
         }}
       />
 
-      {/* ── All content pinned to bottom ── */}
-      <div className="relative z-10 flex-1 flex flex-col justify-end items-end px-6 sm:px-10 lg:px-16 pb-10 sm:pb-14">
+      {/* ── Bottom row: text left, countdown right ── */}
+      <div className="relative z-10 flex-1 flex items-end px-6 sm:px-10 lg:px-16 pb-10 sm:pb-14">
 
-        {/* Countdown — big, dramatic */}
-        {competitionDate && timeLeft && !timeLeft.past && (
-          <div className="mb-10 sm:mb-12">
-            <p
-              className="text-xs sm:text-sm uppercase tracking-[0.25em] mb-5 font-semibold"
-              style={{ color: "#F2B517" }}
-            >
-              Competition starts in
-            </p>
-            <div className="flex gap-3 sm:gap-5">
-              {[
-                { label: "Days", value: timeLeft.days },
-                { label: "Hours", value: timeLeft.hours },
-                { label: "Min", value: timeLeft.minutes },
-                { label: "Sec", value: timeLeft.seconds },
-              ].map(({ label, value }, i) => (
-                <div key={label} className="flex items-end gap-3 sm:gap-5">
-                  <div className="text-center">
-                    <div
-                      className="font-mono font-bold leading-none"
-                      style={{
-                        fontSize: "clamp(3rem, 8vw, 6.5rem)",
-                        color: "#FFFFFF",
-                        textShadow: "0 0 40px rgba(242,181,23,0.15), 0 4px 20px rgba(0,0,0,0.4)",
-                      }}
-                    >
-                      {pad(value)}
-                    </div>
-                    <div
-                      className="text-[10px] sm:text-xs uppercase tracking-[0.2em] mt-2"
-                      style={{ color: "rgba(255,255,255,0.35)" }}
-                    >
-                      {label}
-                    </div>
-                  </div>
-                  {i < 3 && (
-                    <div
-                      className="font-mono font-light leading-none pb-5 sm:pb-6"
-                      style={{
-                        fontSize: "clamp(2rem, 5vw, 4rem)",
-                        color: "#F2B517",
-                        opacity: 0.6,
-                      }}
-                    >
-                      :
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {/* Accent line under countdown */}
-            <div className="mt-6 flex items-center gap-3">
-              <div style={{ width: "60px", height: "3px", background: "#F2B517", borderRadius: "2px" }} />
-              <div style={{ width: "20px", height: "3px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
-            </div>
-          </div>
-        )}
-
-        {competitionDate && timeLeft?.past && (
-          <div className="mb-10 sm:mb-12">
-            <div
-              className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl"
-              style={{
-                background: "rgba(242, 181, 23, 0.12)",
-                border: "1px solid rgba(242, 181, 23, 0.25)",
-                backdropFilter: "blur(12px)",
-              }}
-            >
-              <svg className="w-8 h-8" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-white font-bold text-lg tracking-wide">Competition day is here!</span>
-            </div>
-          </div>
-        )}
-
-        {/* Headline + CTAs */}
-        <div className="max-w-3xl text-right">
+        {/* Left — Headline + CTAs */}
+        <div className="max-w-2xl flex-shrink-0">
           <h1
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
@@ -153,11 +77,11 @@ export default function Home() {
             <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
           </h1>
 
-          <p className="text-white/50 text-base sm:text-lg max-w-lg mb-8 leading-relaxed ml-auto">
+          <p className="text-white/50 text-base sm:text-lg max-w-lg mb-8 leading-relaxed">
             Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
           </p>
 
-          <div className="flex flex-wrap gap-4 justify-end">
+          <div className="flex flex-wrap gap-4">
             <Link
               href="/intake"
               className="relative inline-flex items-center gap-2 px-8 py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
@@ -194,6 +118,82 @@ export default function Home() {
               </svg>
             </Link>
           </div>
+        </div>
+
+        {/* Right — Countdown */}
+        <div className="flex-1 flex justify-end items-end">
+          {competitionDate && timeLeft && !timeLeft.past && (
+            <div className="text-right">
+              <p
+                className="text-xs sm:text-sm uppercase tracking-[0.25em] mb-5 font-semibold"
+                style={{ color: "#F2B517" }}
+              >
+                Competition starts in
+              </p>
+              <div className="flex gap-3 sm:gap-5 justify-end">
+                {[
+                  { label: "Days", value: timeLeft.days },
+                  { label: "Hours", value: timeLeft.hours },
+                  { label: "Min", value: timeLeft.minutes },
+                  { label: "Sec", value: timeLeft.seconds },
+                ].map(({ label, value }, i) => (
+                  <div key={label} className="flex items-end gap-3 sm:gap-5">
+                    <div className="text-center">
+                      <div
+                        className="font-mono font-bold leading-none"
+                        style={{
+                          fontSize: "clamp(3rem, 8vw, 6.5rem)",
+                          color: "#FFFFFF",
+                          textShadow: "0 0 40px rgba(242,181,23,0.15), 0 4px 20px rgba(0,0,0,0.4)",
+                        }}
+                      >
+                        {pad(value)}
+                      </div>
+                      <div
+                        className="text-[10px] sm:text-xs uppercase tracking-[0.2em] mt-2"
+                        style={{ color: "rgba(255,255,255,0.35)" }}
+                      >
+                        {label}
+                      </div>
+                    </div>
+                    {i < 3 && (
+                      <div
+                        className="font-mono font-light leading-none pb-5 sm:pb-6"
+                        style={{
+                          fontSize: "clamp(2rem, 5vw, 4rem)",
+                          color: "#F2B517",
+                          opacity: 0.6,
+                        }}
+                      >
+                        :
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* Accent line */}
+              <div className="mt-6 flex items-center gap-3 justify-end">
+                <div style={{ width: "20px", height: "3px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
+                <div style={{ width: "60px", height: "3px", background: "#F2B517", borderRadius: "2px" }} />
+              </div>
+            </div>
+          )}
+
+          {competitionDate && timeLeft?.past && (
+            <div
+              className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl"
+              style={{
+                background: "rgba(242, 181, 23, 0.12)",
+                border: "1px solid rgba(242, 181, 23, 0.25)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <svg className="w-8 h-8" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-white font-bold text-lg tracking-wide">Competition day is here!</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
