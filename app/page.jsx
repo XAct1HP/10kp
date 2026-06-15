@@ -55,36 +55,105 @@ export default function Home() {
       className="relative min-h-[calc(100vh-4rem)] flex flex-col bg-cover bg-center"
       style={{ backgroundImage: "url('/10kp_hero_image.png')" }}
     >
-      {/* Dark gradient overlay — heavier at bottom for countdown readability */}
+      {/* Gradient overlay */}
       <div
         className="absolute inset-0"
         style={{
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.25) 40%, rgba(11,26,59,0.7) 100%)",
+          background:
+            "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.15) 30%, rgba(11,26,59,0.75) 85%, rgba(11,26,59,0.92) 100%)",
         }}
       />
 
-      {/* ── Main content area ── */}
-      <div className="relative z-10 flex-1 flex flex-col justify-between px-6 sm:px-10 lg:px-16 py-12">
-        {/* Top section — headline + CTA */}
-        <div className="flex flex-col items-start justify-center flex-1 max-w-2xl">
-          <div className="mb-6">
-            <Image
-              src="/10kp_tspnt.png"
-              alt="10KP Logo"
-              width={200}
-              height={67}
-              className="w-auto h-16 drop-shadow-xl mb-8"
-              priority
-            />
-          </div>
+      {/* ── All content pinned to bottom ── */}
+      <div className="relative z-10 flex-1 flex flex-col justify-end px-6 sm:px-10 lg:px-16 pb-10 sm:pb-14">
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white tracking-tight leading-[1.1] mb-4">
-            Embracing
-            <br />
+        {/* Countdown — big, dramatic */}
+        {competitionDate && timeLeft && !timeLeft.past && (
+          <div className="mb-10 sm:mb-12">
+            <p
+              className="text-xs sm:text-sm uppercase tracking-[0.25em] mb-5 font-semibold"
+              style={{ color: "#F2B517" }}
+            >
+              Competition starts in
+            </p>
+            <div className="flex gap-3 sm:gap-5">
+              {[
+                { label: "Days", value: timeLeft.days },
+                { label: "Hours", value: timeLeft.hours },
+                { label: "Min", value: timeLeft.minutes },
+                { label: "Sec", value: timeLeft.seconds },
+              ].map(({ label, value }, i) => (
+                <div key={label} className="flex items-end gap-3 sm:gap-5">
+                  <div className="text-center">
+                    <div
+                      className="font-mono font-bold leading-none"
+                      style={{
+                        fontSize: "clamp(3rem, 8vw, 6.5rem)",
+                        color: "#FFFFFF",
+                        textShadow: "0 0 40px rgba(242,181,23,0.15), 0 4px 20px rgba(0,0,0,0.4)",
+                      }}
+                    >
+                      {pad(value)}
+                    </div>
+                    <div
+                      className="text-[10px] sm:text-xs uppercase tracking-[0.2em] mt-2"
+                      style={{ color: "rgba(255,255,255,0.35)" }}
+                    >
+                      {label}
+                    </div>
+                  </div>
+                  {i < 3 && (
+                    <div
+                      className="font-mono font-light leading-none pb-5 sm:pb-6"
+                      style={{
+                        fontSize: "clamp(2rem, 5vw, 4rem)",
+                        color: "#F2B517",
+                        opacity: 0.6,
+                      }}
+                    >
+                      :
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Accent line under countdown */}
+            <div className="mt-6 flex items-center gap-3">
+              <div style={{ width: "60px", height: "3px", background: "#F2B517", borderRadius: "2px" }} />
+              <div style={{ width: "20px", height: "3px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
+            </div>
+          </div>
+        )}
+
+        {competitionDate && timeLeft?.past && (
+          <div className="mb-10 sm:mb-12">
+            <div
+              className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl"
+              style={{
+                background: "rgba(242, 181, 23, 0.12)",
+                border: "1px solid rgba(242, 181, 23, 0.25)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <svg className="w-8 h-8" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span className="text-white font-bold text-lg tracking-wide">Competition day is here!</span>
+            </div>
+          </div>
+        )}
+
+        {/* Headline + CTAs */}
+        <div className="max-w-3xl">
+          <h1
+            className="font-bold text-white tracking-tight leading-[1.05] mb-4"
+            style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
+          >
+            Embracing{" "}
             <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
           </h1>
 
-          <p className="text-white/60 text-lg sm:text-xl max-w-lg mb-10 leading-relaxed">
+          <p className="text-white/50 text-base sm:text-lg max-w-lg mb-8 leading-relaxed">
             Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
           </p>
 
@@ -125,59 +194,6 @@ export default function Home() {
               </svg>
             </Link>
           </div>
-        </div>
-
-        {/* ── Bottom left — Countdown ── */}
-        <div className="mt-12">
-          {competitionDate && timeLeft && !timeLeft.past ? (
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-widest mb-4 font-semibold">
-                Competition starts in
-              </p>
-              <div className="flex gap-3 sm:gap-4">
-                {[
-                  { label: "Days", value: timeLeft.days },
-                  { label: "Hours", value: timeLeft.hours },
-                  { label: "Min", value: timeLeft.minutes },
-                  { label: "Sec", value: timeLeft.seconds },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="text-center"
-                    style={{
-                      background: "rgba(11, 26, 59, 0.6)",
-                      backdropFilter: "blur(12px)",
-                      WebkitBackdropFilter: "blur(12px)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: "1rem",
-                      padding: "1rem 1.25rem",
-                      minWidth: "80px",
-                    }}
-                  >
-                    <div className="text-3xl sm:text-4xl font-bold font-mono text-white">
-                      {pad(value)}
-                    </div>
-                    <div className="text-xs text-white/40 mt-1 uppercase tracking-wider">
-                      {label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : competitionDate && timeLeft?.past ? (
-            <div
-              className="inline-flex items-center gap-3 px-6 py-4 rounded-xl"
-              style={{
-                background: "rgba(242, 181, 23, 0.15)",
-                border: "1px solid rgba(242, 181, 23, 0.3)",
-              }}
-            >
-              <svg className="w-6 h-6" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-white font-semibold text-sm">Competition day is here!</span>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
