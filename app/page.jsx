@@ -65,7 +65,7 @@ export default function Home() {
       />
 
       {/* ── All content pinned to bottom ── */}
-      <div className="relative z-10 flex-1 flex flex-col justify-end px-6 sm:px-10 lg:px-16 pb-10 sm:pb-14">
+      <div className="relative z-10 flex-1 flex flex-col justify-end items-end px-6 sm:px-10 lg:px-16 pb-10 sm:pb-14">
 
         {/* Countdown — big, dramatic */}
         {competitionDate && timeLeft && !timeLeft.past && (
@@ -144,7 +144,7 @@ export default function Home() {
         )}
 
         {/* Headline + CTAs */}
-        <div className="max-w-3xl">
+        <div className="max-w-3xl text-right">
           <h1
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
@@ -153,11 +153,11 @@ export default function Home() {
             <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
           </h1>
 
-          <p className="text-white/50 text-base sm:text-lg max-w-lg mb-8 leading-relaxed">
+          <p className="text-white/50 text-base sm:text-lg max-w-lg mb-8 leading-relaxed ml-auto">
             Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
           </p>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-4 justify-end">
             <Link
               href="/intake"
               className="relative inline-flex items-center gap-2 px-8 py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
