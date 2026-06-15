@@ -642,9 +642,11 @@ export default function IntakePage() {
         {FLOOR_IMAGES.map((src, i) => (
           <div
             key={src}
-            className="absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-in-out"
+            className="absolute inset-0 bg-cover transition-opacity duration-700 ease-in-out"
+            /* bg-position shifted to show top of elevator panel */
             style={{
               backgroundImage: `url('${src}')`,
+              backgroundPosition: "center 15%",
               opacity: bgIndex === i ? 1 : 0,
               zIndex: 0,
             }}
