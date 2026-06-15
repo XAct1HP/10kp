@@ -158,14 +158,11 @@ export default function Home() {
                     </div>
                     {i < 3 && (
                       <div
-                        className="font-mono font-light leading-none pb-5 sm:pb-6"
-                        style={{
-                          fontSize: "clamp(2rem, 5vw, 4rem)",
-                          color: "#F2B517",
-                          opacity: 0.6,
-                        }}
+                        className="font-mono font-bold leading-none flex flex-col items-center gap-3 sm:gap-4 pb-6 sm:pb-7"
+                        style={{ opacity: 0.6 }}
                       >
-                        :
+                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517" }} />
+                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517" }} />
                       </div>
                     )}
                   </div>
