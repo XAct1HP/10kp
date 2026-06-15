@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "../lib/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -25,17 +26,24 @@ export default function Navbar() {
   const closeMenu = () => setMenuOpen(false);
 
   return (
-    <nav className="w-full bg-white border-b border-gray-200">
+    <nav className="w-full bg-navy">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo / Home */}
           <div className="flex-shrink-0">
             <Link
               href="/"
-              className="text-xl font-bold text-gray-900 hover:text-gray-700 transition-colors"
+              className="flex items-center"
               onClick={closeMenu}
             >
-              10KP
+              <Image
+                src="/10kp_logo_enhanced.png"
+                alt="10KP Logo"
+                width={120}
+                height={40}
+                className="h-10 w-auto"
+                priority
+              />
             </Link>
           </div>
 
@@ -43,7 +51,7 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-4">
             <Link
               href="/gallery"
-              className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+              className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
             >
               Gallery
             </Link>
@@ -53,21 +61,21 @@ export default function Navbar() {
                 {isAdmin && (
                   <Link
                     href="/admin"
-                    className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                    className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
                   >
                     Admin
                   </Link>
                 )}
                 <Link
                   href="/intake"
-                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
                 >
                   Submit Pitch
                 </Link>
-                <span className="text-sm text-gray-500 truncate max-w-[180px]">{user.email}</span>
+                <span className="text-sm text-gray-300 truncate max-w-[180px]">{user.email}</span>
                 <button
                   onClick={handleSignOut}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
                 >
                   Sign Out
                 </button>
@@ -76,13 +84,13 @@ export default function Navbar() {
               <>
                 <Link
                   href="/signup"
-                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-black bg-maize rounded-md hover:bg-yellow-400 transition-colors"
                 >
                   Sign Up
                 </Link>
                 <Link
                   href="/login"
-                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-black bg-maize rounded-md hover:bg-yellow-400 transition-colors"
                 >
                   Log In
                 </Link>
@@ -94,7 +102,7 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-white hover:text-gray-300 hover:bg-white/10 transition-colors"
             aria-expanded={menuOpen}
             aria-label="Toggle navigation menu"
           >
@@ -113,12 +121,12 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden border-t border-gray-200 bg-white">
+        <div className="md:hidden border-t border-white/20 bg-navy">
           <div className="px-4 py-3 space-y-1">
             <Link
               href="/gallery"
               onClick={closeMenu}
-              className="block px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+              className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
             >
               Gallery
             </Link>
@@ -129,7 +137,7 @@ export default function Navbar() {
                   <Link
                     href="/admin"
                     onClick={closeMenu}
-                    className="block px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+                    className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
                   >
                     Admin
                   </Link>
@@ -137,14 +145,14 @@ export default function Navbar() {
                 <Link
                   href="/intake"
                   onClick={closeMenu}
-                  className="block px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+                  className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
                 >
                   Submit Pitch
                 </Link>
-                <div className="px-3 py-2 text-sm text-gray-500 truncate">{user.email}</div>
+                <div className="px-3 py-2 text-sm text-gray-300 truncate">{user.email}</div>
                 <button
                   onClick={handleSignOut}
-                  className="block w-full text-left px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+                  className="block w-full text-left px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
                 >
                   Sign Out
                 </button>
@@ -154,14 +162,14 @@ export default function Navbar() {
                 <Link
                   href="/signup"
                   onClick={closeMenu}
-                  className="block px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+                  className="block px-3 py-2 text-sm font-medium text-black bg-maize hover:bg-yellow-400 rounded-md transition-colors text-center"
                 >
                   Sign Up
                 </Link>
                 <Link
                   href="/login"
                   onClick={closeMenu}
-                  className="block px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 transition-colors text-center"
+                  className="block px-3 py-2 text-sm font-medium text-black bg-maize hover:bg-yellow-400 rounded-md transition-colors text-center"
                 >
                   Log In
                 </Link>
