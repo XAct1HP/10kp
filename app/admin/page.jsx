@@ -5,6 +5,7 @@ import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import MuxPlayer from "@mux/mux-player-react";
+import CountdownTimer from "../../components/CountdownTimer";
 
 // Helper to get the current user's access token for API calls
 async function getToken() {
@@ -29,70 +30,6 @@ async function apiFetch(url, options = {}) {
   return data;
 }
 
-// ── Countdown Timer ────────────────────────────────────────────────
-function CountdownTimer({ targetDate }) {
-  const [timeLeft, setTimeLeft] = useState(null);
-
-  useEffect(() => {
-    if (!targetDate) return;
-
-    const tick = () => {
-      const diff = new Date(targetDate).getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, past: true });
-        return;
-      }
-      setTimeLeft({
-        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((diff / (1000 * 60)) % 60),
-        seconds: Math.floor((diff / 1000) % 60),
-        past: false,
-      });
-    };
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [targetDate]);
-
-  if (!targetDate) {
-    return (
-      <p className="text-gray-500 text-lg">
-        No competition date set yet.
-      </p>
-    );
-  }
-
-  if (!timeLeft) return null;
-
-  const pad = (n) => String(n).padStart(2, "0");
-
-  if (timeLeft.past) {
-    return (
-      <p className="text-red-600 text-lg font-semibold">
-        Competition date has passed!
-      </p>
-    );
-  }
-
-  return (
-    <div className="flex gap-2 sm:gap-4 text-center flex-wrap">
-      {[
-        { label: "Days", value: timeLeft.days },
-        { label: "Hours", value: timeLeft.hours },
-        { label: "Minutes", value: timeLeft.minutes },
-        { label: "Seconds", value: timeLeft.seconds },
-      ].map(({ label, value }) => (
-        <div key={label} className="bg-gray-900 text-white rounded-lg px-3 sm:px-4 py-2 sm:py-3 min-w-[60px] sm:min-w-[72px]">
-          <div className="text-xl sm:text-2xl font-mono font-bold">{pad(value)}</div>
-          <div className="text-xs text-gray-400 mt-1">{label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Main Admin Page ────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
@@ -101,13 +38,10 @@ export default function AdminPage() {
   const [competitionDate, setCompetitionDate] = useState(null);
   const [editingDate, setEditingDate] = useState(false);
   const [dateInput, setDateInput] = useState("");
-  const [competitionDescription, setCompetitionDescription] = useState("");
-  const [editingDescription, setEditingDescription] = useState(false);
-  const [descriptionInput, setDescriptionInput] = useState("");
-  const [savingDescription, setSavingDescription] = useState(false);
 
   const [pitches, setPitches] = useState([]);
   const [expandedPitch, setExpandedPitch] = useState(null);
+  const [votes, setVotes] = useState([]);
 
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState("");
@@ -116,6 +50,7 @@ export default function AdminPage() {
     date: true,
     pitches: true,
     tags: true,
+    votes: true,
   });
   const [error, setError] = useState("");
 
@@ -140,8 +75,6 @@ export default function AdminPage() {
     try {
       const data = await apiFetch("/api/admin/competition-date");
       setCompetitionDate(data.competition_date);
-      setCompetitionDescription(data.competition_description || "");
-      setDescriptionInput(data.competition_description || "");
       if (data.competition_date) {
         // Pre-fill the edit input with the current date in local datetime format
         const d = new Date(data.competition_date);
@@ -176,13 +109,25 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchVotes = useCallback(async () => {
+    try {
+      const data = await apiFetch("/api/admin/votes");
+      setVotes(data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingState((s) => ({ ...s, votes: false }));
+    }
+  }, []);
+
   useEffect(() => {
     if (user && isAdmin) {
       fetchDate();
       fetchPitches();
       fetchTags();
+      fetchVotes();
     }
-  }, [user, isAdmin, fetchDate, fetchPitches, fetchTags]);
+  }, [user, isAdmin, fetchDate, fetchPitches, fetchTags, fetchVotes]);
 
   // Handlers
   const handleSaveDate = async () => {
@@ -199,23 +144,6 @@ export default function AdminPage() {
       setEditingDate(false);
     } catch (err) {
       setError(err.message);
-    }
-  };
-
-  const handleSaveDescription = async () => {
-    setError("");
-    setSavingDescription(true);
-    try {
-      const data = await apiFetch("/api/admin/competition-date", {
-        method: "PUT",
-        body: JSON.stringify({ competition_description: descriptionInput }),
-      });
-      setCompetitionDescription(data.competition_description || "");
-      setEditingDescription(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSavingDescription(false);
     }
   };
 
@@ -321,64 +249,6 @@ export default function AdminPage() {
         )}
       </section>
 
-      {/* ── Competition Description ─────────────────────── */}
-      <section className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Competition Description
-        </h2>
-        <p className="text-sm text-gray-500 mb-4">
-          This description is shown on the pitch submission landing page.
-        </p>
-
-        {editingDescription ? (
-          <div className="space-y-3">
-            <textarea
-              value={descriptionInput}
-              onChange={(e) => setDescriptionInput(e.target.value)}
-              rows={5}
-              placeholder="Describe the competition, rules, prizes, and what participants should expect..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-y"
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={handleSaveDescription}
-                disabled={savingDescription}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50"
-              >
-                {savingDescription ? "Saving..." : "Save"}
-              </button>
-              <button
-                onClick={() => {
-                  setEditingDescription(false);
-                  setDescriptionInput(competitionDescription);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {competitionDescription ? (
-              <p className="text-sm text-gray-700 whitespace-pre-wrap mb-4">
-                {competitionDescription}
-              </p>
-            ) : (
-              <p className="text-sm text-gray-400 italic mb-4">
-                No description set yet.
-              </p>
-            )}
-            <button
-              onClick={() => setEditingDescription(true)}
-              className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-            >
-              {competitionDescription ? "Edit Description" : "Set Description"}
-            </button>
-          </>
-        )}
-      </section>
-
       {/* ── All Pitches ───────────────────────────────────── */}
       <section className="bg-white border border-gray-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -405,6 +275,7 @@ export default function AdminPage() {
                   <th className="py-3 pr-4">Title</th>
                   <th className="py-3 pr-4">Tags</th>
                   <th className="py-3 pr-4">File</th>
+                  <th className="py-3 pr-4">Votes</th>
                   <th className="py-3">Submitted</th>
                 </tr>
               </thead>
@@ -446,6 +317,9 @@ export default function AdminPage() {
                       ) : (
                         pitch.file_name || "—"
                       )}
+                    </td>
+                    <td className="py-3 text-gray-500">
+                      {pitch.vote_count || 0}
                     </td>
                     <td className="py-3 text-gray-500">
                       {new Date(pitch.created_at).toLocaleDateString()}
@@ -501,6 +375,9 @@ export default function AdminPage() {
                     pitch.file_name || "—"
                   )}
                 </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Votes: {pitch.vote_count || 0}
+                </p>
               </div>
             ))}
           </div>
@@ -545,6 +422,40 @@ export default function AdminPage() {
                         )}
                       </>
                     )}
+
+                    <div className="mt-6">
+                      <p className="text-sm text-gray-500 mb-2 font-medium">
+                        Votes ({pitch.vote_count || 0})
+                      </p>
+                      {pitch.votes?.length > 0 ? (
+                        <div className="max-h-52 overflow-auto rounded-md border border-gray-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+                              <tr>
+                                <th className="text-left px-3 py-2">Voter</th>
+                                <th className="text-left px-3 py-2">Time</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {pitch.votes.map((vote, idx) => (
+                                <tr key={`${vote.user_id}-${vote.created_at}-${idx}`}>
+                                  <td className="px-3 py-2 text-gray-700">
+                                    {vote.voter_name
+                                      ? `${vote.voter_name} (${vote.voter_email || "No email"})`
+                                      : vote.voter_email || vote.user_id || "Unknown"}
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-500">
+                                    {new Date(vote.created_at).toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No votes recorded yet.</p>
+                      )}
+                    </div>
                   </>
                 );
               })()}
@@ -604,6 +515,57 @@ export default function AdminPage() {
               </button>
             </form>
           </>
+        )}
+      </section>
+
+      {/* ── Votes Audit ───────────────────────────────────── */}
+      <section className="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Votes Audit Trail{" "}
+          {!loadingState.votes && (
+            <span className="text-sm font-normal text-gray-500">
+              ({votes.length})
+            </span>
+          )}
+        </h2>
+
+        {loadingState.votes ? (
+          <p className="text-gray-500">Loading...</p>
+        ) : votes.length === 0 ? (
+          <p className="text-gray-500">No votes recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-500 uppercase border-b border-gray-200">
+                <tr>
+                  <th className="py-3 pr-4">Voter</th>
+                  <th className="py-3 pr-4">Pitch</th>
+                  <th className="py-3 pr-4">Submitter</th>
+                  <th className="py-3">Voted At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {votes.map((vote) => (
+                  <tr key={vote.id}>
+                    <td className="py-3 pr-4 text-gray-700">
+                      {vote.voter_name
+                        ? `${vote.voter_name} (${vote.voter_email || "No email"})`
+                        : vote.voter_email || vote.user_id || "Unknown"}
+                    </td>
+                    <td className="py-3 pr-4 text-gray-900 font-medium">
+                      {vote.pitch_title}
+                    </td>
+                    <td className="py-3 pr-4 text-gray-600">
+                      {vote.pitch_submitter}
+                    </td>
+                    <td className="py-3 text-gray-500">
+                      {new Date(vote.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

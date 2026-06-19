@@ -28,6 +28,12 @@ export async function GET(request) {
         created_at,
         pitch_tags (
           tags ( id, name )
+        ),
+        pitch_votes (
+          user_id,
+          voter_name,
+          voter_email,
+          created_at
         )
       `)
       .order("created_at", { ascending: false });
@@ -40,7 +46,10 @@ export async function GET(request) {
     const pitches = data.map((pitch) => ({
       ...pitch,
       tags: pitch.pitch_tags?.map((pt) => pt.tags).filter(Boolean) || [],
+      votes: pitch.pitch_votes || [],
+      vote_count: pitch.pitch_votes?.length || 0,
       pitch_tags: undefined,
+      pitch_votes: undefined,
     }));
 
     return NextResponse.json(pitches);

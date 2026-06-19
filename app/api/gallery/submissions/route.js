@@ -4,6 +4,10 @@ import { getSupabaseAdmin } from "../../../../lib/supabase";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
 // Public gallery feed of all submissions.
 export async function GET(request) {
   try {
@@ -49,9 +53,65 @@ export async function GET(request) {
       pitch_tags: undefined,
     }));
 
+    const pitchIds = submissions.map((pitch) => pitch.id);
+    const voteCountsByPitch = {};
+
+    if (pitchIds.length > 0) {
+      const { data: voteRows } = await supabaseAdmin
+        .from("pitch_votes")
+        .select("pitch_id")
+        .in("pitch_id", pitchIds);
+
+      (voteRows || []).forEach((row) => {
+        voteCountsByPitch[row.pitch_id] = (voteCountsByPitch[row.pitch_id] || 0) + 1;
+      });
+    }
+
+    const voterEmail = normalizeEmail(searchParams.get("voterEmail"));
+    const voterKey = voterEmail || null;
+
+    let userVotedPitchIds = new Set();
+    let userVoteCount = 0;
+
+    if (voterKey && pitchIds.length > 0) {
+      const { data: userVotes } = await supabaseAdmin
+        .from("pitch_votes")
+        .select("pitch_id")
+        .eq("voter_key", voterKey)
+        .in("pitch_id", pitchIds);
+
+      userVotedPitchIds = new Set((userVotes || []).map((row) => row.pitch_id));
+
+      const { count: voteCount } = await supabaseAdmin
+        .from("pitch_votes")
+        .select("id", { count: "exact", head: true })
+        .eq("voter_key", voterKey);
+      userVoteCount = voteCount || 0;
+    }
+
+    const { data: settings } = await supabaseAdmin
+      .from("competition_settings")
+      .select("max_votes_per_user")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const maxVotesPerUser = settings?.max_votes_per_user || 5;
+
+    const submissionsWithVotes = submissions.map((pitch) => ({
+      ...pitch,
+      vote_count: voteCountsByPitch[pitch.id] || 0,
+      user_has_voted: userVotedPitchIds.has(pitch.id),
+    }));
+
     return NextResponse.json(
       {
-        submissions,
+        submissions: submissionsWithVotes,
+        voting: {
+          maxVotesPerUser,
+          userVoteCount,
+          remainingVotes: Math.max(maxVotesPerUser - userVoteCount, 0),
+        },
         pagination: {
           page,
           pageSize,
