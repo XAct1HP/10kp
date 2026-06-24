@@ -164,7 +164,7 @@ export default function AdminPage() {
   // ── Handlers ──
   const handleSaveDate = async () => {
     setError(""); if (!dateInput) return;
-    try { const d = await apiFetch("/api/admin/competition-date", { method: "PUT", body: JSON.stringify({ competition_date: new Date(dateInput).toISOString() }) }); setCompetitionDate(d.competition_date); setEditingDate(false); setSuccess("Competition date updated."); } catch (e) { setError(e.message); }
+    try { const d = await apiFetch("/api/admin/competition-date", { method: "POST", body: JSON.stringify({ competition_date: new Date(dateInput).toISOString() }) }); setCompetitionDate(d.competition_date); setEditingDate(false); setSuccess("Competition date updated."); } catch (e) { setError(e.message); }
   };
   const handleCreateTag = async (e) => {
     e.preventDefault(); setError(""); if (!newTagName.trim()) return;

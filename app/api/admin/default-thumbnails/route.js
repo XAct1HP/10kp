@@ -31,8 +31,8 @@ export async function GET(request) {
   }
 }
 
-// PUT — update default thumbnails
-export async function PUT(request) {
+// POST — update default thumbnails
+export async function POST(request) {
   const auth = await verifyAdmin(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

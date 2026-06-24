@@ -25,8 +25,8 @@ export async function GET() {
   }
 }
 
-// PUT — set/update the competition date and/or description (admin only)
-export async function PUT(request) {
+// POST — set/update the competition date and/or description (admin only)
+export async function POST(request) {
   const auth = await verifyAdmin(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
