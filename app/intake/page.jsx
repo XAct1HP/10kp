@@ -28,8 +28,18 @@ const ACCEPTED_FILE_TYPES = [
   "audio/aac",
   "audio/webm",
 ];
+
+const TEXT_FILE_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "text/plain",
+];
 const VIDEO_FILE_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
+const AUDIO_FILE_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/aac", "audio/webm"];
+const IMAGE_FILE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 
 const ROLE_OPTIONS = [
   "Current student",
@@ -95,6 +105,14 @@ export default function IntakePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedVideoUpload, setSubmittedVideoUpload] = useState(false);
+
+  // New: text pitch mode
+  const [pitchMode, setPitchMode] = useState("file"); // "file" or "text"
+  const [textContent, setTextContent] = useState("");
+
+  // New: optional thumbnail upload
+  const [thumbnail, setThumbnail] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState(null);
 
   const [floor, setFloor] = useState(0);
   const [bgIndex, setBgIndex] = useState(0);
@@ -168,7 +186,8 @@ export default function IntakePage() {
         if (!description.trim()) return "Please enter a description.";
         return null;
       case 5:
-        if (!file) return "Please upload a pitch file.";
+        if (pitchMode === "file" && !file) return "Please upload a pitch file.";
+        if (pitchMode === "text" && !textContent.trim() && !file) return "Please enter your pitch text or upload a text file.";
         return null;
       default:
         return null;
@@ -204,10 +223,48 @@ export default function IntakePage() {
     setFile(selected);
   };
 
+  const handleThumbnailChange = (e) => {
+    const selected = e.target.files[0];
+    if (!selected) return;
+    if (selected.size > MAX_THUMBNAIL_SIZE) {
+      setError("Thumbnail must be under 5MB.");
+      return;
+    }
+    if (!IMAGE_FILE_TYPES.includes(selected.type)) {
+      setError("Thumbnail must be an image file (PNG, JPG, GIF, or WebP).");
+      return;
+    }
+    setError("");
+    setThumbnail(selected);
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (ev) => setThumbnailPreview(ev.target.result);
+    reader.readAsDataURL(selected);
+  };
+
+  const removeThumbnail = () => {
+    setThumbnail(null);
+    setThumbnailPreview(null);
+  };
+
+  // Determine actual file type category
+  const getFileCategory = () => {
+    if (!file) {
+      if (pitchMode === "text") return "text";
+      return null;
+    }
+    if (VIDEO_FILE_TYPES.includes(file.type)) return "video";
+    if (AUDIO_FILE_TYPES.includes(file.type)) return "audio";
+    if (TEXT_FILE_TYPES.includes(file.type)) return "text";
+    if (IMAGE_FILE_TYPES.includes(file.type)) return "image";
+    return "file";
+  };
+
   const handleSubmit = async () => {
     setError("");
     setSubmitting(true);
-    const isVideoUpload = VIDEO_FILE_TYPES.includes(file.type);
+    const isVideoUpload = file && VIDEO_FILE_TYPES.includes(file.type);
+    const isTextOnly = pitchMode === "text" && !file;
     let createdPitchId = null;
 
     try {
@@ -221,7 +278,8 @@ export default function IntakePage() {
           title: pitchTitle.trim(),
           description: description.trim(),
           file_type: isVideoUpload ? "video" : "file",
-          file_name: file.name,
+          file_name: file ? file.name : (isTextOnly ? "Text Submission" : null),
+          text_content: pitchMode === "text" ? textContent.trim() || null : null,
           mux_status: isVideoUpload ? "pending" : null,
           mux_error: null,
         })
@@ -238,6 +296,23 @@ export default function IntakePage() {
         }));
         const { error: tagError } = await supabase.from("pitch_tags").insert(tagRows);
         if (tagError) throw tagError;
+      }
+
+      // Upload thumbnail if provided
+      if (thumbnail) {
+        const thumbPath = `${user.id}/${pitch.id}/thumbnail_${thumbnail.name}`;
+        const { error: thumbUploadError } = await supabase.storage
+          .from("thumbnails")
+          .upload(thumbPath, thumbnail);
+        if (!thumbUploadError) {
+          const { data: thumbUrl } = supabase.storage
+            .from("thumbnails")
+            .getPublicUrl(thumbPath);
+          await supabase
+            .from("pitches")
+            .update({ thumbnail_path: thumbUrl.publicUrl })
+            .eq("id", pitch.id);
+        }
       }
 
       if (isVideoUpload) {
@@ -260,18 +335,20 @@ export default function IntakePage() {
         if (!putRes.ok) throw new Error("Video upload failed. Please try again.");
 
         await supabase.from("pitches").update({ mux_status: "processing", mux_error: null }).eq("id", pitch.id);
-      } else {
+      } else if (file) {
+        // Non-video file upload
         const filePath = `${user.id}/${pitch.id}/${file.name}`;
         const { error: uploadError } = await supabase.storage.from("pitch-files").upload(filePath, file);
         if (uploadError) throw uploadError;
         const { error: updateError } = await supabase.from("pitches").update({ file_path: filePath, file_name: file.name }).eq("id", pitch.id);
         if (updateError) throw updateError;
       }
+      // If text-only, no file to upload — pitch is already created with text_content
 
       setSubmittedVideoUpload(isVideoUpload);
       setSubmitted(true);
     } catch (err) {
-      if (createdPitchId && VIDEO_FILE_TYPES.includes(file?.type)) {
+      if (createdPitchId && file && VIDEO_FILE_TYPES.includes(file?.type)) {
         await supabase.from("pitches").update({ mux_status: "errored", mux_error: err.message || "Video upload failed." }).eq("id", createdPitchId);
       }
       setError(err.message || "Something went wrong. Please try again.");
@@ -506,73 +583,223 @@ export default function IntakePage() {
 
   const renderPitchFile = () => (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-1">Floor 5 — Pitch File</h2>
-      <p className="text-white/50 text-sm mb-6">Upload your pitch materials.</p>
-      <p className="text-white/40 text-xs mb-4">
-        PDF, document, video, audio, or image (max 50MB).
-      </p>
-      <label
-        htmlFor="file-upload"
-        className="flex flex-col items-center justify-center w-full py-10 rounded-xl cursor-pointer transition-all duration-200 group"
-        style={{
-          border: "2px dashed rgba(255,255,255,0.15)",
-          background: file ? "rgba(242,181,23,0.05)" : "rgba(255,255,255,0.03)",
-        }}
-      >
-        {file ? (
-          <>
-            <svg className="w-10 h-10 mb-3" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm text-white/80 font-medium">{file.name}</span>
-            <span className="text-xs text-white/40 mt-1">{(file.size / 1024 / 1024).toFixed(1)} MB — Click to change</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-10 h-10 mb-3 text-white/30 group-hover:text-white/50 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <span className="text-sm text-white/50 group-hover:text-white/70 transition-colors">Click to upload a file</span>
-          </>
-        )}
-        <input
-          id="file-upload"
-          type="file"
-          onChange={handleFileChange}
-          accept={ACCEPTED_FILE_TYPES.join(",")}
-          className="sr-only"
-        />
-      </label>
-      {file && VIDEO_FILE_TYPES.includes(file.type) && (
-        <p className="mt-3 text-xs text-white/40">
-          Video files are processed after submission.
-        </p>
-      )}
-    </div>
-  );
+      <h2 className="text-2xl font-bold text-white mb-1">Floor 5 — Your Pitch</h2>
+      <p className="text-white/50 text-sm mb-6">How would you like to submit your pitch?</p>
 
-  const renderReview = () => (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-1">Floor 6 — Review</h2>
-      <p className="text-white/50 text-sm mb-6">Double-check everything before you submit.</p>
-      <div className="space-y-4">
-        {[
-          { label: "Name", value: name },
-          { label: "Role", value: role },
-          { label: "School(s)", value: schools.length > 0 ? schools.join(", ") : "None selected" },
-          { label: "Pitch Title", value: pitchTitle },
-          { label: "Description", value: description },
-          { label: "Tags", value: selectedTags.length > 0 ? availableTags.filter((t) => selectedTags.includes(t.id)).map((t) => t.name).join(", ") : "None" },
-          { label: "File", value: file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` : "No file" },
-        ].map(({ label, value }) => (
-          <div key={label} className="py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <p className="text-xs text-white/40 uppercase tracking-wider mb-1">{label}</p>
-            <p className="text-sm text-white/80 whitespace-pre-wrap">{value}</p>
+      {/* Mode toggle */}
+      <div className="flex gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => setPitchMode("file")}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
+          style={{
+            border: pitchMode === "file" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
+            background: pitchMode === "file" ? "rgba(242,181,23,0.1)" : "transparent",
+            color: pitchMode === "file" ? "#F2B517" : "rgba(255,255,255,0.5)",
+          }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          Upload File
+        </button>
+        <button
+          type="button"
+          onClick={() => setPitchMode("text")}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
+          style={{
+            border: pitchMode === "text" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
+            background: pitchMode === "text" ? "rgba(242,181,23,0.1)" : "transparent",
+            color: pitchMode === "text" ? "#F2B517" : "rgba(255,255,255,0.5)",
+          }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Write Text
+        </button>
+      </div>
+
+      {pitchMode === "file" ? (
+        <>
+          <p className="text-white/40 text-xs mb-4">
+            PDF, document, video, audio, or image (max 50MB).
+          </p>
+          <label
+            htmlFor="file-upload"
+            className="flex flex-col items-center justify-center w-full py-10 rounded-xl cursor-pointer transition-all duration-200 group"
+            style={{
+              border: "2px dashed rgba(255,255,255,0.15)",
+              background: file ? "rgba(242,181,23,0.05)" : "rgba(255,255,255,0.03)",
+            }}
+          >
+            {file ? (
+              <>
+                <svg className="w-10 h-10 mb-3" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-white/80 font-medium">{file.name}</span>
+                <span className="text-xs text-white/40 mt-1">{(file.size / 1024 / 1024).toFixed(1)} MB — Click to change</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-10 h-10 mb-3 text-white/30 group-hover:text-white/50 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span className="text-sm text-white/50 group-hover:text-white/70 transition-colors">Click to upload a file</span>
+              </>
+            )}
+            <input
+              id="file-upload"
+              type="file"
+              onChange={handleFileChange}
+              accept={ACCEPTED_FILE_TYPES.join(",")}
+              className="sr-only"
+            />
+          </label>
+          {file && VIDEO_FILE_TYPES.includes(file.type) && (
+            <p className="mt-3 text-xs text-white/40">
+              Video files are processed after submission.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-white/40 text-xs mb-4">
+            Type or paste your pitch text below. You can also optionally attach a text file (PDF, DOCX, TXT).
+          </p>
+          <textarea
+            placeholder="Type your pitch here..."
+            value={textContent}
+            onChange={(e) => setTextContent(e.target.value)}
+            rows={8}
+            className="w-full px-4 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none resize-y mb-4"
+            style={inputStyle()}
+          />
+
+          {/* Optional file attachment in text mode */}
+          <div>
+            <p className="text-white/40 text-xs mb-2">Optionally attach a document:</p>
+            <label
+              htmlFor="text-file-upload"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 group"
+              style={{
+                border: "1px dashed rgba(255,255,255,0.12)",
+                background: file ? "rgba(242,181,23,0.05)" : "rgba(255,255,255,0.02)",
+              }}
+            >
+              {file ? (
+                <>
+                  <svg className="w-5 h-5 flex-shrink-0" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                  </svg>
+                  <span className="text-sm text-white/70 truncate">{file.name}</span>
+                  <span className="text-xs text-white/30 ml-auto">Click to change</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5 text-white/20 group-hover:text-white/40 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  <span className="text-sm text-white/30 group-hover:text-white/50 transition-colors">Attach PDF, DOCX, or TXT</span>
+                </>
+              )}
+              <input
+                id="text-file-upload"
+                type="file"
+                onChange={handleFileChange}
+                accept={TEXT_FILE_TYPES.join(",")}
+                className="sr-only"
+              />
+            </label>
           </div>
-        ))}
+        </>
+      )}
+
+      {/* Thumbnail upload section */}
+      <div className="mt-6 pt-6" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <p className="text-sm font-semibold text-white/70 mb-1">Thumbnail (optional)</p>
+        <p className="text-white/40 text-xs mb-3">
+          Upload a custom image to represent your pitch in the gallery.
+        </p>
+
+        {thumbnailPreview ? (
+          <div className="flex items-start gap-3">
+            <img
+              src={thumbnailPreview}
+              alt="Thumbnail preview"
+              className="w-24 h-24 rounded-lg object-cover"
+              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+            />
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-white/50 truncate max-w-[180px]">{thumbnail?.name}</span>
+              <button
+                type="button"
+                onClick={removeThumbnail}
+                className="text-xs text-red-400 hover:text-red-300 transition-colors text-left"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label
+            htmlFor="thumbnail-upload"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 group"
+            style={{
+              border: "1px dashed rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.02)",
+            }}
+          >
+            <svg className="w-5 h-5 text-white/20 group-hover:text-white/40 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-sm text-white/30 group-hover:text-white/50 transition-colors">
+              Choose thumbnail image (PNG, JPG, max 5MB)
+            </span>
+            <input
+              id="thumbnail-upload"
+              type="file"
+              onChange={handleThumbnailChange}
+              accept={IMAGE_FILE_TYPES.join(",")}
+              className="sr-only"
+            />
+          </label>
+        )}
       </div>
     </div>
   );
+
+  const renderReview = () => {
+    const pitchType = pitchMode === "text"
+      ? (file ? `Text + ${file.name}` : "Text Submission")
+      : (file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` : "No file");
+
+    return (
+      <div>
+        <h2 className="text-2xl font-bold text-white mb-1">Floor 6 — Review</h2>
+        <p className="text-white/50 text-sm mb-6">Double-check everything before you submit.</p>
+        <div className="space-y-4">
+          {[
+            { label: "Name", value: name },
+            { label: "Role", value: role },
+            { label: "School(s)", value: schools.length > 0 ? schools.join(", ") : "None selected" },
+            { label: "Pitch Title", value: pitchTitle },
+            { label: "Description", value: description },
+            { label: "Tags", value: selectedTags.length > 0 ? availableTags.filter((t) => selectedTags.includes(t.id)).map((t) => t.name).join(", ") : "None" },
+            { label: "Pitch", value: pitchType },
+            ...(pitchMode === "text" && textContent ? [{ label: "Text Content", value: textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent }] : []),
+            ...(thumbnail ? [{ label: "Thumbnail", value: thumbnail.name }] : []),
+          ].map(({ label, value }) => (
+            <div key={label} className="py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <p className="text-xs text-white/40 uppercase tracking-wider mb-1">{label}</p>
+              <p className="text-sm text-white/80 whitespace-pre-wrap">{value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const renderSubmitFloor = () => (
     <div className="text-center">
@@ -643,7 +870,6 @@ export default function IntakePage() {
           <div
             key={src}
             className="absolute inset-0 bg-cover transition-opacity duration-700 ease-in-out"
-            /* bg-position shifted to show top of elevator panel */
             style={{
               backgroundImage: `url('${src}')`,
               backgroundPosition: "center 15%",

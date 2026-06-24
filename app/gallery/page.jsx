@@ -37,6 +37,11 @@ export default function GalleryPage() {
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
 
+  const [defaultThumbnails, setDefaultThumbnails] = useState({
+    audioThumbnail: null,
+    textThumbnail: null,
+  });
+
   const risingPitches = useMemo(
     () =>
       [...submissions]
@@ -45,10 +50,24 @@ export default function GalleryPage() {
     [submissions]
   );
 
-  const getThumbnail = (pitch) =>
-    pitch.mux_playback_id
-      ? `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1`
-      : "/placeholder.png";
+  const getThumbnail = (pitch) => {
+    // 1. User-uploaded custom thumbnail always wins
+    if (pitch.thumbnail_path) return pitch.thumbnail_path;
+    // 2. For video pitches, use Mux thumbnail
+    if (pitch.mux_playback_id) {
+      return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1`;
+    }
+    // 3. For audio pitches, use admin-set default
+    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) {
+      return defaultThumbnails.audioThumbnail || "/placeholder.png";
+    }
+    // 4. For text/document pitches, use admin-set default
+    if (pitch.text_content || /\.(txt|pdf|doc|docx|ppt|pptx)$/i.test(pitch.file_name || "")) {
+      return defaultThumbnails.textThumbnail || "/placeholder.png";
+    }
+    // 5. Fallback
+    return "/placeholder.png";
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -106,6 +125,10 @@ export default function GalleryPage() {
           }
         );
 
+        if (data.defaults) {
+          setDefaultThumbnails(data.defaults);
+        }
+
         setPagination(
           data.pagination || {
             page,
@@ -162,6 +185,9 @@ export default function GalleryPage() {
             remainingVotes: 5,
           }
         );
+        if (data.defaults) {
+          setDefaultThumbnails(data.defaults);
+        }
         setPagination(
           data.pagination || {
             page,

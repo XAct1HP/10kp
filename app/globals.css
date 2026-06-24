@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark-themed select dropdown options */
+select option {
+  background: #0B1A3B;
+  color: #fff;
+}

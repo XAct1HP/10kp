@@ -30,6 +30,8 @@ export async function GET(request) {
         description,
         file_name,
         file_type,
+        text_content,
+        thumbnail_path,
         mux_asset_id,
         mux_status,
         mux_error,
@@ -91,12 +93,14 @@ export async function GET(request) {
 
     const { data: settings } = await supabaseAdmin
       .from("competition_settings")
-      .select("max_votes_per_user")
+      .select("max_votes_per_user, default_audio_thumbnail, default_text_thumbnail")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     const maxVotesPerUser = settings?.max_votes_per_user || 5;
+    const defaultAudioThumbnail = settings?.default_audio_thumbnail || null;
+    const defaultTextThumbnail = settings?.default_text_thumbnail || null;
 
     const submissionsWithVotes = submissions.map((pitch) => ({
       ...pitch,
@@ -111,6 +115,10 @@ export async function GET(request) {
           maxVotesPerUser,
           userVoteCount,
           remainingVotes: Math.max(maxVotesPerUser - userVoteCount, 0),
+        },
+        defaults: {
+          audioThumbnail: defaultAudioThumbnail,
+          textThumbnail: defaultTextThumbnail,
         },
         pagination: {
           page,
