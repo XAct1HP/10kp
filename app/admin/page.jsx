@@ -19,7 +19,7 @@ async function apiFetch(url, options = {}) {
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status}: ${text.slice(0, 200)})`);
   return data;
 }
 
