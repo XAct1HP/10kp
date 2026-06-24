@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin } from "../../../../lib/adminAuth";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
+import { getMuxClient } from "../../../../lib/mux";
 
 // GET — fetch all pitches with their tags (admin only)
 export async function GET(request) {
@@ -112,8 +113,16 @@ export async function DELETE(request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Note: Mux asset cleanup could be done here via Mux API if desired
-    // For now we just delete the database record
+    // Delete Mux asset if this was a video pitch
+    if (pitch.mux_asset_id) {
+      try {
+        const mux = getMuxClient();
+        await mux.video.assets.delete(pitch.mux_asset_id);
+      } catch (muxErr) {
+        // Log but don't fail the delete if Mux cleanup fails
+        console.error("Mux asset deletion failed:", muxErr.message);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {
