@@ -8,19 +8,16 @@ import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
 
 const ACCEPTED_FILE_TYPES = [
+  // Text/Document
   "application/pdf",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/msword",
   "text/plain",
+  // Video
   "video/mp4",
   "video/quicktime",
   "video/webm",
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
+  // Audio
   "audio/mpeg",
   "audio/wav",
   "audio/ogg",
@@ -215,7 +212,7 @@ export default function IntakePage() {
       return;
     }
     if (!ACCEPTED_FILE_TYPES.includes(selected.type)) {
-      setError("Unsupported file type. Please upload a PDF, document, video, audio, or image.");
+      setError("Unsupported file type. Please upload a video (MP4, MOV, WebM), audio (MP3, WAV, OGG, AAC), or text document (PDF, DOCX, TXT).");
       setFile(null);
       return;
     }
@@ -256,7 +253,6 @@ export default function IntakePage() {
     if (VIDEO_FILE_TYPES.includes(file.type)) return "video";
     if (AUDIO_FILE_TYPES.includes(file.type)) return "audio";
     if (TEXT_FILE_TYPES.includes(file.type)) return "text";
-    if (IMAGE_FILE_TYPES.includes(file.type)) return "image";
     return "file";
   };
 
@@ -623,7 +619,7 @@ export default function IntakePage() {
       {pitchMode === "file" ? (
         <>
           <p className="text-white/40 text-xs mb-4">
-            PDF, document, video, audio, or image (max 50MB).
+            Video (MP4, MOV, WebM), Audio (MP3, WAV, OGG, AAC), or Document (PDF, DOCX, TXT). Max 50MB.
           </p>
           <label
             htmlFor="file-upload"
