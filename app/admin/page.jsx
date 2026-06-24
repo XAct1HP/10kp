@@ -81,7 +81,7 @@ function useCountdown(targetDate) {
   return timeLeft;
 }
 
-const PITCHES_PER_PAGE = 15;
+const PITCHES_PER_PAGE = 10;
 const VOTES_PER_PAGE = 12;
 
 // ─── Main ─────────────────────────────────────────────────────────
@@ -265,17 +265,11 @@ export default function AdminPage() {
           {competitionDate && timeLeft && !timeLeft.past ? (
             <>
               <p className="text-[9px] uppercase tracking-[0.2em] mb-3 font-semibold text-maize">Competition in</p>
-              <div className="flex items-center justify-between">
+              <div className="flex items-baseline justify-between">
                 {[timeLeft.days, timeLeft.hours, timeLeft.minutes, timeLeft.seconds].map((value, i) => (
-                  <div key={i} className="flex items-center">
-                    <span className="font-mono font-bold text-white text-lg leading-none">{pad(value)}</span>
-                    {i < 3 && (
-                      <div className="flex flex-col gap-1 mx-1.5">
-                        <div className="w-1 h-1 rounded-full bg-maize/60" />
-                        <div className="w-1 h-1 rounded-full bg-maize/60" />
-                      </div>
-                    )}
-                  </div>
+                  <span key={i} className="font-mono font-bold text-white text-lg leading-none">
+                    {pad(value)}{i < 3 && <span className="text-maize/60 mx-0.5">:</span>}
+                  </span>
                 ))}
               </div>
             </>
@@ -384,7 +378,7 @@ export default function AdminPage() {
                     {paginatedPitches.map((pitch) => {
                       const tc = typeColor(pitch);
                       return (
-                        <div key={pitch.id} className="flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors group"
+                        <div key={pitch.id} className="flex items-center gap-4 px-5 py-2.5 cursor-pointer hover:bg-white/[0.03] transition-colors group"
                           onClick={() => setSelectedPitch(pitch)}>
                           <span className="px-2.5 py-1 text-[11px] font-semibold rounded-lg uppercase tracking-wide flex-shrink-0"
                             style={{ background: tc.bg, color: tc.c }}>{typeLabel(pitch)}</span>
