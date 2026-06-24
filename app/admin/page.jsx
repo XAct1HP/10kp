@@ -81,7 +81,7 @@ function useCountdown(targetDate) {
   return timeLeft;
 }
 
-const PITCHES_PER_PAGE = 8;
+const PITCHES_PER_PAGE = 15;
 const VOTES_PER_PAGE = 12;
 
 // ─── Main ─────────────────────────────────────────────────────────
@@ -266,21 +266,13 @@ export default function AdminPage() {
             <>
               <p className="text-[9px] uppercase tracking-[0.2em] mb-3 font-semibold text-maize">Competition in</p>
               <div className="flex items-center justify-between">
-                {[
-                  { label: "D", value: timeLeft.days },
-                  { label: "H", value: timeLeft.hours },
-                  { label: "M", value: timeLeft.minutes },
-                  { label: "S", value: timeLeft.seconds },
-                ].map(({ label, value }, i) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <div className="text-center">
-                      <div className="font-mono font-bold text-white text-lg leading-none">{pad(value)}</div>
-                      <div className="text-[8px] uppercase tracking-wider text-white/25 mt-1">{label}</div>
-                    </div>
+                {[timeLeft.days, timeLeft.hours, timeLeft.minutes, timeLeft.seconds].map((value, i) => (
+                  <div key={i} className="flex items-center">
+                    <span className="font-mono font-bold text-white text-lg leading-none">{pad(value)}</span>
                     {i < 3 && (
-                      <div className="flex flex-col gap-1 mb-3 ml-1">
-                        <div className="w-1 h-1 rounded-full bg-maize/50" />
-                        <div className="w-1 h-1 rounded-full bg-maize/50" />
+                      <div className="flex flex-col gap-1 mx-1.5">
+                        <div className="w-1 h-1 rounded-full bg-maize/60" />
+                        <div className="w-1 h-1 rounded-full bg-maize/60" />
                       </div>
                     )}
                   </div>
@@ -314,7 +306,7 @@ export default function AdminPage() {
       <main className="relative z-10 lg:ml-56 h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
         <div className="lg:hidden h-12 flex-shrink-0" />
 
-        <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px] min-h-0">
+        <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-10 py-5 min-h-0">
           {/* Notifications */}
           {error && (
             <div className="mb-3 flex items-center gap-3 rounded-xl p-3 text-sm flex-shrink-0"
