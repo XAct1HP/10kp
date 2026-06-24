@@ -17,7 +17,8 @@ async function apiFetch(url, options = {}) {
     ...options,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...options.headers },
   });
-  const data = await res.json();
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
