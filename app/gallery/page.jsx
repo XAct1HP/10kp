@@ -189,7 +189,7 @@ export default function GalleryPage() {
   // ═══════════════════════════════════════════════
   return (
     <>
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(16px); }
           to { opacity: 1; transform: translateY(0); }
@@ -202,7 +202,7 @@ export default function GalleryPage() {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 0.7; }
         }
-      `}</style>
+      ` }} />
 
       <div className="h-[calc(100vh-4rem)] overflow-y-auto flex flex-col"
         style={{ background: "#060810" }}>
