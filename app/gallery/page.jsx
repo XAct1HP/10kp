@@ -6,8 +6,8 @@ import MuxPlayer from "@mux/mux-player-react";
 
 const GALLERY_PAGE_SIZE = 200;
 const GRID_COLS = 6;
-const GRID_ROWS = 2;
-const CARDS_PER_PAGE = GRID_COLS * GRID_ROWS;
+const MAX_ROWS = 6;
+const CARDS_PER_PAGE = GRID_COLS * MAX_ROWS;
 const TOP_COUNT = 3;
 
 const RANK_BADGES = [
@@ -204,7 +204,7 @@ export default function GalleryPage() {
         }
       `}</style>
 
-      <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col"
+      <div className="h-[calc(100vh-4rem)] overflow-y-auto flex flex-col"
         style={{ background: "#060810" }}>
 
         {/* Navbar separator — maize gradient line */}
@@ -215,7 +215,7 @@ export default function GalleryPage() {
              HERO — background image, landing-page style
             ═══════════════════════════════════════ */}
         <div className="relative flex-shrink-0 overflow-hidden"
-          style={{ height: "clamp(160px, 22vh, 240px)" }}>
+          style={{ height: "clamp(130px, 18vh, 190px)" }}>
           {/* Background image */}
           <div className="absolute inset-0 bg-cover bg-center bg-no-repeat"
             style={{ backgroundImage: "url('/gallery_hero.png')" }} />
@@ -226,12 +226,12 @@ export default function GalleryPage() {
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[900px] h-[200px] pointer-events-none"
             style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
-          {/* Hero content — anchored to bottom like landing page */}
-          <div className="absolute inset-0 flex items-end px-6 sm:px-10 lg:px-14 pb-5">
+          {/* Hero content — anchored to bottom */}
+          <div className="absolute inset-0 flex items-end px-6 sm:px-10 lg:px-14 pb-4">
             <div className="flex-1 flex items-end justify-between">
               {/* Left: Title */}
               <div>
-                <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-2"
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
                   style={{ color: "#F2B517" }}>
                   10KP Competition
                 </p>
@@ -239,9 +239,6 @@ export default function GalleryPage() {
                   style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>
                   The <span style={{ color: "#F2B517" }}>Pitch</span> Gallery
                 </h1>
-                <p className="mt-1 text-white/30 text-sm max-w-md">
-                  {allSubmissions.length} pitch{allSubmissions.length !== 1 ? "es" : ""} competing for $10,000. Vote for your favorites.
-                </p>
               </div>
 
               {/* Right: Voting status */}
@@ -367,41 +364,9 @@ export default function GalleryPage() {
             )}
 
             {/* ── ALL PITCHES GRID ── */}
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Pagination */}
-              {shuffledGallery.length > 0 && (
-                <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                  <span className="text-[11px] text-white/15 font-medium">
-                    {shuffledGallery.length} more pitch{shuffledGallery.length !== 1 ? "es" : ""}
-                  </span>
-                  {totalGalleryPages > 1 && (
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setGalleryPage((p) => Math.max(1, p - 1))} disabled={galleryPage <= 1}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                      </button>
-                      {Array.from({ length: Math.min(totalGalleryPages, 9) }, (_, i) => i + 1).map((p) => (
-                        <button key={p} onClick={() => setGalleryPage(p)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all"
-                          style={{
-                            background: p === galleryPage ? "#F2B517" : "transparent",
-                            color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
-                          }}>
-                          {p}
-                        </button>
-                      ))}
-                      {totalGalleryPages > 9 && <span className="text-white/10 text-[10px] px-0.5">...</span>}
-                      <button onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))} disabled={galleryPage >= totalGalleryPages}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
+            <div>
               {/* Grid — 6 cols, no gap, Instagram-style */}
-              <div className="flex-1 grid grid-cols-6 gap-0 rounded-xl overflow-hidden content-start" style={{ minHeight: 0 }}>
+              <div className="grid grid-cols-6 gap-0 rounded-xl overflow-hidden">
                 {paginatedGallery.map((pitch, i) => {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
 
@@ -441,6 +406,36 @@ export default function GalleryPage() {
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Pagination — floats under last row, only active when needed */}
+              <div className="flex items-center justify-center py-5">
+                {totalGalleryPages > 1 ? (
+                  <div className="flex items-center gap-1 rounded-full px-3 py-1.5"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <button onClick={() => { setGalleryPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={galleryPage <= 1}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    {Array.from({ length: Math.min(totalGalleryPages, 9) }, (_, i) => i + 1).map((p) => (
+                      <button key={p} onClick={() => { setGalleryPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all"
+                        style={{
+                          background: p === galleryPage ? "#F2B517" : "transparent",
+                          color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
+                        }}>
+                        {p}
+                      </button>
+                    ))}
+                    {totalGalleryPages > 9 && <span className="text-white/10 text-[10px] px-1">...</span>}
+                    <button onClick={() => { setGalleryPage((p) => Math.min(totalGalleryPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={galleryPage >= totalGalleryPages}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="h-8" />
+                )}
               </div>
             </div>
           </div>
