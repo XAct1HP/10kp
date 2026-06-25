@@ -202,9 +202,14 @@ export default function GalleryPage() {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 0.7; }
         }
+        .gallery-scroll::-webkit-scrollbar { width: 8px; }
+        .gallery-scroll::-webkit-scrollbar-track { background: #060810; }
+        .gallery-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+        .gallery-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .gallery-scroll { scrollbar-color: rgba(255,255,255,0.12) #060810; scrollbar-width: thin; }
       ` }} />
 
-      <div className="h-[calc(100vh-4rem)] overflow-y-auto flex flex-col"
+      <div className="h-[calc(100vh-4rem)] overflow-y-auto flex flex-col gallery-scroll"
         style={{ background: "#060810" }}>
 
         {/* Navbar separator — maize gradient line */}
@@ -227,32 +232,30 @@ export default function GalleryPage() {
             style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
           {/* Hero content */}
-          <div className="absolute inset-0 flex flex-col justify-between px-6 sm:px-10 lg:px-14 pt-3 pb-4">
-            {/* Top row: label + votes */}
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold"
+          <div className="absolute inset-0 flex items-start justify-between px-6 sm:px-10 lg:px-14 pt-3">
+            {/* Left: label + title stacked */}
+            <div>
+              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
                 style={{ color: "#F2B517" }}>
                 10KP Competition
               </p>
-              <div className="flex-shrink-0">
-                {voterProfile.email ? (
-                  <div className="flex items-center gap-2.5 rounded-full px-4 py-1.5"
-                    style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)", backdropFilter: "blur(12px)" }}>
-                    <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                    <span className="text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
-                    <span className="text-[11px] text-white/30">votes left</span>
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-white/20">Click a pitch to vote</p>
-                )}
-              </div>
-            </div>
-            {/* Bottom: Title */}
-            <div>
               <h1 className="font-black text-white tracking-tight leading-[1.05]"
                 style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>
                 The <span style={{ color: "#F2B517" }}>Pitch</span> Gallery
               </h1>
+            </div>
+            {/* Right: votes */}
+            <div className="flex-shrink-0 pt-0.5">
+              {voterProfile.email ? (
+                <div className="flex items-center gap-2.5 rounded-full px-4 py-1.5"
+                  style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)", backdropFilter: "blur(12px)" }}>
+                  <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                  <span className="text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
+                  <span className="text-[11px] text-white/30">votes left</span>
+                </div>
+              ) : (
+                <p className="text-[11px] text-white/20">Click a pitch to vote</p>
+              )}
             </div>
             </div>
           </div>
