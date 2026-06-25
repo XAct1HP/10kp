@@ -232,7 +232,7 @@ export default function GalleryPage() {
             style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
           {/* Hero content */}
-          <div className="absolute inset-0 flex items-start justify-between px-6 sm:px-10 lg:px-14 pt-3">
+          <div className="absolute inset-0 flex items-start justify-between px-6 sm:px-10 lg:px-14 pt-6">
             {/* Left: label + title stacked */}
             <div>
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
