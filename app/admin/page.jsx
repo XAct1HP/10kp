@@ -323,14 +323,6 @@ export default function AdminPage() {
           {/* ═══ PITCHES ═══ */}
           {activeTab === "pitches" && (
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 flex-shrink-0">
-                <StatCard label="Total Pitches" value={pitches.length} icon="📦" />
-                <StatCard label="Total Votes" value={totalVotes} icon="👍" />
-                <StatCard label="Videos" value={pitches.filter((p) => p.file_type === "video").length} icon="🎬" />
-                <StatCard label="Tags" value={tags.length} icon="🏷️" />
-              </div>
-
               {/* Toolbar */}
               <GlassCard className="mb-3 flex-shrink-0 !p-4">
                 <div className="flex flex-col md:flex-row gap-2">
