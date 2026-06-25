@@ -6,14 +6,14 @@ import MuxPlayer from "@mux/mux-player-react";
 
 const GALLERY_PAGE_SIZE = 200;
 const GRID_COLS = 6;
-const GRID_ROWS = 3;
+const GRID_ROWS = 2;
 const CARDS_PER_PAGE = GRID_COLS * GRID_ROWS;
 const TOP_COUNT = 3;
 
 const RANK_BADGES = [
-  { label: "1ST", gradient: "linear-gradient(135deg, #F2B517 0%, #FFD876 50%, #F2B517 100%)", shadow: "0 0 24px rgba(242,181,23,0.5)", textColor: "#0B1A3B" },
-  { label: "2ND", gradient: "linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 50%, #A8A8A8 100%)", shadow: "0 0 20px rgba(192,192,192,0.4)", textColor: "#1a1a2e" },
-  { label: "3RD", gradient: "linear-gradient(135deg, #CD7F32 0%, #E8A84C 50%, #CD7F32 100%)", shadow: "0 0 18px rgba(205,127,50,0.4)", textColor: "#1a1a2e" },
+  { label: "1ST PLACE", short: "1ST", gradient: "linear-gradient(135deg, #F2B517 0%, #FFD876 50%, #F2B517 100%)", shadow: "0 0 28px rgba(242,181,23,0.6)", textColor: "#0B1A3B", ring: "rgba(242,181,23,0.4)" },
+  { label: "2ND PLACE", short: "2ND", gradient: "linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 50%, #A8A8A8 100%)", shadow: "0 0 20px rgba(192,192,192,0.35)", textColor: "#1a1a2e", ring: "rgba(192,192,192,0.3)" },
+  { label: "3RD PLACE", short: "3RD", gradient: "linear-gradient(135deg, #CD7F32 0%, #E8A84C 50%, #CD7F32 100%)", shadow: "0 0 18px rgba(205,127,50,0.35)", textColor: "#1a1a2e", ring: "rgba(205,127,50,0.3)" },
 ];
 
 export default function GalleryPage() {
@@ -189,75 +189,83 @@ export default function GalleryPage() {
   // ═══════════════════════════════════════════════
   return (
     <>
-      {/* Inline keyframes */}
       <style jsx global>{`
-        @keyframes galleryGlow {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 0.6; }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes badgeShine {
+        @keyframes shimmer {
           0% { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulseVote {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.15); }
+        @keyframes heroFloat {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.7; }
         }
       `}</style>
 
-      <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col relative"
-        style={{ background: "linear-gradient(180deg, #06080f 0%, #0a1020 30%, #0d1530 60%, #0a0f1a 100%)" }}>
+      <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col"
+        style={{ background: "#060810" }}>
 
-        {/* Ambient background effects */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {/* Maize radial glow top-center */}
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full"
-            style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "galleryGlow 8s ease-in-out infinite" }} />
-          {/* Navy-blue accent glow bottom-left */}
-          <div className="absolute -bottom-48 -left-32 w-[600px] h-[600px] rounded-full"
-            style={{ background: "radial-gradient(circle, rgba(30,60,140,0.08) 0%, transparent 60%)" }} />
-          {/* Subtle maize accent bottom-right */}
-          <div className="absolute -bottom-32 -right-24 w-[500px] h-[400px] rounded-full"
-            style={{ background: "radial-gradient(circle, rgba(242,181,23,0.04) 0%, transparent 60%)" }} />
-        </div>
+        {/* Navbar separator — maize gradient line */}
+        <div className="h-px w-full flex-shrink-0"
+          style={{ background: "linear-gradient(90deg, transparent, rgba(242,181,23,0.25) 30%, rgba(242,181,23,0.4) 50%, rgba(242,181,23,0.25) 70%, transparent)" }} />
 
-        {/* Navbar separator */}
-        <div className="h-px w-full flex-shrink-0 relative z-10"
-          style={{ background: "linear-gradient(90deg, transparent, rgba(242,181,23,0.2) 30%, rgba(242,181,23,0.3) 50%, rgba(242,181,23,0.2) 70%, transparent)" }} />
+        {/* ═══════════════════════════════════════
+             HERO — background image, landing-page style
+            ═══════════════════════════════════════ */}
+        <div className="relative flex-shrink-0 overflow-hidden"
+          style={{ height: "clamp(160px, 22vh, 240px)" }}>
+          {/* Background image */}
+          <div className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: "url('/gallery_hero.png')" }} />
+          {/* Gradient overlay matching landing page */}
+          <div className="absolute inset-0"
+            style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.25) 40%, rgba(6,8,16,0.85) 85%, rgba(6,8,16,1) 100%)" }} />
+          {/* Ambient maize glow */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[900px] h-[200px] pointer-events-none"
+            style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
-        {/* ═══ HERO BANNER ═══ */}
-        <div className="flex-shrink-0 relative z-10 px-6 sm:px-10 pt-6 pb-4">
-          <div className="flex items-end justify-between">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none">
-                Pitch Gallery
-              </h1>
-              <p className="mt-1.5 text-sm text-white/30">
-                {allSubmissions.length} pitch{allSubmissions.length !== 1 ? "es" : ""} competing for $10,000
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {voterProfile.email ? (
-                <div className="flex items-center gap-2.5 rounded-full px-4 py-2"
-                  style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)" }}>
-                  <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                  <span className="text-sm font-bold" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
-                  <span className="text-xs text-white/30">votes left</span>
-                </div>
-              ) : (
-                <span className="text-xs text-white/25">Click any pitch to vote</span>
-              )}
+          {/* Hero content — anchored to bottom like landing page */}
+          <div className="absolute inset-0 flex items-end px-6 sm:px-10 lg:px-14 pb-5">
+            <div className="flex-1 flex items-end justify-between">
+              {/* Left: Title */}
+              <div>
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-2"
+                  style={{ color: "#F2B517" }}>
+                  10KP Competition
+                </p>
+                <h1 className="font-black text-white tracking-tight leading-[1.05]"
+                  style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>
+                  The <span style={{ color: "#F2B517" }}>Pitch</span> Gallery
+                </h1>
+                <p className="mt-1 text-white/30 text-sm max-w-md">
+                  {allSubmissions.length} pitch{allSubmissions.length !== 1 ? "es" : ""} competing for $10,000. Vote for your favorites.
+                </p>
+              </div>
+
+              {/* Right: Voting status */}
+              <div className="flex-shrink-0">
+                {voterProfile.email ? (
+                  <div className="flex items-center gap-3 rounded-xl px-5 py-3"
+                    style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)", backdropFilter: "blur(12px)" }}>
+                    <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                    <div>
+                      <span className="text-lg font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
+                      <span className="text-xs text-white/30 ml-1.5">votes remaining</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-white/20">Sign in or click a pitch to vote</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Loading */}
         {loading && (
-          <div className="flex-1 flex items-center justify-center relative z-10">
+          <div className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <svg className="animate-spin h-8 w-8 text-[#F2B517]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               <span className="text-sm text-white/20">Loading pitches...</span>
@@ -267,31 +275,34 @@ export default function GalleryPage() {
 
         {/* Error */}
         {error && (
-          <div className="mx-6 sm:mx-10 mt-2 rounded-xl p-3 text-sm flex-shrink-0 relative z-10"
+          <div className="mx-6 sm:mx-10 mt-2 rounded-xl p-3 text-sm flex-shrink-0"
             style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5" }}>
             {error}
             <button onClick={() => setError("")} className="ml-3 text-red-400/50 hover:text-red-300 text-lg leading-none">&times;</button>
           </div>
         )}
 
-        {/* Empty */}
+        {/* Empty state */}
         {!loading && !error && allSubmissions.length === 0 && (
-          <div className="flex-1 flex items-center justify-center relative z-10">
+          <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <div className="text-4xl mb-3 opacity-30">🎤</div>
-              <p className="text-white/25 text-sm">No pitches submitted yet. Be the first!</p>
+              <div className="text-5xl mb-3 opacity-25">🎤</div>
+              <p className="text-white/20 text-sm">No pitches submitted yet. Be the first!</p>
             </div>
           </div>
         )}
 
-        {/* ═══ MAIN CONTENT ═══ */}
+        {/* ═══════════════════════════════════════
+             MAIN CONTENT — Top 3 + Grid
+            ═══════════════════════════════════════ */}
         {!loading && !error && allSubmissions.length > 0 && (
-          <div className="flex-1 flex flex-col min-h-0 relative z-10 px-4 sm:px-8">
+          <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-8 lg:px-10 pt-4">
 
             {/* ── TOP 3 PODIUM ── */}
             {topPitches.length > 0 && (
               <div className="flex-shrink-0 mb-4">
-                <div className="grid gap-3 items-end" style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.15fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
+                <div className="grid gap-3 items-end"
+                  style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.2fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
                   {(topPitches.length >= 3 ? [topPitches[1], topPitches[0], topPitches[2]] : topPitches).map((pitch, displayIdx) => {
                     const actualRank = topPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
                     const badge = RANK_BADGES[actualRank];
@@ -303,47 +314,49 @@ export default function GalleryPage() {
                         onClick={() => setSelectedPitch(pitch)}
                         className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] ${isPulsing ? "ring-2 ring-[#F2B517]" : ""}`}
                         style={{
-                          aspectRatio: isFirst ? "16/8" : "16/9",
-                          boxShadow: isFirst ? badge.shadow : "0 4px 24px rgba(0,0,0,0.3)",
-                          border: `1px solid ${isFirst ? "rgba(242,181,23,0.3)" : "rgba(255,255,255,0.06)"}`,
+                          aspectRatio: isFirst ? "16/7.5" : "16/9",
+                          boxShadow: `${badge.shadow}, 0 8px 32px rgba(0,0,0,0.4)`,
+                          border: `1px solid ${badge.ring}`,
                           animation: "fadeInUp 0.5s ease-out both",
-                          animationDelay: `${displayIdx * 0.1}s`,
+                          animationDelay: `${displayIdx * 0.12}s`,
                         }}>
-                        <img src={getThumbnail(pitch)} alt={pitch.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                        <img src={getThumbnail(pitch)} alt={pitch.title}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
 
-                        {/* Gradient overlay — always visible on podium */}
-                        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)" }} />
+                        {/* Always-visible gradient */}
+                        <div className="absolute inset-0"
+                          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.35) 45%, transparent 75%)" }} />
 
-                        {/* Badge */}
-                        <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full pl-1 pr-3 py-1"
+                        {/* Crown badge */}
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full pl-1.5 pr-3 py-1"
                           style={{ background: badge.gradient, boxShadow: badge.shadow }}>
                           <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)" }}>
                             <svg className="w-3.5 h-3.5" fill={badge.textColor} viewBox="0 0 24 24">
                               <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
                             </svg>
                           </div>
-                          <span className="text-[11px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.label}</span>
+                          <span className="text-[11px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.short}</span>
                         </div>
 
-                        {/* Vote count — maize, prominent */}
+                        {/* Vote — maize star, big */}
                         <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5"
                           style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(242,181,23,0.2)" }}>
-                          <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24">
                             <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                           </svg>
-                          <span className="text-sm font-black" style={{ color: "#F2B517" }}>{pitch.vote_count || 0}</span>
+                          <span className="text-base font-black" style={{ color: "#F2B517" }}>{pitch.vote_count || 0}</span>
                         </div>
 
-                        {/* Info bar */}
-                        <div className="absolute bottom-0 left-0 right-0 p-3">
-                          <p className="text-white font-bold text-sm truncate leading-tight">{pitch.title}</p>
+                        {/* Info */}
+                        <div className="absolute bottom-0 left-0 right-0 p-4">
+                          <p className="text-white font-bold truncate leading-tight" style={{ fontSize: isFirst ? "16px" : "14px" }}>{pitch.title}</p>
                           <p className="text-white/40 text-xs truncate mt-0.5">{pitch.name}</p>
                         </div>
 
-                        {/* Voted check */}
+                        {/* Voted */}
                         {pitch.user_has_voted && (
-                          <div className="absolute bottom-3 right-3 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                          <div className="absolute bottom-3 right-3 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                           </div>
                         )}
                       </button>
@@ -355,71 +368,71 @@ export default function GalleryPage() {
 
             {/* ── ALL PITCHES GRID ── */}
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Pagination controls at top of grid */}
+              {/* Pagination */}
               {shuffledGallery.length > 0 && (
                 <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                  <span className="text-[11px] text-white/20 font-medium">
+                  <span className="text-[11px] text-white/15 font-medium">
                     {shuffledGallery.length} more pitch{shuffledGallery.length !== 1 ? "es" : ""}
                   </span>
                   {totalGalleryPages > 1 && (
                     <div className="flex items-center gap-1">
                       <button onClick={() => setGalleryPage((p) => Math.max(1, p - 1))} disabled={galleryPage <= 1}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                       </button>
-                      {Array.from({ length: totalGalleryPages }, (_, i) => i + 1).slice(0, 7).map((p) => (
+                      {Array.from({ length: Math.min(totalGalleryPages, 9) }, (_, i) => i + 1).map((p) => (
                         <button key={p} onClick={() => setGalleryPage(p)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all"
                           style={{
                             background: p === galleryPage ? "#F2B517" : "transparent",
-                            color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.25)",
+                            color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
                           }}>
                           {p}
                         </button>
                       ))}
-                      {totalGalleryPages > 7 && <span className="text-white/15 text-xs px-1">...</span>}
+                      {totalGalleryPages > 9 && <span className="text-white/10 text-[10px] px-0.5">...</span>}
                       <button onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))} disabled={galleryPage >= totalGalleryPages}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                       </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Grid */}
+              {/* Grid — 6 cols, no gap, Instagram-style */}
               <div className="flex-1 grid grid-cols-6 gap-0 rounded-xl overflow-hidden content-start" style={{ minHeight: 0 }}>
                 {paginatedGallery.map((pitch, i) => {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
-                  const type = getPitchType(pitch);
 
                   return (
                     <button key={pitch.id}
                       onClick={() => setSelectedPitch(pitch)}
-                      className={`relative block w-full overflow-hidden bg-black/80 group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
+                      className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
                       style={{
                         aspectRatio: "16/9",
                         animation: "fadeInUp 0.3s ease-out both",
-                        animationDelay: `${i * 0.03}s`,
+                        animationDelay: `${i * 0.025}s`,
                       }}>
-                      <img src={getThumbnail(pitch)} alt={pitch.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                      <img src={getThumbnail(pitch)} alt={pitch.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
 
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5">
                         <p className="text-white font-bold text-[11px] truncate leading-tight">{pitch.title}</p>
                         <p className="text-white/50 text-[10px] truncate">{pitch.name}</p>
                       </div>
 
-                      {/* Vote badge — maize star */}
+                      {/* Vote — maize star */}
                       <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full px-2 py-0.5"
-                        style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}>
+                        style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}>
                         <svg className="w-3.5 h-3.5" fill="#F2B517" viewBox="0 0 24 24">
                           <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                         </svg>
                         <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
                       </div>
 
-                      {/* Voted check */}
+                      {/* Voted */}
                       {pitch.user_has_voted && (
                         <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -464,7 +477,7 @@ export default function GalleryPage() {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                {/* Rank badge in modal if top 3 */}
+                {/* Rank badge if top 3 */}
                 {(() => {
                   const rank = topPitches.findIndex((p) => p.id === selectedPitch.id);
                   if (rank === -1) return null;
@@ -475,7 +488,7 @@ export default function GalleryPage() {
                         <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)" }}>
                           <svg className="w-3 h-3" fill={badge.textColor} viewBox="0 0 24 24"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" /></svg>
                         </div>
-                        <span className="text-[10px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.label} PLACE</span>
+                        <span className="text-[10px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.label}</span>
                       </div>
                     </div>
                   );
@@ -506,7 +519,7 @@ export default function GalleryPage() {
                 {/* Vote area */}
                 <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="#F2B517" viewBox="0 0 24 24">
                       <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                     </svg>
                     <span className="text-2xl font-black text-white tabular-nums">{selectedPitch.vote_count || 0}</span>
@@ -528,7 +541,7 @@ export default function GalleryPage() {
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" /></svg>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" /></svg>
                         Vote
                       </>
                     )}
