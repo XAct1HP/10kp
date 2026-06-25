@@ -4,11 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import MuxPlayer from "@mux/mux-player-react";
 
-const GALLERY_PAGE_SIZE = 100; // fetch all, paginate client-side
-const GRID_COLS = 4;
-const ROWS_VISIBLE = 2; // 2 rows of gallery cards visible
-const CARDS_PER_PAGE = GRID_COLS * ROWS_VISIBLE;
-const TOP_COUNT = 4;
+const GALLERY_PAGE_SIZE = 200;
+const GRID_COLS = 6;
+const GRID_ROWS = 3;
+const CARDS_PER_PAGE = GRID_COLS * GRID_ROWS;
+const TOP_COUNT = 3;
+
+const RANK_BADGES = [
+  { label: "1ST", gradient: "linear-gradient(135deg, #F2B517 0%, #FFD876 50%, #F2B517 100%)", shadow: "0 0 24px rgba(242,181,23,0.5)", textColor: "#0B1A3B" },
+  { label: "2ND", gradient: "linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 50%, #A8A8A8 100%)", shadow: "0 0 20px rgba(192,192,192,0.4)", textColor: "#1a1a2e" },
+  { label: "3RD", gradient: "linear-gradient(135deg, #CD7F32 0%, #E8A84C 50%, #CD7F32 100%)", shadow: "0 0 18px rgba(205,127,50,0.4)", textColor: "#1a1a2e" },
+];
 
 export default function GalleryPage() {
   const { user } = useAuth();
@@ -22,7 +28,6 @@ export default function GalleryPage() {
   const [voteSubmitting, setVoteSubmitting] = useState({});
   const [selectedPitch, setSelectedPitch] = useState(null);
 
-  // Voter identity — auto-fill from auth if logged in
   const [voterProfile, setVoterProfile] = useState({ name: "", email: "" });
   const [showVoterModal, setShowVoterModal] = useState(false);
   const [pendingPitchId, setPendingPitchId] = useState(null);
@@ -33,7 +38,6 @@ export default function GalleryPage() {
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
 
-  // Randomization seed — stable per session
   const [shuffleSeed] = useState(() => Math.random());
 
   // ── Auto-fill voter from auth ──
@@ -68,14 +72,13 @@ export default function GalleryPage() {
 
   useEffect(() => { fetchSubmissions(); }, [voterProfile.email]);
 
-  // Live refresh
   useEffect(() => {
     if (loading) return;
     const id = setInterval(fetchSubmissions, 15000);
     return () => clearInterval(id);
   }, [loading, voterProfile.email]);
 
-  // Detect vote changes for pulse animation
+  // Pulse animation on vote changes
   useEffect(() => {
     if (!allSubmissions.length) return;
     const changed = allSubmissions.filter((p) => {
@@ -89,24 +92,22 @@ export default function GalleryPage() {
     return () => clearTimeout(t);
   }, [allSubmissions]);
 
-  // Keep selected pitch in sync
   useEffect(() => {
     if (!selectedPitch) return;
     const updated = allSubmissions.find((p) => p.id === selectedPitch.id);
     if (updated) setSelectedPitch(updated);
   }, [allSubmissions]);
 
-  // ── Top performers (by votes, stable) ──
+  // ── Top 3 by votes ──
   const topPitches = useMemo(() =>
     [...allSubmissions].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0)).slice(0, TOP_COUNT),
     [allSubmissions]
   );
 
-  // ── Shuffled gallery (excluding top) ──
+  // ── Shuffled rest ──
   const shuffledGallery = useMemo(() => {
     const topIds = new Set(topPitches.map((p) => p.id));
     const rest = allSubmissions.filter((p) => !topIds.has(p.id));
-    // Seeded shuffle
     const arr = [...rest];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor((shuffleSeed * (i + 1) * 9301 + 49297) % arr.length);
@@ -118,7 +119,7 @@ export default function GalleryPage() {
   const totalGalleryPages = Math.max(1, Math.ceil(shuffledGallery.length / CARDS_PER_PAGE));
   const paginatedGallery = shuffledGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
 
-  // ── Thumbnail helper ──
+  // ── Helpers ──
   const getThumbnail = (pitch) => {
     if (pitch.thumbnail_path) return pitch.thumbnail_path;
     if (pitch.mux_playback_id) return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=640&height=360&fit_mode=smartcrop`;
@@ -183,266 +184,404 @@ export default function GalleryPage() {
     }
   };
 
-  // ── Card component ──
-  const PitchCard = ({ pitch, rank, size = "normal" }) => {
-    const isPulsing = pulsingVoteIds.includes(pitch.id);
-    const type = getPitchType(pitch);
-    const typeIcon = type === "video" ? "🎬" : type === "audio" ? "🎧" : "📝";
-
-    return (
-      <button
-        onClick={() => setSelectedPitch(pitch)}
-        className={`relative block w-full overflow-hidden bg-black group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
-        style={{ aspectRatio: "16/9" }}
-      >
-        <img src={getThumbnail(pitch)} alt={pitch.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
-          <p className="text-white font-bold text-sm truncate leading-tight">{pitch.title}</p>
-          <p className="text-white/60 text-xs truncate">{pitch.name}</p>
-        </div>
-        {/* Vote badge */}
-        <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold shadow-lg"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", color: "#fff" }}>
-          <span style={{ fontSize: "10px" }}>▲</span> {pitch.vote_count || 0}
-        </div>
-        {/* Type badge */}
-        <div className="absolute top-2 left-2 text-xs" title={type}>{typeIcon}</div>
-        {/* Rank badge for top */}
-        {rank != null && (
-          <div className="absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black shadow-lg"
-            style={{ background: "#F2B517", color: "#0B1A3B" }}>#{rank + 1}</div>
-        )}
-        {/* Voted indicator */}
-        {pitch.user_has_voted && (
-          <div className="absolute bottom-2 right-2 rounded-full w-5 h-5 flex items-center justify-center"
-            style={{ background: "#F2B517" }}>
-            <svg className="w-3 h-3 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-          </div>
-        )}
-      </button>
-    );
-  };
-
-  // ── Main render ──
+  // ═══════════════════════════════════════════════
+  //  RENDER
+  // ═══════════════════════════════════════════════
   return (
-    <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col" style={{ background: "#0a0f1a" }}>
-      {/* Navbar separator — solid dark bar so it doesn't blend */}
-      <div className="h-px w-full flex-shrink-0" style={{ background: "rgba(242,181,23,0.15)" }} />
+    <>
+      {/* Inline keyframes */}
+      <style jsx global>{`
+        @keyframes galleryGlow {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+        }
+        @keyframes badgeShine {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulseVote {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+        }
+      `}</style>
 
-      {/* Top bar: title + voting info */}
-      <div className="flex items-center justify-between px-5 sm:px-8 py-3 flex-shrink-0" style={{ background: "rgba(11,26,59,0.6)" }}>
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold text-white tracking-tight">Gallery</h1>
-          <span className="hidden sm:inline text-xs text-white/30">{allSubmissions.length} pitches</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {voterProfile.email ? (
-            <>
-              <span className="text-xs text-white/40 hidden sm:inline">{voterProfile.email}</span>
-              <span className="rounded-full px-3 py-1 text-[11px] font-bold" style={{ background: "rgba(242,181,23,0.15)", color: "#F2B517" }}>
-                {voting.remainingVotes} votes left
-              </span>
-            </>
-          ) : (
-            <span className="text-xs text-white/30">Click a pitch to vote</span>
-          )}
-        </div>
-      </div>
+      <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col relative"
+        style={{ background: "linear-gradient(180deg, #06080f 0%, #0a1020 30%, #0d1530 60%, #0a0f1a 100%)" }}>
 
-      {/* Loading / Error */}
-      {loading && (
-        <div className="flex-1 flex items-center justify-center">
-          <svg className="animate-spin h-6 w-6 text-[#F2B517]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+        {/* Ambient background effects */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {/* Maize radial glow top-center */}
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full"
+            style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "galleryGlow 8s ease-in-out infinite" }} />
+          {/* Navy-blue accent glow bottom-left */}
+          <div className="absolute -bottom-48 -left-32 w-[600px] h-[600px] rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(30,60,140,0.08) 0%, transparent 60%)" }} />
+          {/* Subtle maize accent bottom-right */}
+          <div className="absolute -bottom-32 -right-24 w-[500px] h-[400px] rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(242,181,23,0.04) 0%, transparent 60%)" }} />
         </div>
-      )}
 
-      {error && (
-        <div className="mx-5 mt-3 rounded-xl p-3 text-sm flex-shrink-0" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5" }}>
-          {error}
-          <button onClick={() => setError("")} className="ml-3 text-red-400/60 hover:text-red-300">&times;</button>
-        </div>
-      )}
+        {/* Navbar separator */}
+        <div className="h-px w-full flex-shrink-0 relative z-10"
+          style={{ background: "linear-gradient(90deg, transparent, rgba(242,181,23,0.2) 30%, rgba(242,181,23,0.3) 50%, rgba(242,181,23,0.2) 70%, transparent)" }} />
 
-      {!loading && !error && allSubmissions.length === 0 && (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-white/30 text-sm">No submissions yet.</p>
-        </div>
-      )}
-
-      {/* Main content */}
-      {!loading && !error && allSubmissions.length > 0 && (
-        <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-5 py-3">
-          {/* Top Performers */}
-          {topPitches.length > 0 && (
-            <div className="flex-shrink-0 mb-3">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#F2B517]">Top Performers</span>
-                <div className="flex-1 h-px" style={{ background: "rgba(242,181,23,0.1)" }} />
-              </div>
-              <div className="grid grid-cols-4 gap-0 rounded-xl overflow-hidden">
-                {topPitches.map((pitch, i) => (
-                  <PitchCard key={pitch.id} pitch={pitch} rank={i} />
-                ))}
-              </div>
+        {/* ═══ HERO BANNER ═══ */}
+        <div className="flex-shrink-0 relative z-10 px-6 sm:px-10 pt-6 pb-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none">
+                Pitch Gallery
+              </h1>
+              <p className="mt-1.5 text-sm text-white/30">
+                {allSubmissions.length} pitch{allSubmissions.length !== 1 ? "es" : ""} competing for $10,000
+              </p>
             </div>
-          )}
-
-          {/* Gallery grid */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex items-center gap-2 mb-2 flex-shrink-0">
-              <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/30">All Pitches</span>
-              <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.04)" }} />
-              {totalGalleryPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setGalleryPage((p) => Math.max(1, p - 1))} disabled={galleryPage <= 1}
-                    className="text-[10px] text-white/25 hover:text-white/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                  <span className="text-[10px] text-white/15 tabular-nums">{galleryPage}/{totalGalleryPages}</span>
-                  <button onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))} disabled={galleryPage >= totalGalleryPages}
-                    className="text-[10px] text-white/25 hover:text-white/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors">Next →</button>
+            <div className="flex items-center gap-3">
+              {voterProfile.email ? (
+                <div className="flex items-center gap-2.5 rounded-full px-4 py-2"
+                  style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)" }}>
+                  <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                  <span className="text-sm font-bold" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
+                  <span className="text-xs text-white/30">votes left</span>
                 </div>
+              ) : (
+                <span className="text-xs text-white/25">Click any pitch to vote</span>
               )}
-            </div>
-            <div className="flex-1 grid grid-cols-4 gap-0 rounded-xl overflow-hidden content-start" style={{ minHeight: 0 }}>
-              {paginatedGallery.map((pitch) => (
-                <PitchCard key={pitch.id} pitch={pitch} />
-              ))}
             </div>
           </div>
         </div>
-      )}
 
-      {/* ═══ PITCH DETAIL MODAL (no scroll) ═══ */}
-      {selectedPitch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4"
-          style={{ background: "rgba(0,0,0,0.85)" }}
-          onClick={() => setSelectedPitch(null)}>
-          <div className="w-full max-w-5xl max-h-full flex rounded-2xl overflow-hidden"
-            style={{ background: "#0B1A3B", boxShadow: "0 32px 80px rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}
-            onClick={(e) => e.stopPropagation()}>
+        {/* Loading */}
+        {loading && (
+          <div className="flex-1 flex items-center justify-center relative z-10">
+            <div className="flex flex-col items-center gap-3">
+              <svg className="animate-spin h-8 w-8 text-[#F2B517]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              <span className="text-sm text-white/20">Loading pitches...</span>
+            </div>
+          </div>
+        )}
 
-            {/* Left: Media */}
-            <div className="flex-1 bg-black flex items-center justify-center min-w-0">
-              {selectedPitch.mux_playback_id ? (
-                <MuxPlayer
-                  playbackId={selectedPitch.mux_playback_id}
-                  accentColor="#F2B517"
-                  style={{ width: "100%", aspectRatio: "16/9" }}
-                />
-              ) : (
-                <div className="w-full" style={{ aspectRatio: "16/9" }}>
-                  <img src={getThumbnail(selectedPitch)} alt={selectedPitch.title} className="w-full h-full object-cover" />
+        {/* Error */}
+        {error && (
+          <div className="mx-6 sm:mx-10 mt-2 rounded-xl p-3 text-sm flex-shrink-0 relative z-10"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#fca5a5" }}>
+            {error}
+            <button onClick={() => setError("")} className="ml-3 text-red-400/50 hover:text-red-300 text-lg leading-none">&times;</button>
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && !error && allSubmissions.length === 0 && (
+          <div className="flex-1 flex items-center justify-center relative z-10">
+            <div className="text-center">
+              <div className="text-4xl mb-3 opacity-30">🎤</div>
+              <p className="text-white/25 text-sm">No pitches submitted yet. Be the first!</p>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ MAIN CONTENT ═══ */}
+        {!loading && !error && allSubmissions.length > 0 && (
+          <div className="flex-1 flex flex-col min-h-0 relative z-10 px-4 sm:px-8">
+
+            {/* ── TOP 3 PODIUM ── */}
+            {topPitches.length > 0 && (
+              <div className="flex-shrink-0 mb-4">
+                <div className="grid gap-3 items-end" style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.15fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
+                  {(topPitches.length >= 3 ? [topPitches[1], topPitches[0], topPitches[2]] : topPitches).map((pitch, displayIdx) => {
+                    const actualRank = topPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
+                    const badge = RANK_BADGES[actualRank];
+                    const isFirst = actualRank === 0;
+                    const isPulsing = pulsingVoteIds.includes(pitch.id);
+
+                    return (
+                      <button key={pitch.id}
+                        onClick={() => setSelectedPitch(pitch)}
+                        className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] ${isPulsing ? "ring-2 ring-[#F2B517]" : ""}`}
+                        style={{
+                          aspectRatio: isFirst ? "16/8" : "16/9",
+                          boxShadow: isFirst ? badge.shadow : "0 4px 24px rgba(0,0,0,0.3)",
+                          border: `1px solid ${isFirst ? "rgba(242,181,23,0.3)" : "rgba(255,255,255,0.06)"}`,
+                          animation: "fadeInUp 0.5s ease-out both",
+                          animationDelay: `${displayIdx * 0.1}s`,
+                        }}>
+                        <img src={getThumbnail(pitch)} alt={pitch.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+
+                        {/* Gradient overlay — always visible on podium */}
+                        <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)" }} />
+
+                        {/* Badge */}
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full pl-1 pr-3 py-1"
+                          style={{ background: badge.gradient, boxShadow: badge.shadow }}>
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)" }}>
+                            <svg className="w-3.5 h-3.5" fill={badge.textColor} viewBox="0 0 24 24">
+                              <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                            </svg>
+                          </div>
+                          <span className="text-[11px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.label}</span>
+                        </div>
+
+                        {/* Vote count — maize, prominent */}
+                        <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(242,181,23,0.2)" }}>
+                          <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24">
+                            <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
+                          </svg>
+                          <span className="text-sm font-black" style={{ color: "#F2B517" }}>{pitch.vote_count || 0}</span>
+                        </div>
+
+                        {/* Info bar */}
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <p className="text-white font-bold text-sm truncate leading-tight">{pitch.title}</p>
+                          <p className="text-white/40 text-xs truncate mt-0.5">{pitch.name}</p>
+                        </div>
+
+                        {/* Voted check */}
+                        {pitch.user_has_voted && (
+                          <div className="absolute bottom-3 right-3 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── ALL PITCHES GRID ── */}
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Pagination controls at top of grid */}
+              {shuffledGallery.length > 0 && (
+                <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                  <span className="text-[11px] text-white/20 font-medium">
+                    {shuffledGallery.length} more pitch{shuffledGallery.length !== 1 ? "es" : ""}
+                  </span>
+                  {totalGalleryPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setGalleryPage((p) => Math.max(1, p - 1))} disabled={galleryPage <= 1}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      {Array.from({ length: totalGalleryPages }, (_, i) => i + 1).slice(0, 7).map((p) => (
+                        <button key={p} onClick={() => setGalleryPage(p)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all"
+                          style={{
+                            background: p === galleryPage ? "#F2B517" : "transparent",
+                            color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.25)",
+                          }}>
+                          {p}
+                        </button>
+                      ))}
+                      {totalGalleryPages > 7 && <span className="text-white/15 text-xs px-1">...</span>}
+                      <button onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))} disabled={galleryPage >= totalGalleryPages}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Grid */}
+              <div className="flex-1 grid grid-cols-6 gap-0 rounded-xl overflow-hidden content-start" style={{ minHeight: 0 }}>
+                {paginatedGallery.map((pitch, i) => {
+                  const isPulsing = pulsingVoteIds.includes(pitch.id);
+                  const type = getPitchType(pitch);
+
+                  return (
+                    <button key={pitch.id}
+                      onClick={() => setSelectedPitch(pitch)}
+                      className={`relative block w-full overflow-hidden bg-black/80 group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
+                      style={{
+                        aspectRatio: "16/9",
+                        animation: "fadeInUp 0.3s ease-out both",
+                        animationDelay: `${i * 0.03}s`,
+                      }}>
+                      <img src={getThumbnail(pitch)} alt={pitch.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5">
+                        <p className="text-white font-bold text-[11px] truncate leading-tight">{pitch.title}</p>
+                        <p className="text-white/50 text-[10px] truncate">{pitch.name}</p>
+                      </div>
+
+                      {/* Vote badge — maize star */}
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full px-2 py-0.5"
+                        style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)" }}>
+                        <svg className="w-3.5 h-3.5" fill="#F2B517" viewBox="0 0 24 24">
+                          <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
+                        </svg>
+                        <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
+                      </div>
+
+                      {/* Voted check */}
+                      {pitch.user_has_voted && (
+                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          </div>
+        )}
 
-            {/* Right: Info */}
-            <div className="w-80 flex-shrink-0 flex flex-col p-6" style={{ background: "rgba(11,26,59,0.95)" }}>
-              {/* Close */}
-              <button onClick={() => setSelectedPitch(null)}
-                className="self-end p-1.5 rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors mb-3">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+        {/* ═══ PITCH DETAIL MODAL ═══ */}
+        {selectedPitch && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            style={{ background: "rgba(0,0,0,0.88)" }}
+            onClick={() => setSelectedPitch(null)}>
+            <div className="w-full max-w-5xl max-h-full flex rounded-2xl overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #0B1A3B 0%, #0d1f45 100%)",
+                boxShadow: "0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
+              }}
+              onClick={(e) => e.stopPropagation()}>
 
-              {/* Title & meta */}
-              <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
-              <p className="text-xs text-white/40 mb-4">by {selectedPitch.name}</p>
-
-              {/* Description */}
-              <div className="flex-1 min-h-0 overflow-hidden mb-4">
-                <p className="text-sm text-white/50 leading-relaxed line-clamp-6">{selectedPitch.description}</p>
-                {selectedPitch.text_content && (
-                  <div className="mt-3 rounded-xl p-3 text-xs text-white/40 leading-relaxed line-clamp-4"
-                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    {selectedPitch.text_content}
+              {/* Left: Media */}
+              <div className="flex-1 bg-black flex items-center justify-center min-w-0">
+                {selectedPitch.mux_playback_id ? (
+                  <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517"
+                    style={{ width: "100%", aspectRatio: "16/9" }} />
+                ) : (
+                  <div className="w-full" style={{ aspectRatio: "16/9" }}>
+                    <img src={getThumbnail(selectedPitch)} alt={selectedPitch.title} className="w-full h-full object-cover" />
                   </div>
                 )}
               </div>
 
-              {/* Tags */}
-              {selectedPitch.tags?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-4 flex-shrink-0">
-                  {selectedPitch.tags.map((tag) => (
-                    <span key={tag.id} className="px-2 py-0.5 text-[10px] rounded-md font-medium"
-                      style={{ background: "rgba(242,181,23,0.1)", color: "rgba(242,181,23,0.7)" }}>{tag.name}</span>
-                  ))}
-                </div>
-              )}
-
-              {/* Vote section */}
-              <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-white tabular-nums">{selectedPitch.vote_count || 0}</span>
-                  <span className="text-xs text-white/25">votes</span>
-                </div>
-                <button
-                  onClick={() => handleVote(selectedPitch.id)}
-                  disabled={voteSubmitting[selectedPitch.id]}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                  style={{
-                    background: selectedPitch.user_has_voted ? "rgba(242,181,23,0.15)" : "#F2B517",
-                    color: selectedPitch.user_has_voted ? "#F2B517" : "#0B1A3B",
-                    border: selectedPitch.user_has_voted ? "1px solid rgba(242,181,23,0.3)" : "1px solid transparent",
-                  }}>
-                  {voteSubmitting[selectedPitch.id] ? (
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                  ) : selectedPitch.user_has_voted ? (
-                    <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                      Voted
-                    </>
-                  ) : (
-                    <>
-                      <span>▲</span>
-                      Vote
-                    </>
-                  )}
+              {/* Right: Info */}
+              <div className="w-80 flex-shrink-0 flex flex-col p-6" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
+                <button onClick={() => setSelectedPitch(null)}
+                  className="self-end p-1.5 rounded-lg text-white/20 hover:text-white hover:bg-white/5 transition-colors mb-3">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-              </div>
 
-              {/* Remaining votes */}
-              {voterProfile.email && (
-                <p className="text-[10px] text-white/20 mt-2 text-center flex-shrink-0">
-                  {voting.remainingVotes} of {voting.maxVotesPerUser} votes remaining
-                </p>
-              )}
+                {/* Rank badge in modal if top 3 */}
+                {(() => {
+                  const rank = topPitches.findIndex((p) => p.id === selectedPitch.id);
+                  if (rank === -1) return null;
+                  const badge = RANK_BADGES[rank];
+                  return (
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-1.5 rounded-full pl-1.5 pr-3 py-1" style={{ background: badge.gradient, boxShadow: badge.shadow }}>
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)" }}>
+                          <svg className="w-3 h-3" fill={badge.textColor} viewBox="0 0 24 24"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" /></svg>
+                        </div>
+                        <span className="text-[10px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.label} PLACE</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
+                <p className="text-xs text-white/35 mb-4">by {selectedPitch.name}</p>
+
+                <div className="flex-1 min-h-0 overflow-hidden mb-4">
+                  <p className="text-sm text-white/45 leading-relaxed line-clamp-6">{selectedPitch.description}</p>
+                  {selectedPitch.text_content && (
+                    <div className="mt-3 rounded-xl p-3 text-xs text-white/35 leading-relaxed line-clamp-4"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      {selectedPitch.text_content}
+                    </div>
+                  )}
+                </div>
+
+                {selectedPitch.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-4 flex-shrink-0">
+                    {selectedPitch.tags.map((tag) => (
+                      <span key={tag.id} className="px-2.5 py-0.5 text-[10px] rounded-full font-medium"
+                        style={{ background: "rgba(242,181,23,0.08)", color: "rgba(242,181,23,0.6)", border: "1px solid rgba(242,181,23,0.1)" }}>{tag.name}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Vote area */}
+                <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24">
+                      <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
+                    </svg>
+                    <span className="text-2xl font-black text-white tabular-nums">{selectedPitch.vote_count || 0}</span>
+                  </div>
+                  <button onClick={() => handleVote(selectedPitch.id)}
+                    disabled={voteSubmitting[selectedPitch.id]}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                    style={{
+                      background: selectedPitch.user_has_voted ? "rgba(242,181,23,0.12)" : "#F2B517",
+                      color: selectedPitch.user_has_voted ? "#F2B517" : "#0B1A3B",
+                      border: selectedPitch.user_has_voted ? "1px solid rgba(242,181,23,0.25)" : "1px solid transparent",
+                    }}>
+                    {voteSubmitting[selectedPitch.id] ? (
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    ) : selectedPitch.user_has_voted ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        Voted
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" /></svg>
+                        Vote
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {voterProfile.email && (
+                  <p className="text-[10px] text-white/15 mt-2 text-center flex-shrink-0">
+                    {voting.remainingVotes} of {voting.maxVotesPerUser} votes remaining
+                  </p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ═══ VOTER MODAL (only for non-logged-in users) ═══ */}
-      {showVoterModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4"
-          style={{ background: "rgba(0,0,0,0.7)" }}
-          onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}>
-          <div className="w-full max-w-md rounded-2xl p-6"
-            style={{ background: "rgba(11,26,59,0.95)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
-            onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-1">Before you vote</h3>
-            <p className="text-sm text-white/40 mb-5">Enter your name and email to start voting.</p>
-            <form onSubmit={handleSaveVoterProfile} className="space-y-3">
-              <input type="text" placeholder="Your name" value={voterForm.name}
-                onChange={(e) => setVoterForm((p) => ({ ...p, name: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-                required />
-              <input type="email" placeholder="you@umich.edu" value={voterForm.email}
-                onChange={(e) => setVoterForm((p) => ({ ...p, email: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-                required />
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}
-                  className="px-4 py-2.5 text-sm font-medium text-white/40 hover:text-white/70 transition-colors">Cancel</button>
-                <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-bold text-[#0B1A3B] bg-[#F2B517] hover:bg-yellow-400 transition-colors">
-                  Continue to Vote
-                </button>
+        {/* ═══ VOTER MODAL ═══ */}
+        {showVoterModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+            style={{ background: "rgba(0,0,0,0.75)" }}
+            onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}>
+            <div className="w-full max-w-md rounded-2xl p-6"
+              style={{ background: "linear-gradient(135deg, rgba(11,26,59,0.97), rgba(13,21,48,0.97))", backdropFilter: "blur(24px)", border: "1px solid rgba(242,181,23,0.15)", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" /></svg>
+                <h3 className="text-lg font-bold text-white">Cast Your Vote</h3>
               </div>
-            </form>
+              <p className="text-sm text-white/35 mb-5">Enter your name and email to start voting.</p>
+              <form onSubmit={handleSaveVoterProfile} className="space-y-3">
+                <input type="text" placeholder="Your name" value={voterForm.name}
+                  onChange={(e) => setVoterForm((p) => ({ ...p, name: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  required />
+                <input type="email" placeholder="you@umich.edu" value={voterForm.email}
+                  onChange={(e) => setVoterForm((p) => ({ ...p, email: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  required />
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}
+                    className="px-4 py-2.5 text-sm font-medium text-white/35 hover:text-white/60 transition-colors">Cancel</button>
+                  <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-bold text-[#0B1A3B] transition-colors"
+                    style={{ background: "#F2B517" }}>
+                    Continue to Vote
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
