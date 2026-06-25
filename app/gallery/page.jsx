@@ -1,333 +1,168 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../../lib/AuthContext";
 import MuxPlayer from "@mux/mux-player-react";
 
-const PAGE_SIZE = 20;
-const VOTER_PROFILE_KEY = "gallery_voter_profile";
-
-const BRAND_MAIZE = "#f5bd24";
+const GALLERY_PAGE_SIZE = 100; // fetch all, paginate client-side
+const GRID_COLS = 4;
+const ROWS_VISIBLE = 2; // 2 rows of gallery cards visible
+const CARDS_PER_PAGE = GRID_COLS * ROWS_VISIBLE;
+const TOP_COUNT = 4;
 
 export default function GalleryPage() {
-  const [submissions, setSubmissions] = useState([]);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: PAGE_SIZE,
-    total: 0,
-    hasMore: false,
-  });
+  const { user } = useAuth();
 
-  const [page, setPage] = useState(1);
+  const [allSubmissions, setAllSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [galleryPage, setGalleryPage] = useState(1);
 
-  const [voting, setVoting] = useState({
-    maxVotesPerUser: 5,
-    userVoteCount: 0,
-    remainingVotes: 5,
-  });
-
+  const [voting, setVoting] = useState({ maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
   const [voteSubmitting, setVoteSubmitting] = useState({});
+  const [selectedPitch, setSelectedPitch] = useState(null);
+
+  // Voter identity — auto-fill from auth if logged in
   const [voterProfile, setVoterProfile] = useState({ name: "", email: "" });
   const [showVoterModal, setShowVoterModal] = useState(false);
-  const [selectedPitch, setSelectedPitch] = useState(null);
   const [pendingPitchId, setPendingPitchId] = useState(null);
   const [voterForm, setVoterForm] = useState({ name: "", email: "" });
-  const [recentlyVotedIds, setRecentlyVotedIds] = useState([]);
+
+  const [defaultThumbnails, setDefaultThumbnails] = useState({ audioThumbnail: null, textThumbnail: null });
+
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
 
-  const [defaultThumbnails, setDefaultThumbnails] = useState({
-    audioThumbnail: null,
-    textThumbnail: null,
-  });
+  // Randomization seed — stable per session
+  const [shuffleSeed] = useState(() => Math.random());
 
-  const risingPitches = useMemo(
-    () =>
-      [...submissions]
-        .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
-        .slice(0, 4),
-    [submissions]
+  // ── Auto-fill voter from auth ──
+  useEffect(() => {
+    if (user?.email) {
+      setVoterProfile({ name: user.email.split("@")[0], email: user.email.toLowerCase() });
+    } else if (typeof window !== "undefined") {
+      try {
+        const saved = JSON.parse(localStorage.getItem("gallery_voter_profile") || "null");
+        if (saved?.name && saved?.email) setVoterProfile({ name: saved.name, email: saved.email.toLowerCase() });
+      } catch {}
+    }
+  }, [user]);
+
+  // ── Fetch submissions ──
+  const fetchSubmissions = async () => {
+    try {
+      const params = new URLSearchParams({ page: "1", pageSize: String(GALLERY_PAGE_SIZE) });
+      if (voterProfile.email) params.set("voterEmail", voterProfile.email);
+      const res = await fetch(`/api/gallery/submissions?${params}`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load");
+      setAllSubmissions(data.submissions || []);
+      setVoting(data.voting || { maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
+      if (data.defaults) setDefaultThumbnails(data.defaults);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchSubmissions(); }, [voterProfile.email]);
+
+  // Live refresh
+  useEffect(() => {
+    if (loading) return;
+    const id = setInterval(fetchSubmissions, 15000);
+    return () => clearInterval(id);
+  }, [loading, voterProfile.email]);
+
+  // Detect vote changes for pulse animation
+  useEffect(() => {
+    if (!allSubmissions.length) return;
+    const changed = allSubmissions.filter((p) => {
+      const prev = previousVotesRef.current[p.id];
+      return prev !== undefined && prev !== (p.vote_count || 0);
+    }).map((p) => p.id);
+    previousVotesRef.current = Object.fromEntries(allSubmissions.map((p) => [p.id, p.vote_count || 0]));
+    if (!changed.length) return;
+    setPulsingVoteIds(changed);
+    const t = setTimeout(() => setPulsingVoteIds([]), 1600);
+    return () => clearTimeout(t);
+  }, [allSubmissions]);
+
+  // Keep selected pitch in sync
+  useEffect(() => {
+    if (!selectedPitch) return;
+    const updated = allSubmissions.find((p) => p.id === selectedPitch.id);
+    if (updated) setSelectedPitch(updated);
+  }, [allSubmissions]);
+
+  // ── Top performers (by votes, stable) ──
+  const topPitches = useMemo(() =>
+    [...allSubmissions].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0)).slice(0, TOP_COUNT),
+    [allSubmissions]
   );
 
+  // ── Shuffled gallery (excluding top) ──
+  const shuffledGallery = useMemo(() => {
+    const topIds = new Set(topPitches.map((p) => p.id));
+    const rest = allSubmissions.filter((p) => !topIds.has(p.id));
+    // Seeded shuffle
+    const arr = [...rest];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor((shuffleSeed * (i + 1) * 9301 + 49297) % arr.length);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, [allSubmissions, topPitches, shuffleSeed]);
+
+  const totalGalleryPages = Math.max(1, Math.ceil(shuffledGallery.length / CARDS_PER_PAGE));
+  const paginatedGallery = shuffledGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
+
+  // ── Thumbnail helper ──
   const getThumbnail = (pitch) => {
-    // 1. User-uploaded custom thumbnail always wins
     if (pitch.thumbnail_path) return pitch.thumbnail_path;
-    // 2. For video pitches, use Mux thumbnail
-    if (pitch.mux_playback_id) {
-      return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1`;
-    }
-    // 3. For audio pitches, use admin-set default
-    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) {
-      return defaultThumbnails.audioThumbnail || "/placeholder.png";
-    }
-    // 4. For text/document pitches, use admin-set default
-    if (pitch.text_content || /\.(txt|pdf|doc|docx|ppt|pptx)$/i.test(pitch.file_name || "")) {
-      return defaultThumbnails.textThumbnail || "/placeholder.png";
-    }
-    // 5. Fallback
+    if (pitch.mux_playback_id) return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=640&height=360&fit_mode=smartcrop`;
+    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return defaultThumbnails.audioThumbnail || "/placeholder.png";
+    if (pitch.text_content || /\.(txt|pdf|doc|docx)$/i.test(pitch.file_name || "")) return defaultThumbnails.textThumbnail || "/placeholder.png";
     return "/placeholder.png";
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const rawProfile = localStorage.getItem(VOTER_PROFILE_KEY);
-    if (!rawProfile) return;
+  const getPitchType = (p) => {
+    if (p.file_type === "video" || p.mux_playback_id) return "video";
+    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "audio";
+    return "text";
+  };
 
-    try {
-      const parsed = JSON.parse(rawProfile);
-      if (parsed?.name && parsed?.email) {
-        setVoterProfile({
-          name: String(parsed.name).trim(),
-          email: String(parsed.email).trim().toLowerCase(),
-        });
-      }
-    } catch {
-      // ignore malformed localStorage values
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSubmissions() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const params = new URLSearchParams({
-          page: String(page),
-          pageSize: String(PAGE_SIZE),
-        });
-        if (voterProfile.email) {
-          params.set("voterEmail", voterProfile.email);
-        }
-
-        const res = await fetch(`/api/gallery/submissions?${params.toString()}`, {
-          cache: "no-store",
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || "Failed to load submissions.");
-        }
-
-        if (cancelled) return;
-
-        setSubmissions(data.submissions || []);
-
-        setVoting(
-          data.voting || {
-            maxVotesPerUser: 5,
-            userVoteCount: 0,
-            remainingVotes: 5,
-          }
-        );
-
-        if (data.defaults) {
-          setDefaultThumbnails(data.defaults);
-        }
-
-        setPagination(
-          data.pagination || {
-            page,
-            pageSize: PAGE_SIZE,
-            total: 0,
-            hasMore: false,
-          }
-        );
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load submissions.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadSubmissions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [page, voterProfile.email]);
-
-  useEffect(() => {
-    if (loading || typeof window === "undefined") return;
-
-    let cancelled = false;
-
-    async function refreshLiveVotes() {
-      try {
-        const params = new URLSearchParams({
-          page: String(page),
-          pageSize: String(PAGE_SIZE),
-        });
-        if (voterProfile.email) {
-          params.set("voterEmail", voterProfile.email);
-        }
-
-        const res = await fetch(`/api/gallery/submissions?${params.toString()}`, {
-          cache: "no-store",
-        });
-
-        const data = await res.json();
-        if (!res.ok || cancelled) return;
-
-        setSubmissions(data.submissions || []);
-        setVoting(
-          data.voting || {
-            maxVotesPerUser: 5,
-            userVoteCount: 0,
-            remainingVotes: 5,
-          }
-        );
-        if (data.defaults) {
-          setDefaultThumbnails(data.defaults);
-        }
-        setPagination(
-          data.pagination || {
-            page,
-            pageSize: PAGE_SIZE,
-            total: 0,
-            hasMore: false,
-          }
-        );
-      } catch {
-        // Keep the live board quiet if a background refresh fails.
-      }
-    }
-
-    const liveVoteTimer = window.setInterval(refreshLiveVotes, 12000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(liveVoteTimer);
-    };
-  }, [loading, page, voterProfile.email]);
-
-  useEffect(() => {
-    if (!submissions.length) return;
-
-    const changedPitchIds = submissions
-      .filter((pitch) => {
-        const previousVoteCount = previousVotesRef.current[pitch.id];
-        return (
-          previousVoteCount !== undefined &&
-          previousVoteCount !== (pitch.vote_count || 0)
-        );
-      })
-      .map((pitch) => pitch.id);
-
-    previousVotesRef.current = submissions.reduce((votesByPitch, pitch) => {
-      votesByPitch[pitch.id] = pitch.vote_count || 0;
-      return votesByPitch;
-    }, {});
-
-    if (!changedPitchIds.length) return;
-
-    setPulsingVoteIds(changedPitchIds);
-    setRecentlyVotedIds((currentIds) => [
-      ...changedPitchIds,
-      ...currentIds.filter((id) => !changedPitchIds.includes(id)),
-    ].slice(0, 6));
-
-    const pulseTimer = window.setTimeout(() => {
-      setPulsingVoteIds([]);
-    }, 1600);
-
-    const recentTimer = window.setTimeout(() => {
-      setRecentlyVotedIds((currentIds) =>
-        currentIds.filter((id) => !changedPitchIds.includes(id))
-      );
-    }, 9000);
-
-    return () => {
-      window.clearTimeout(pulseTimer);
-      window.clearTimeout(recentTimer);
-    };
-  }, [submissions]);
-
-  useEffect(() => {
-    if (!selectedPitch) return;
-
-    const updatedPitch = submissions.find((pitch) => pitch.id === selectedPitch.id);
-    if (updatedPitch) {
-      setSelectedPitch(updatedPitch);
-    }
-  }, [submissions, selectedPitch]);
-
+  // ── Voting ──
   const submitVoteRequest = async (pitchId, profile) => {
-    const targetPitch = submissions.find((pitch) => pitch.id === pitchId);
-    const isUnvote = Boolean(targetPitch?.user_has_voted);
-
-    setVoteSubmitting((prev) => ({
-      ...prev,
-      [pitchId]: true,
-    }));
-
+    const target = allSubmissions.find((p) => p.id === pitchId);
+    const isUnvote = Boolean(target?.user_has_voted);
+    setVoteSubmitting((prev) => ({ ...prev, [pitchId]: true }));
     setError("");
-
     try {
       const res = await fetch("/api/gallery/votes", {
         method: isUnvote ? "DELETE" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          pitchId,
-          voterName: profile.name,
-          voterEmail: profile.email,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pitchId, voterName: profile.name, voterEmail: profile.email }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to cast vote.");
-      }
-
-      setSubmissions((prev) =>
-        prev.map((pitch) =>
-          pitch.id === pitchId
-            ? {
-                ...pitch,
-                vote_count: data.pitchVoteCount,
-                user_has_voted: data.action === "voted",
-              }
-            : pitch
-        )
-      );
-
-      setVoting({
-        maxVotesPerUser: data.maxVotesPerUser,
-        userVoteCount: data.userVoteCount,
-        remainingVotes: data.remainingVotes,
-      });
+      if (!res.ok) throw new Error(data.error || "Failed to cast vote.");
+      setAllSubmissions((prev) => prev.map((p) => p.id === pitchId ? { ...p, vote_count: data.pitchVoteCount, user_has_voted: data.action === "voted" } : p));
+      setVoting({ maxVotesPerUser: data.maxVotesPerUser, userVoteCount: data.userVoteCount, remainingVotes: data.remainingVotes });
     } catch (err) {
-      setError(err.message || "Failed to cast vote.");
+      setError(err.message);
     } finally {
-      setVoteSubmitting((prev) => ({
-        ...prev,
-        [pitchId]: false,
-      }));
+      setVoteSubmitting((prev) => ({ ...prev, [pitchId]: false }));
     }
   };
 
   const handleVote = async (pitchId) => {
     if (!voterProfile.email || !voterProfile.name) {
       setPendingPitchId(pitchId);
-      setVoterForm((prev) => ({
-        name: prev.name || "",
-        email: prev.email || "",
-      }));
+      setVoterForm({ name: "", email: "" });
       setShowVoterModal(true);
       return;
     }
-
     await submitVoteRequest(pitchId, voterProfile);
   };
 
@@ -335,316 +170,279 @@ export default function GalleryPage() {
     e.preventDefault();
     const name = voterForm.name.trim();
     const email = voterForm.email.trim().toLowerCase();
-
-    if (!name) {
-      setError("Please enter your name.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
+    if (!name) { setError("Please enter your name."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Please enter a valid email."); return; }
     const profile = { name, email };
     setVoterProfile(profile);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(VOTER_PROFILE_KEY, JSON.stringify(profile));
-    }
+    if (typeof window !== "undefined") localStorage.setItem("gallery_voter_profile", JSON.stringify(profile));
     setShowVoterModal(false);
-
     if (pendingPitchId) {
-      const pitchIdToVote = pendingPitchId;
+      const pid = pendingPitchId;
       setPendingPitchId(null);
-      await submitVoteRequest(pitchIdToVote, profile);
+      await submitVoteRequest(pid, profile);
     }
   };
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      (pagination.total || 0) /
-        (pagination.pageSize || PAGE_SIZE)
-    )
-  );
+  // ── Card component ──
+  const PitchCard = ({ pitch, rank, size = "normal" }) => {
+    const isPulsing = pulsingVoteIds.includes(pitch.id);
+    const type = getPitchType(pitch);
+    const typeIcon = type === "video" ? "🎬" : type === "audio" ? "🎧" : "📝";
 
+    return (
+      <button
+        onClick={() => setSelectedPitch(pitch)}
+        className={`relative block w-full overflow-hidden bg-black group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
+        style={{ aspectRatio: "16/9" }}
+      >
+        <img src={getThumbnail(pitch)} alt={pitch.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+          <p className="text-white font-bold text-sm truncate leading-tight">{pitch.title}</p>
+          <p className="text-white/60 text-xs truncate">{pitch.name}</p>
+        </div>
+        {/* Vote badge */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold shadow-lg"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", color: "#fff" }}>
+          <span style={{ fontSize: "10px" }}>▲</span> {pitch.vote_count || 0}
+        </div>
+        {/* Type badge */}
+        <div className="absolute top-2 left-2 text-xs" title={type}>{typeIcon}</div>
+        {/* Rank badge for top */}
+        {rank != null && (
+          <div className="absolute bottom-2 left-2 rounded-full px-2.5 py-0.5 text-[11px] font-black shadow-lg"
+            style={{ background: "#F2B517", color: "#0B1A3B" }}>#{rank + 1}</div>
+        )}
+        {/* Voted indicator */}
+        {pitch.user_has_voted && (
+          <div className="absolute bottom-2 right-2 rounded-full w-5 h-5 flex items-center justify-center"
+            style={{ background: "#F2B517" }}>
+            <svg className="w-3 h-3 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  // ── Main render ──
   return (
-    <div className="min-h-screen bg-[#f7f8fb] text-[#111827]">
-      <div className="w-full min-h-screen">
-        {/* Hero Banner */}
-        <div className="mx-auto max-w-7xl px-5 pb-8 pt-12 md:px-10">
-          <h1 className="mb-3 text-4xl font-black tracking-tight text-[#0b1736] md:text-5xl">
-            Submission <span className="text-[#f5bd24]">Gallery</span>
-          </h1>
-          <p className="max-w-2xl text-base font-medium leading-7 text-slate-600 md:text-lg">
-            Browse, preview, and vote on the best competition submissions.
-          </p>
+    <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col" style={{ background: "#0a0f1a" }}>
+      {/* Navbar separator — solid dark bar so it doesn't blend */}
+      <div className="h-px w-full flex-shrink-0" style={{ background: "rgba(242,181,23,0.15)" }} />
+
+      {/* Top bar: title + voting info */}
+      <div className="flex items-center justify-between px-5 sm:px-8 py-3 flex-shrink-0" style={{ background: "rgba(11,26,59,0.6)" }}>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-white tracking-tight">Gallery</h1>
+          <span className="hidden sm:inline text-xs text-white/30">{allSubmissions.length} pitches</span>
         </div>
-
-        {/* Voting Summary */}
-        <div className="mx-5 mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:mx-10">
-          <p className="text-sm font-medium text-slate-600">
-            {voterProfile.email
-              ? `Votes used: ${voting.userVoteCount}/${voting.maxVotesPerUser} (${voterProfile.email})`
-              : "Click Vote to enter your name and email."}
-          </p>
-
-          {voterProfile.email && (
-            <span className="rounded-full bg-[#f5bd24] px-3 py-1 text-sm font-black text-[#0b1736]">
-              Remaining votes: {voting.remainingVotes}
-            </span>
-          )}
-        </div>
-
-        {!loading && !error && pagination.total > 0 && (
-          <p className="mx-5 mb-8 text-sm font-medium text-slate-500 md:mx-10">
-            Showing page {pagination.page} of {totalPages} (
-            {pagination.total} total submissions)
-          </p>
-        )}
-
-        {loading && (
-          <div className="py-16 text-center">
-            <p className="font-medium text-slate-500">
-              Loading submissions...
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <div className="mx-5 mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 md:mx-10">
-            {error}
-          </div>
-        )}
-
-        {!loading &&
-          !error &&
-          submissions.length === 0 && (
-            <div className="py-12 text-center">
-              <p className="font-medium text-slate-500">
-                No submissions available yet.
-              </p>
-            </div>
-          )}
-
-        
-        {!loading &&
-          !error &&
-          submissions.length > 0 && (
+        <div className="flex items-center gap-3">
+          {voterProfile.email ? (
             <>
-              <div className="mx-4 mb-8 rounded-2xl bg-[#081936] p-4 shadow-2xl md:mx-8 md:p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-black uppercase tracking-[0.18em] text-white">
-                    Rising Pitches
-                  </h2>
-                  <span className="rounded-full bg-[#f5bd24] px-3 py-1 text-xs font-black text-[#0b1736] shadow-sm">
-                    Live vote board
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                  {risingPitches.map((pitch, index) => {
-                    const isRecentlyVoted = recentlyVotedIds.includes(pitch.id);
-                    const isPulsing = pulsingVoteIds.includes(pitch.id);
-
-                    return (
-                      <button
-                        key={pitch.id}
-                        onClick={() => setSelectedPitch(pitch)}
-                        className={`relative aspect-[16/10] overflow-hidden rounded-xl bg-black text-left shadow-sm transition-transform hover:scale-[1.02] ${
-                          isPulsing ? "animate-pulse ring-4 ring-[#f5bd24]" : ""
-                        }`}
-                      >
-                        <img
-                          src={getThumbnail(pitch)}
-                          alt={pitch.title}
-                          className="h-full w-full object-cover opacity-80"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                        <div className="absolute left-3 top-3 rounded-full bg-[#f5bd24] px-2 py-1 text-xs font-black text-[#0b1736]">
-                          #{index + 1}
-                        </div>
-                        <div className="absolute right-3 top-3 rounded-full bg-white/95 px-2 py-1 text-xs font-black text-[#0b1736] shadow">
-                          👍 {pitch.vote_count || 0}
-                        </div>
-                        {isRecentlyVoted && (
-                          <div className="absolute bottom-12 left-3 rounded-full bg-emerald-400 px-2 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-950">
-                            Recently voted
-                          </div>
-                        )}
-                        <div className="absolute bottom-3 left-3 right-3">
-                          <p className="truncate text-sm font-black text-white">
-                            {pitch.title}
-                          </p>
-                          <p className="truncate text-xs text-white/80">
-                            By {pitch.name}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mx-4 grid grid-cols-4 gap-0 overflow-hidden rounded-2xl bg-[#081936] shadow-xl md:mx-8">
-                {submissions.map((pitch) => {
-                  const thumbnail = getThumbnail(pitch);
-                  const isRecentlyVoted = recentlyVotedIds.includes(pitch.id);
-                  const isPulsing = pulsingVoteIds.includes(pitch.id);
-
-                  return (
-                    <button
-                      key={pitch.id}
-                      onClick={() => setSelectedPitch(pitch)}
-                      className={`relative m-0 block aspect-square w-full overflow-hidden border-0 p-0 group bg-black transition-shadow ${
-                        isPulsing ? "animate-pulse ring-4 ring-[#f5bd24] ring-inset" : ""
-                      }`}
-                    >
-                      <img
-                        src={thumbnail}
-                        alt={pitch.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                      />
-
-                      <div className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-xs font-black text-[#0b1736] shadow">
-                        👍 {pitch.vote_count || 0}
-                      </div>
-
-                      {isRecentlyVoted && (
-                        <div className="absolute left-2 top-2 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-950 shadow">
-                          Recent
-                        </div>
-                      )}
-
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="text-white font-bold text-lg">
-                        👍 {pitch.vote_count || 0}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mx-4 mt-8 flex items-center justify-between gap-4 pb-12 md:mx-8">
-                <button
-                  type="button"
-                  onClick={() => setPage((current) => Math.max(current - 1, 1))}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-[#0b1736] shadow-sm transition hover:border-[#f5bd24] hover:bg-[#f5bd24]"
-                >
-                  Previous
-                </button>
-
-                <p className="text-sm font-black text-slate-600">Page {pagination.page} of {totalPages}</p>
-
-                <button
-                  type="button"
-                  onClick={() => setPage((current) => current + 1)}
-                  disabled={!pagination.hasMore || loading}
-                  className="rounded-xl bg-[#f5bd24] px-5 py-3 text-sm font-black text-[#0b1736] shadow-sm transition hover:bg-[#e0aa17] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                >
-                  Next
-                </button>
-              </div>
+              <span className="text-xs text-white/40 hidden sm:inline">{voterProfile.email}</span>
+              <span className="rounded-full px-3 py-1 text-[11px] font-bold" style={{ background: "rgba(242,181,23,0.15)", color: "#F2B517" }}>
+                {voting.remainingVotes} votes left
+              </span>
             </>
+          ) : (
+            <span className="text-xs text-white/30">Click a pitch to vote</span>
+          )}
+        </div>
+      </div>
+
+      {/* Loading / Error */}
+      {loading && (
+        <div className="flex-1 flex items-center justify-center">
+          <svg className="animate-spin h-6 w-6 text-[#F2B517]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+        </div>
+      )}
+
+      {error && (
+        <div className="mx-5 mt-3 rounded-xl p-3 text-sm flex-shrink-0" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5" }}>
+          {error}
+          <button onClick={() => setError("")} className="ml-3 text-red-400/60 hover:text-red-300">&times;</button>
+        </div>
+      )}
+
+      {!loading && !error && allSubmissions.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-white/30 text-sm">No submissions yet.</p>
+        </div>
+      )}
+
+      {/* Main content */}
+      {!loading && !error && allSubmissions.length > 0 && (
+        <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-5 py-3">
+          {/* Top Performers */}
+          {topPitches.length > 0 && (
+            <div className="flex-shrink-0 mb-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#F2B517]">Top Performers</span>
+                <div className="flex-1 h-px" style={{ background: "rgba(242,181,23,0.1)" }} />
+              </div>
+              <div className="grid grid-cols-4 gap-0 rounded-xl overflow-hidden">
+                {topPitches.map((pitch, i) => (
+                  <PitchCard key={pitch.id} pitch={pitch} rank={i} />
+                ))}
+              </div>
+            </div>
           )}
 
-        {selectedPitch && (
-          <div
-            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-            onClick={() => setSelectedPitch(null)}
-          >
-            <div
-              className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-auto rounded-2xl bg-white shadow-2xl lg:flex-row"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="lg:w-2/3 bg-black">
-                {selectedPitch.mux_playback_id ? (
-                  <MuxPlayer
-                    playbackId={selectedPitch.mux_playback_id}
-                    accentColor={BRAND_MAIZE}
-                    style={{ width: "100%", minHeight: "500px" }}
-                  />
-                ) : null}
+          {/* Gallery grid */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center gap-2 mb-2 flex-shrink-0">
+              <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/30">All Pitches</span>
+              <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.04)" }} />
+              {totalGalleryPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setGalleryPage((p) => Math.max(1, p - 1))} disabled={galleryPage <= 1}
+                    className="text-[10px] text-white/25 hover:text-white/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors">← Prev</button>
+                  <span className="text-[10px] text-white/15 tabular-nums">{galleryPage}/{totalGalleryPages}</span>
+                  <button onClick={() => setGalleryPage((p) => Math.min(totalGalleryPages, p + 1))} disabled={galleryPage >= totalGalleryPages}
+                    className="text-[10px] text-white/25 hover:text-white/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors">Next →</button>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 grid grid-cols-4 gap-0 rounded-xl overflow-hidden content-start" style={{ minHeight: 0 }}>
+              {paginatedGallery.map((pitch) => (
+                <PitchCard key={pitch.id} pitch={pitch} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ PITCH DETAIL MODAL (no scroll) ═══ */}
+      {selectedPitch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+          onClick={() => setSelectedPitch(null)}>
+          <div className="w-full max-w-5xl max-h-full flex rounded-2xl overflow-hidden"
+            style={{ background: "#0B1A3B", boxShadow: "0 32px 80px rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}
+            onClick={(e) => e.stopPropagation()}>
+
+            {/* Left: Media */}
+            <div className="flex-1 bg-black flex items-center justify-center min-w-0">
+              {selectedPitch.mux_playback_id ? (
+                <MuxPlayer
+                  playbackId={selectedPitch.mux_playback_id}
+                  accentColor="#F2B517"
+                  style={{ width: "100%", aspectRatio: "16/9" }}
+                />
+              ) : (
+                <div className="w-full" style={{ aspectRatio: "16/9" }}>
+                  <img src={getThumbnail(selectedPitch)} alt={selectedPitch.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+
+            {/* Right: Info */}
+            <div className="w-80 flex-shrink-0 flex flex-col p-6" style={{ background: "rgba(11,26,59,0.95)" }}>
+              {/* Close */}
+              <button onClick={() => setSelectedPitch(null)}
+                className="self-end p-1.5 rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors mb-3">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+
+              {/* Title & meta */}
+              <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
+              <p className="text-xs text-white/40 mb-4">by {selectedPitch.name}</p>
+
+              {/* Description */}
+              <div className="flex-1 min-h-0 overflow-hidden mb-4">
+                <p className="text-sm text-white/50 leading-relaxed line-clamp-6">{selectedPitch.description}</p>
+                {selectedPitch.text_content && (
+                  <div className="mt-3 rounded-xl p-3 text-xs text-white/40 leading-relaxed line-clamp-4"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    {selectedPitch.text_content}
+                  </div>
+                )}
               </div>
 
-              <div className="lg:w-1/3 p-6">
-                <h2 className="text-2xl font-black tracking-tight text-[#0b1736]">{selectedPitch.title}</h2>
-                <p className="mt-1 text-sm font-medium text-slate-500">By {selectedPitch.name}</p>
+              {/* Tags */}
+              {selectedPitch.tags?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-4 flex-shrink-0">
+                  {selectedPitch.tags.map((tag) => (
+                    <span key={tag.id} className="px-2 py-0.5 text-[10px] rounded-md font-medium"
+                      style={{ background: "rgba(242,181,23,0.1)", color: "rgba(242,181,23,0.7)" }}>{tag.name}</span>
+                  ))}
+                </div>
+              )}
 
-                <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                  {selectedPitch.description}
+              {/* Vote section */}
+              <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-white tabular-nums">{selectedPitch.vote_count || 0}</span>
+                  <span className="text-xs text-white/25">votes</span>
+                </div>
+                <button
+                  onClick={() => handleVote(selectedPitch.id)}
+                  disabled={voteSubmitting[selectedPitch.id]}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                  style={{
+                    background: selectedPitch.user_has_voted ? "rgba(242,181,23,0.15)" : "#F2B517",
+                    color: selectedPitch.user_has_voted ? "#F2B517" : "#0B1A3B",
+                    border: selectedPitch.user_has_voted ? "1px solid rgba(242,181,23,0.3)" : "1px solid transparent",
+                  }}>
+                  {voteSubmitting[selectedPitch.id] ? (
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  ) : selectedPitch.user_has_voted ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      Voted
+                    </>
+                  ) : (
+                    <>
+                      <span>▲</span>
+                      Vote
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Remaining votes */}
+              {voterProfile.email && (
+                <p className="text-[10px] text-white/20 mt-2 text-center flex-shrink-0">
+                  {voting.remainingVotes} of {voting.maxVotesPerUser} votes remaining
                 </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-                <div className="mt-6 flex items-center justify-between">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black text-[#0b1736]">
-                  👍 {selectedPitch.vote_count || 0}
-                  </span>
-
-                  <button
-                    onClick={() => handleVote(selectedPitch.id)}
-                    className="rounded-xl bg-[#f5bd24] px-5 py-3 text-sm font-black text-[#0b1736] shadow-sm transition hover:bg-[#e0aa17]"
-                  >
-                    {selectedPitch.user_has_voted ? "Unvote" : "Vote"}
-                  </button>
-                </div>
+      {/* ═══ VOTER MODAL (only for non-logged-in users) ═══ */}
+      {showVoterModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+          onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}>
+          <div className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "rgba(11,26,59,0.95)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-1">Before you vote</h3>
+            <p className="text-sm text-white/40 mb-5">Enter your name and email to start voting.</p>
+            <form onSubmit={handleSaveVoterProfile} className="space-y-3">
+              <input type="text" placeholder="Your name" value={voterForm.name}
+                onChange={(e) => setVoterForm((p) => ({ ...p, name: e.target.value }))}
+                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                required />
+              <input type="email" placeholder="you@umich.edu" value={voterForm.email}
+                onChange={(e) => setVoterForm((p) => ({ ...p, email: e.target.value }))}
+                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                required />
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}
+                  className="px-4 py-2.5 text-sm font-medium text-white/40 hover:text-white/70 transition-colors">Cancel</button>
+                <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-bold text-[#0B1A3B] bg-[#F2B517] hover:bg-yellow-400 transition-colors">
+                  Continue to Vote
+                </button>
               </div>
-            </div>
+            </form>
           </div>
-        )}
-
-{showVoterModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-              <h2 className="mb-2 text-xl font-black tracking-tight text-[#0b1736]">Before you vote</h2>
-              <p className="mb-5 text-sm font-medium leading-6 text-slate-600">
-                Enter your name and email once to continue voting.
-              </p>
-
-              <form onSubmit={handleSaveVoterProfile} className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Your name"
-                  value={voterForm.name}
-                  onChange={(e) =>
-                    setVoterForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium outline-none transition focus:border-[#f5bd24] focus:ring-4 focus:ring-[#f5bd24]/20"
-                  required
-                />
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={voterForm.email}
-                  onChange={(e) =>
-                    setVoterForm((prev) => ({ ...prev, email: e.target.value }))
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium outline-none transition focus:border-[#f5bd24] focus:ring-4 focus:ring-[#f5bd24]/20"
-                  required
-                />
-
-                <div className="pt-2 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowVoterModal(false);
-                      setPendingPitchId(null);
-                    }}
-                    className="px-4 py-2 text-sm font-black text-slate-500 hover:text-slate-900"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-[#f5bd24] px-5 py-3 text-sm font-black text-[#0b1736] shadow-sm transition hover:bg-[#e0aa17]"
-                  >
-                    Continue to Vote
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
