@@ -265,13 +265,9 @@ export default function AdminPage() {
           {competitionDate && timeLeft && !timeLeft.past ? (
             <>
               <p className="text-[9px] uppercase tracking-[0.2em] mb-3 font-semibold text-maize">Competition in</p>
-              <div className="flex items-baseline justify-between">
-                {[timeLeft.days, timeLeft.hours, timeLeft.minutes, timeLeft.seconds].map((value, i) => (
-                  <span key={i} className="font-mono font-bold text-white text-lg leading-none">
-                    {pad(value)}{i < 3 && <span className="text-maize/60 mx-0.5">:</span>}
-                  </span>
-                ))}
-              </div>
+              <p className="font-mono font-bold text-white text-lg leading-none tracking-wide">
+                {pad(timeLeft.days)}<span className="text-maize/60 mx-1">:</span>{pad(timeLeft.hours)}<span className="text-maize/60 mx-1">:</span>{pad(timeLeft.minutes)}<span className="text-maize/60 mx-1">:</span>{pad(timeLeft.seconds)}
+              </p>
             </>
           ) : competitionDate && timeLeft?.past ? (
             <p className="text-xs font-bold text-maize">Competition day is here!</p>
