@@ -112,6 +112,8 @@ export default function AdminPage() {
   const [deletingPitchId, setDeletingPitchId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activeTab, setActiveTab] = useState("pitches");
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const [loadingState, setLoadingState] = useState({ date: true, pitches: true, tags: true, votes: true });
   const [error, setError] = useState("");
@@ -157,8 +159,11 @@ export default function AdminPage() {
   const fetchTags = useCallback(async () => { try { setTags(await apiFetch("/api/admin/tags")); } catch {} finally { setLoadingState((s) => ({ ...s, tags: false })); } }, []);
   const fetchVotes = useCallback(async () => { try { setVotes(await apiFetch("/api/admin/votes")); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
   const fetchDefThumb = useCallback(async () => { try { const d = await apiFetch("/api/admin/default-thumbnails"); setDefaultThumbnails({ audio: d.default_audio_thumbnail || null, text: d.default_text_thumbnail || null }); } catch {} }, []);
+  const fetchAnalytics = useCallback(async () => { setAnalyticsLoading(true); try { setAnalytics(await apiFetch("/api/admin/analytics")); } catch {} finally { setAnalyticsLoading(false); } }, []);
 
   useEffect(() => { if (user && isAdmin) { fetchDate(); fetchPitches(); fetchTags(); fetchVotes(); fetchDefThumb(); } }, [user, isAdmin, fetchDate, fetchPitches, fetchTags, fetchVotes, fetchDefThumb]);
+  // Lazy-load analytics only when tab is selected
+  useEffect(() => { if (activeTab === "analytics" && !analytics && !analyticsLoading) fetchAnalytics(); }, [activeTab, analytics, analyticsLoading, fetchAnalytics]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(""), 4000); return () => clearTimeout(t); } }, [success]);
 
   // ── Handlers ──
@@ -205,6 +210,7 @@ export default function AdminPage() {
     { id: "pitches", label: "Pitches", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /> },
     { id: "tags", label: "Tags", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /> },
     { id: "votes", label: "Votes", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+    { id: "analytics", label: "Analytics", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
     { id: "settings", label: "Settings", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /> },
   ];
 
@@ -476,6 +482,191 @@ export default function AdminPage() {
                 </>
               )}
             </GlassCard>
+          )}
+
+          {/* ═══ ANALYTICS ═══ */}
+          {activeTab === "analytics" && (
+            <div className="flex-1 flex flex-col min-h-0">
+              {analyticsLoading || !analytics ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                </div>
+              ) : (
+                <>
+                  {/* Row 1: Stat cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3 flex-shrink-0">
+                    <StatCard label="Pitches" value={analytics.summary.totalPitches} icon="📦" />
+                    <StatCard label="Total Votes" value={analytics.summary.totalVotes} icon="👍" />
+                    <StatCard label="Unique Voters" value={analytics.summary.uniqueVoters} icon="👤" />
+                    <StatCard label="Avg Votes/Pitch" value={analytics.summary.avgVotesPerPitch} icon="📊" />
+                    <StatCard label="Video Views" value={analytics.mux.totalViews ?? "N/A"} icon="👁️" />
+                  </div>
+
+                  {/* Row 2: Timeline + Type donut + Top pitches */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-3 flex-shrink-0" style={{ height: "38%" }}>
+                    {/* Activity Timeline */}
+                    <GlassCard className="lg:col-span-6 flex flex-col !p-4 min-h-0">
+                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Activity — Last 30 Days</p>
+                      <div className="flex-1 flex items-end gap-px min-h-0">
+                        {(() => {
+                          const tl = analytics.timeline || [];
+                          const maxVal = Math.max(...tl.map((d) => d.submissions + d.votes), 1);
+                          return tl.map((d, i) => {
+                            const subH = (d.submissions / maxVal) * 100;
+                            const voteH = (d.votes / maxVal) * 100;
+                            return (
+                              <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0 group relative" style={{ minWidth: 0 }}>
+                                <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 pointer-events-none">
+                                  <div className="rounded-lg px-2 py-1 text-[9px] text-white whitespace-nowrap" style={{ background: "rgba(11,26,59,0.95)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                                    {d.date.slice(5)}: {d.submissions}s, {d.votes}v
+                                  </div>
+                                </div>
+                                <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(242,181,23,0.6)" }} />
+                                <div className="w-full" style={{ height: `${subH}%`, minHeight: d.submissions > 0 ? "2px" : 0, background: "rgba(99,102,241,0.5)" }} />
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                      <div className="flex gap-4 mt-2 flex-shrink-0">
+                        <span className="flex items-center gap-1.5 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(99,102,241,0.5)" }} />Submissions</span>
+                        <span className="flex items-center gap-1.5 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(242,181,23,0.6)" }} />Votes</span>
+                      </div>
+                    </GlassCard>
+
+                    {/* Pitch Type Donut */}
+                    <GlassCard className="lg:col-span-2 flex flex-col items-center justify-center !p-4 min-h-0">
+                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Pitch Types</p>
+                      {(() => {
+                        const { video, audio, text } = analytics.typeBreakdown;
+                        const total = video + audio + text || 1;
+                        const vPct = (video / total) * 100;
+                        const aPct = (audio / total) * 100;
+                        const tPct = (text / total) * 100;
+                        const vDeg = (video / total) * 360;
+                        const aDeg = (audio / total) * 360;
+                        return (
+                          <div className="relative flex-1 flex items-center justify-center w-full min-h-0">
+                            <div className="w-24 h-24 rounded-full relative" style={{
+                              background: `conic-gradient(
+                                rgba(99,102,241,0.7) 0deg ${vDeg}deg,
+                                rgba(236,72,153,0.7) ${vDeg}deg ${vDeg + aDeg}deg,
+                                rgba(34,197,94,0.7) ${vDeg + aDeg}deg 360deg
+                              )`
+                            }}>
+                              <div className="absolute inset-3 rounded-full flex items-center justify-center" style={{ background: "rgba(11,26,59,0.8)" }}>
+                                <span className="text-lg font-bold text-white">{total}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div className="flex gap-3 mt-1 flex-shrink-0">
+                        <span className="flex items-center gap-1 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(99,102,241,0.7)" }} />{analytics.typeBreakdown.video}</span>
+                        <span className="flex items-center gap-1 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(236,72,153,0.7)" }} />{analytics.typeBreakdown.audio}</span>
+                        <span className="flex items-center gap-1 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(34,197,94,0.7)" }} />{analytics.typeBreakdown.text}</span>
+                      </div>
+                    </GlassCard>
+
+                    {/* Top Pitches by Votes */}
+                    <GlassCard className="lg:col-span-4 flex flex-col !p-4 min-h-0">
+                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Top Pitches by Votes</p>
+                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
+                        {(analytics.topPitchesByVotes || []).map((p, i) => {
+                          const maxV = analytics.topPitchesByVotes[0]?.votes || 1;
+                          const tc = p.type === "video" ? "rgba(99,102,241,0.5)" : p.type === "audio" ? "rgba(236,72,153,0.5)" : "rgba(34,197,94,0.5)";
+                          return (
+                            <div key={i} className="flex items-center gap-2 min-w-0">
+                              <span className="text-[11px] text-white/50 truncate w-28 flex-shrink-0" title={p.title}>{p.title}</span>
+                              <div className="flex-1 h-4 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div className="h-full rounded-md flex items-center pl-2 transition-all" style={{ width: `${Math.max((p.votes / maxV) * 100, 8)}%`, background: tc }}>
+                                  <span className="text-[10px] font-bold text-white/80">{p.votes}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {analytics.topPitchesByVotes.length === 0 && <p className="text-xs text-white/20 text-center">No votes yet</p>}
+                      </div>
+                    </GlassCard>
+                  </div>
+
+                  {/* Row 3: Tags + Schools + Mux Top Videos */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 flex-1 min-h-0">
+                    {/* Tag Popularity */}
+                    <GlassCard className="flex flex-col !p-4 min-h-0">
+                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Tag Popularity</p>
+                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
+                        {(analytics.tagPopularity || []).map((t, i) => {
+                          const maxT = analytics.tagPopularity[0]?.count || 1;
+                          return (
+                            <div key={i} className="flex items-center gap-2 min-w-0">
+                              <span className="text-[11px] text-white/50 truncate w-24 flex-shrink-0">{t.name}</span>
+                              <div className="flex-1 h-3.5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((t.count / maxT) * 100, 8)}%`, background: "rgba(242,181,23,0.4)" }} />
+                              </div>
+                              <span className="text-[10px] text-white/30 tabular-nums w-5 text-right">{t.count}</span>
+                            </div>
+                          );
+                        })}
+                        {analytics.tagPopularity.length === 0 && <p className="text-xs text-white/20 text-center">No tags used</p>}
+                      </div>
+                    </GlassCard>
+
+                    {/* School Distribution */}
+                    <GlassCard className="flex flex-col !p-4 min-h-0">
+                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Schools</p>
+                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
+                        {(analytics.schoolDistribution || []).map((s, i) => {
+                          const maxS = analytics.schoolDistribution[0]?.count || 1;
+                          return (
+                            <div key={i} className="flex items-center gap-2 min-w-0">
+                              <span className="text-[11px] text-white/50 truncate w-24 flex-shrink-0" title={s.name}>{s.name}</span>
+                              <div className="flex-1 h-3.5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((s.count / maxS) * 100, 8)}%`, background: "rgba(59,130,246,0.4)" }} />
+                              </div>
+                              <span className="text-[10px] text-white/30 tabular-nums w-5 text-right">{s.count}</span>
+                            </div>
+                          );
+                        })}
+                        {analytics.schoolDistribution.length === 0 && <p className="text-xs text-white/20 text-center">No school data</p>}
+                      </div>
+                    </GlassCard>
+
+                    {/* Mux: Top Videos by Views */}
+                    <GlassCard className="flex flex-col !p-4 min-h-0">
+                      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                        <p className="text-[10px] uppercase tracking-widest text-white/30">Video Views</p>
+                        {analytics.mux.totalWatchTime != null && (
+                          <span className="text-[10px] text-white/20">{Math.round(analytics.mux.totalWatchTime / 1000)}s watched</span>
+                        )}
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
+                        {analytics.mux.totalViews == null ? (
+                          <p className="text-xs text-white/20 text-center">Mux Data unavailable</p>
+                        ) : analytics.mux.topVideos.length === 0 ? (
+                          <p className="text-xs text-white/20 text-center">No video views yet</p>
+                        ) : (
+                          analytics.mux.topVideos.map((v, i) => {
+                            const maxMV = analytics.mux.topVideos[0]?.views || 1;
+                            return (
+                              <div key={i} className="flex items-center gap-2 min-w-0">
+                                <span className="text-[11px] text-white/50 truncate w-24 flex-shrink-0" title={v.title}>{v.title}</span>
+                                <div className="flex-1 h-3.5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                  <div className="h-full rounded-md flex items-center pl-2 transition-all" style={{ width: `${Math.max((v.views / maxMV) * 100, 8)}%`, background: "rgba(168,85,247,0.4)" }}>
+                                    <span className="text-[9px] font-bold text-white/70">{v.views}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </GlassCard>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {/* ═══ SETTINGS ═══ */}
