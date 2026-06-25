@@ -226,36 +226,34 @@ export default function GalleryPage() {
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[900px] h-[200px] pointer-events-none"
             style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
-          {/* Hero content — anchored to bottom */}
-          <div className="absolute inset-0 flex items-end px-6 sm:px-10 lg:px-14 pb-4">
-            <div className="flex-1 flex items-end justify-between">
-              {/* Left: Title */}
-              <div>
-                <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
-                  style={{ color: "#F2B517" }}>
-                  10KP Competition
-                </p>
-                <h1 className="font-black text-white tracking-tight leading-[1.05]"
-                  style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>
-                  The <span style={{ color: "#F2B517" }}>Pitch</span> Gallery
-                </h1>
-              </div>
-
-              {/* Right: Voting status */}
+          {/* Hero content */}
+          <div className="absolute inset-0 flex flex-col justify-between px-6 sm:px-10 lg:px-14 pt-3 pb-4">
+            {/* Top row: label + votes */}
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold"
+                style={{ color: "#F2B517" }}>
+                10KP Competition
+              </p>
               <div className="flex-shrink-0">
                 {voterProfile.email ? (
-                  <div className="flex items-center gap-3 rounded-xl px-5 py-3"
+                  <div className="flex items-center gap-2.5 rounded-full px-4 py-1.5"
                     style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)", backdropFilter: "blur(12px)" }}>
-                    <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                    <div>
-                      <span className="text-lg font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
-                      <span className="text-xs text-white/30 ml-1.5">votes remaining</span>
-                    </div>
+                    <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                    <span className="text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
+                    <span className="text-[11px] text-white/30">votes left</span>
                   </div>
                 ) : (
-                  <p className="text-xs text-white/20">Sign in or click a pitch to vote</p>
+                  <p className="text-[11px] text-white/20">Click a pitch to vote</p>
                 )}
               </div>
+            </div>
+            {/* Bottom: Title */}
+            <div>
+              <h1 className="font-black text-white tracking-tight leading-[1.05]"
+                style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>
+                The <span style={{ color: "#F2B517" }}>Pitch</span> Gallery
+              </h1>
+            </div>
             </div>
           </div>
         </div>
@@ -408,34 +406,31 @@ export default function GalleryPage() {
                 })}
               </div>
 
-              {/* Pagination — floats under last row, only active when needed */}
+              {/* Pagination — always visible under last row, disabled when only 1 page */}
               <div className="flex items-center justify-center py-5">
-                {totalGalleryPages > 1 ? (
-                  <div className="flex items-center gap-1 rounded-full px-3 py-1.5"
-                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <button onClick={() => { setGalleryPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={galleryPage <= 1}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                <div className={`flex items-center gap-1 rounded-full px-3 py-1.5 transition-opacity ${totalGalleryPages <= 1 ? "opacity-30 pointer-events-none" : ""}`}
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <button onClick={() => { setGalleryPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={galleryPage <= 1}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed transition-all">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  {Array.from({ length: Math.max(Math.min(totalGalleryPages, 9), 1) }, (_, i) => i + 1).map((p) => (
+                    <button key={p} onClick={() => { setGalleryPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                      disabled={totalGalleryPages <= 1}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all disabled:cursor-not-allowed"
+                      style={{
+                        background: p === galleryPage ? "#F2B517" : "transparent",
+                        color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
+                      }}>
+                      {p}
                     </button>
-                    {Array.from({ length: Math.min(totalGalleryPages, 9) }, (_, i) => i + 1).map((p) => (
-                      <button key={p} onClick={() => { setGalleryPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all"
-                        style={{
-                          background: p === galleryPage ? "#F2B517" : "transparent",
-                          color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
-                        }}>
-                        {p}
-                      </button>
-                    ))}
-                    {totalGalleryPages > 9 && <span className="text-white/10 text-[10px] px-1">...</span>}
-                    <button onClick={() => { setGalleryPage((p) => Math.min(totalGalleryPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={galleryPage >= totalGalleryPages}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-15 disabled:cursor-not-allowed transition-all">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="h-8" />
-                )}
+                  ))}
+                  {totalGalleryPages > 9 && <span className="text-white/10 text-[10px] px-1">...</span>}
+                  <button onClick={() => { setGalleryPage((p) => Math.min(totalGalleryPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={galleryPage >= totalGalleryPages}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed transition-all">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
