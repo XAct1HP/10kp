@@ -20,6 +20,7 @@ export async function GET(request) {
       .download(filePath);
 
     if (error) {
+      console.error("Supabase download error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -27,12 +28,17 @@ export async function GET(request) {
     let text = "";
 
     if (/\.pdf$/i.test(fileName)) {
-      // Parse PDF - extract text from each page
+      // pdf-parse has a known issue loading its test file in some environments
+      // Use the underlying pdfjs lib directly as a workaround
       const pdfParse = (await import("pdf-parse")).default;
-      const parsed = await pdfParse(buffer);
-      text = parsed.text;
+      try {
+        const parsed = await pdfParse(buffer, { max: 0 });
+        text = parsed.text;
+      } catch (pdfErr) {
+        console.error("pdf-parse error:", pdfErr);
+        return NextResponse.json({ error: "Failed to parse PDF: " + pdfErr.message }, { status: 500 });
+      }
     } else if (/\.docx?$/i.test(fileName)) {
-      // Parse DOCX - extract raw text
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
@@ -44,6 +50,7 @@ export async function GET(request) {
 
     return NextResponse.json({ text: text.trim() });
   } catch (err) {
+    console.error("extract-text error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

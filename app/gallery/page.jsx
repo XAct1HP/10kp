@@ -83,8 +83,11 @@ export default function GalleryPage() {
     setExtractingText(true);
     fetch(`/api/gallery/extract-text?path=${encodeURIComponent(selectedPitch.file_path)}&name=${encodeURIComponent(selectedPitch.file_name || "")}`)
       .then((r) => r.json())
-      .then((d) => { if (d.text) setExtractedText(d.text); })
-      .catch(() => {})
+      .then((d) => {
+        if (d.text) setExtractedText(d.text);
+        else if (d.error) console.error("extract-text API error:", d.error);
+      })
+      .catch((err) => console.error("extract-text fetch error:", err))
       .finally(() => setExtractingText(false));
   }, [selectedPitch?.id]);
 
