@@ -28,29 +28,41 @@ export async function GET(request) {
     let text = "";
 
     if (/\.pdf$/i.test(fileName)) {
-      const { extractText } = await import("unpdf");
-      const result = await extractText(new Uint8Array(buffer));
-      console.log("unpdf result type:", typeof result, "keys:", result ? Object.keys(result) : "null");
+      const unpdf = await import("unpdf");
+      const uint8 = new Uint8Array(buffer);
+      const result = await unpdf.extractText(uint8);
+      // Handle all possible return shapes
       if (typeof result === "string") {
         text = result;
-      } else if (result?.text) {
-        text = result.text;
-      } else if (result?.pages) {
-        text = result.pages.join("\n\n");
+      } else if (Array.isArray(result)) {
+        text = result.join("\n\n");
+      } else if (result && typeof result === "object") {
+        if (typeof result.text === "string") {
+          text = result.text;
+        } else if (Array.isArray(result.text)) {
+          text = result.text.join("\n\n");
+        } else if (Array.isArray(result.pages)) {
+          text = result.pages.map((p) => (typeof p === "string" ? p : String(p))).join("\n\n");
+        } else {
+          // Last resort: log and stringify
+          console.log("unpdf unexpected shape:", JSON.stringify(result).slice(0, 500));
+          text = JSON.stringify(result);
+        }
       } else {
         text = String(result || "");
       }
     } else if (/\.docx?$/i.test(fileName)) {
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
-      text = result.value;
+      text = result.value || "";
     } else if (/\.txt$/i.test(fileName)) {
       text = buffer.toString("utf-8");
     } else {
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
     }
 
-    return NextResponse.json({ text: text.trim() });
+    const finalText = typeof text === "string" ? text.trim() : String(text || "").trim();
+    return NextResponse.json({ text: finalText });
   } catch (err) {
     console.error("extract-text error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
