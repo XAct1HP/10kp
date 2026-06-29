@@ -443,12 +443,25 @@ export default function GalleryPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
-            <div className="w-full max-w-6xl max-h-[90vh] flex rounded-2xl overflow-hidden"
+            <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+              {/* Floating thumbnail for text pitches — sits outside the modal */}
+              {getPitchType(selectedPitch) === "text" && !selectedPitch.mux_playback_id && selectedPitch.text_content && !(selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "")) && (
+                <img src={getThumbnail(selectedPitch)} alt=""
+                  className="absolute z-10 rounded-2xl pointer-events-none"
+                  style={{
+                    width: "350px",
+                    height: "auto",
+                    top: "-24px",
+                    left: "-24px",
+                    boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
+                  }}
+                />
+              )}
+              <div className="w-full max-h-[90vh] flex rounded-2xl overflow-hidden"
               style={{
                 background: "linear-gradient(135deg, #0B1A3B 0%, #0d1f45 100%)",
                 boxShadow: "0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
-              }}
-              onClick={(e) => e.stopPropagation()}>
+              }}>
 
               {/* Left: Media / Content */}
               <div className="flex-1 min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : getPitchType(selectedPitch) === "text" ? "#0a0f1e" : "#000" }}>
@@ -486,24 +499,9 @@ export default function GalleryPage() {
                         )}
                       </div>
                     ) : selectedPitch.text_content ? (
-                      <div className="w-full h-full overflow-y-auto relative" style={{ maxHeight: "80vh", padding: "32px 32px 32px 32px" }}>
-                        <img src={getThumbnail(selectedPitch)} alt=""
-                          className="rounded-xl"
-                          style={{
-                            float: "left",
-                            width: "350px",
-                            height: "auto",
-                            marginRight: "20px",
-                            marginBottom: "12px",
-                            marginTop: "-32px",
-                            marginLeft: "-32px",
-                            boxShadow: "0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)",
-                            borderTopLeftRadius: "16px",
-                            borderTopRightRadius: "12px",
-                            borderBottomRightRadius: "12px",
-                            borderBottomLeftRadius: "0px",
-                          }}
-                        />
+                      <div className="w-full h-full overflow-y-auto" style={{ maxHeight: "80vh", padding: "32px" }}>
+                        {/* Invisible spacer that text wraps around to clear the overlapping thumbnail */}
+                        <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
                         <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
                       </div>
                     ) : (
@@ -597,6 +595,7 @@ export default function GalleryPage() {
                   </p>
                 )}
               </div>
+            </div>
             </div>
           </div>
         )}
