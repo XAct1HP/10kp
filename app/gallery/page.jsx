@@ -498,7 +498,7 @@ export default function GalleryPage() {
                       <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         {/* Invisible spacer for the overlapping thumbnail */}
                         <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
-                        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{extractedText || selectedPitch.text_content}</p>
+                        <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content}</p>
                       </div>
                     ) : (
                       <div className="w-full flex items-center justify-center p-8">
