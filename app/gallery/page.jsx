@@ -463,7 +463,7 @@ export default function GalleryPage() {
                   style={{
                     width: "350px",
                     height: "auto",
-                    bottom: "-20px",
+                    bottom: "-60px",
                     left: "50%",
                     transform: "translateX(-70%)",
                     boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
@@ -518,7 +518,7 @@ export default function GalleryPage() {
                         )}
                       </div>
                     ) : selectedPitch.text_content ? (
-                      <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                      <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", paddingBottom: "80px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
                         <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
                       </div>
