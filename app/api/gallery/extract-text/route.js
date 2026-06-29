@@ -61,12 +61,16 @@ export async function GET(request) {
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
     }
 
-    // Clean up paragraph spacing: normalize single newlines between paragraphs to double
+    // Clean up: PDFs produce line breaks at every visual line wrap.
+    // Join those into flowing paragraphs, preserving real paragraph breaks (blank lines).
     let finalText = typeof text === "string" ? text : String(text || "");
     finalText = finalText
       .replace(/\r\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")         // collapse 3+ newlines to 2
-      .replace(/(?<!\n)\n(?!\n)/g, "\n\n") // single newlines → double (paragraph breaks)
+      .split(/\n{2,}/)                          // split on blank lines (real paragraph breaks)
+      .map((para) => para.replace(/\n/g, " ")   // join wrapped lines within a paragraph
+        .replace(/\s+/g, " ").trim())
+      .filter((para) => para.length > 0)
+      .join("\n\n")
       .trim();
     return NextResponse.json({ text: finalText });
   } catch (err) {
