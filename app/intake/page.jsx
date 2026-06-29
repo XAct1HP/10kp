@@ -184,7 +184,7 @@ export default function IntakePage() {
         return null;
       case 5:
         if (pitchMode === "file" && !file) return "Please upload a pitch file.";
-        if (pitchMode === "text" && !textContent.trim() && !file) return "Please enter your pitch text or upload a text file.";
+        if (pitchMode === "text" && !textContent.trim()) return "Please enter your pitch text.";
         return null;
       default:
         return null;
@@ -586,7 +586,7 @@ export default function IntakePage() {
       <div className="flex gap-2 mb-6">
         <button
           type="button"
-          onClick={() => setPitchMode("file")}
+          onClick={() => { setPitchMode("file"); setTextContent(""); }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
           style={{
             border: pitchMode === "file" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
@@ -601,7 +601,7 @@ export default function IntakePage() {
         </button>
         <button
           type="button"
-          onClick={() => setPitchMode("text")}
+          onClick={() => { setPitchMode("text"); setFile(null); }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
           style={{
             border: pitchMode === "text" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
@@ -662,53 +662,16 @@ export default function IntakePage() {
       ) : (
         <>
           <p className="text-white/40 text-xs mb-4">
-            Type or paste your pitch text below. You can also optionally attach a text file (PDF, DOCX, TXT).
+            Type or paste your pitch text below.
           </p>
           <textarea
             placeholder="Type your pitch here..."
             value={textContent}
             onChange={(e) => setTextContent(e.target.value)}
             rows={8}
-            className="w-full px-4 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none resize-y mb-4"
+            className="w-full px-4 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none resize-y"
             style={inputStyle()}
           />
-
-          {/* Optional file attachment in text mode */}
-          <div>
-            <p className="text-white/40 text-xs mb-2">Optionally attach a document:</p>
-            <label
-              htmlFor="text-file-upload"
-              className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 group"
-              style={{
-                border: "1px dashed rgba(255,255,255,0.12)",
-                background: file ? "rgba(242,181,23,0.05)" : "rgba(255,255,255,0.02)",
-              }}
-            >
-              {file ? (
-                <>
-                  <svg className="w-5 h-5 flex-shrink-0" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
-                  </svg>
-                  <span className="text-sm text-white/70 truncate">{file.name}</span>
-                  <span className="text-xs text-white/30 ml-auto">Click to change</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5 text-white/20 group-hover:text-white/40 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                  <span className="text-sm text-white/30 group-hover:text-white/50 transition-colors">Attach PDF, DOCX, or TXT</span>
-                </>
-              )}
-              <input
-                id="text-file-upload"
-                type="file"
-                onChange={handleFileChange}
-                accept={TEXT_FILE_TYPES.join(",")}
-                className="sr-only"
-              />
-            </label>
-          </div>
         </>
       )}
 
