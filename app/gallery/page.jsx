@@ -27,6 +27,7 @@ export default function GalleryPage() {
   const [voting, setVoting] = useState({ maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
   const [voteSubmitting, setVoteSubmitting] = useState({});
   const [selectedPitch, setSelectedPitch] = useState(null);
+  const [fileUrl, setFileUrl] = useState(null);
 
   const [voterProfile, setVoterProfile] = useState({ name: "", email: "" });
   const [showVoterModal, setShowVoterModal] = useState(false);
@@ -71,6 +72,17 @@ export default function GalleryPage() {
   };
 
   useEffect(() => { fetchSubmissions(); }, [voterProfile.email]);
+
+  // Fetch signed URL for document files when a pitch is selected
+  useEffect(() => {
+    setFileUrl(null);
+    if (!selectedPitch?.file_path) return;
+    if (!/\.(pdf|doc|docx)$/i.test(selectedPitch.file_name || "")) return;
+    fetch(`/api/gallery/file-url?path=${encodeURIComponent(selectedPitch.file_path)}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.url) setFileUrl(d.url); })
+      .catch(() => {});
+  }, [selectedPitch?.id]);
 
   useEffect(() => {
     if (loading) return;
@@ -472,12 +484,18 @@ export default function GalleryPage() {
                   <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
                     {/* Text content or document preview */}
                     {selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "") ? (
-                      <iframe
-                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/pitch-files/${selectedPitch.file_path}`}
-                        className="w-full flex-1 border-0 rounded-none"
-                        style={{ minHeight: "400px" }}
-                        title={selectedPitch.title}
-                      />
+                      fileUrl ? (
+                        <iframe
+                          src={fileUrl}
+                          className="w-full flex-1 border-0 rounded-none"
+                          style={{ minHeight: "400px" }}
+                          title={selectedPitch.title}
+                        />
+                      ) : (
+                        <div className="w-full flex-1 flex items-center justify-center">
+                          <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                        </div>
+                      )
                     ) : selectedPitch.file_path && /\.(doc|docx)$/i.test(selectedPitch.file_name || "") ? (
                       <div className="w-full flex-1 flex flex-col items-center justify-center p-8 gap-4">
                         <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(242,181,23,0.1)" }}>
@@ -486,7 +504,7 @@ export default function GalleryPage() {
                           </svg>
                         </div>
                         <p className="text-white/40 text-sm">{selectedPitch.file_name}</p>
-                        <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/pitch-files/${selectedPitch.file_path}`}
+                        <a href={fileUrl || "#"} onClick={(e) => { if (!fileUrl) e.preventDefault(); }}
                           target="_blank" rel="noopener noreferrer"
                           className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all"
                           style={{ background: "#F2B517", color: "#0B1A3B" }}>
