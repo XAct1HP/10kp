@@ -486,7 +486,7 @@ export default function GalleryPage() {
                     {selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "") ? (
                       fileUrl ? (
                         <iframe
-                          src={fileUrl}
+                          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                           className="w-full flex-1 border-0 rounded-none"
                           style={{ minHeight: "400px" }}
                           title={selectedPitch.title}
