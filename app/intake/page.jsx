@@ -22,6 +22,7 @@ const ACCEPTED_FILE_TYPES = [
   "audio/wav",
   "audio/ogg",
   "audio/mp4",
+  "audio/x-m4a",
   "audio/aac",
   "audio/webm",
 ];
@@ -33,7 +34,7 @@ const TEXT_FILE_TYPES = [
   "text/plain",
 ];
 const VIDEO_FILE_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
-const AUDIO_FILE_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/aac", "audio/webm"];
+const AUDIO_FILE_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/webm"];
 const IMAGE_FILE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
@@ -212,7 +213,7 @@ export default function IntakePage() {
       return;
     }
     if (!ACCEPTED_FILE_TYPES.includes(selected.type)) {
-      setError("Unsupported file type. Please upload a video (MP4, MOV, WebM), audio (MP3, WAV, OGG, AAC), or text document (PDF, DOCX, TXT).");
+      setError("Unsupported file type. Please upload a video (MP4, MOV, WebM), audio (MP3, WAV, OGG, AAC, M4A), or text document (PDF, DOCX, TXT).");
       setFile(null);
       return;
     }
