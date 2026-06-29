@@ -487,6 +487,19 @@ export default function GalleryPage() {
                       </div>
                     ) : selectedPitch.text_content ? (
                       <div className="w-full h-full overflow-y-auto p-8" style={{ maxHeight: "80vh" }}>
+                        <img src={getThumbnail(selectedPitch)} alt=""
+                          className="rounded-xl"
+                          style={{
+                            float: "left",
+                            width: "140px",
+                            height: "auto",
+                            marginRight: "16px",
+                            marginBottom: "8px",
+                            marginTop: "-12px",
+                            marginLeft: "-12px",
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)",
+                          }}
+                        />
                         <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
                       </div>
                     ) : (
