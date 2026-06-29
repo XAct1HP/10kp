@@ -457,7 +457,7 @@ export default function GalleryPage() {
             onClick={() => setSelectedPitch(null)}>
             <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
               {/* Floating thumbnail for text pitches — sits outside the modal */}
-              {getPitchType(selectedPitch) === "text" && !selectedPitch.mux_playback_id && selectedPitch.text_content && !(selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "")) && (
+              {getPitchType(selectedPitch) === "text" && !selectedPitch.mux_playback_id && (
                 <img src={getThumbnail(selectedPitch)} alt=""
                   className="absolute z-10 rounded-2xl pointer-events-none"
                   style={{
@@ -485,12 +485,16 @@ export default function GalleryPage() {
                     {/* Text content or document preview */}
                     {selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "") ? (
                       fileUrl ? (
-                        <iframe
-                          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                          className="w-full flex-1 border-0 rounded-none"
-                          style={{ minHeight: "400px" }}
-                          title={selectedPitch.title}
-                        />
+                        <div className="w-full flex-1 flex flex-col" style={{ padding: "32px", paddingTop: "0" }}>
+                          {/* Spacer to clear the overlapping thumbnail */}
+                          <div style={{ float: "left", width: "340px", height: "210px", marginLeft: "-32px", marginRight: "20px", marginBottom: "4px" }} />
+                          <iframe
+                            src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                            className="w-full flex-1 border-0 rounded-xl"
+                            style={{ minHeight: "400px", clear: "both" }}
+                            title={selectedPitch.title}
+                          />
+                        </div>
                       ) : (
                         <div className="w-full flex-1 flex items-center justify-center">
                           <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
