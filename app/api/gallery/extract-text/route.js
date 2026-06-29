@@ -61,7 +61,13 @@ export async function GET(request) {
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
     }
 
-    const finalText = typeof text === "string" ? text.trim() : String(text || "").trim();
+    // Clean up paragraph spacing: normalize single newlines between paragraphs to double
+    let finalText = typeof text === "string" ? text : String(text || "");
+    finalText = finalText
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")         // collapse 3+ newlines to 2
+      .replace(/(?<!\n)\n(?!\n)/g, "\n\n") // single newlines → double (paragraph breaks)
+      .trim();
     return NextResponse.json({ text: finalText });
   } catch (err) {
     console.error("extract-text error:", err);
