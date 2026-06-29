@@ -443,18 +443,58 @@ export default function GalleryPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
-            <div className="w-full max-w-5xl max-h-full flex rounded-2xl overflow-hidden"
+            <div className="w-full max-w-6xl max-h-[90vh] flex rounded-2xl overflow-hidden"
               style={{
                 background: "linear-gradient(135deg, #0B1A3B 0%, #0d1f45 100%)",
                 boxShadow: "0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
               }}
               onClick={(e) => e.stopPropagation()}>
 
-              {/* Left: Media */}
-              <div className="flex-1 bg-black flex items-center justify-center min-w-0">
+              {/* Left: Media / Content */}
+              <div className="flex-1 min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : getPitchType(selectedPitch) === "text" ? "#0a0f1e" : "#000" }}>
                 {selectedPitch.mux_playback_id ? (
                   <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517"
                     style={{ width: "100%", aspectRatio: "16/9" }} />
+                ) : getPitchType(selectedPitch) === "text" ? (
+                  <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
+                    {/* Text content or document preview */}
+                    {selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "") ? (
+                      <iframe
+                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/pitch-files/${selectedPitch.file_path}`}
+                        className="w-full flex-1 border-0 rounded-none"
+                        style={{ minHeight: "400px" }}
+                        title={selectedPitch.title}
+                      />
+                    ) : selectedPitch.file_path && /\.(doc|docx)$/i.test(selectedPitch.file_name || "") ? (
+                      <div className="w-full flex-1 flex flex-col items-center justify-center p-8 gap-4">
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(242,181,23,0.1)" }}>
+                          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="rgba(242,181,23,0.7)" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                        </div>
+                        <p className="text-white/40 text-sm">{selectedPitch.file_name}</p>
+                        <a href={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/pitch-files/${selectedPitch.file_path}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all"
+                          style={{ background: "#F2B517", color: "#0B1A3B" }}>
+                          Download Document
+                        </a>
+                        {selectedPitch.text_content && (
+                          <div className="w-full mt-4 overflow-y-auto flex-1 px-2" style={{ maxHeight: "50vh" }}>
+                            <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : selectedPitch.text_content ? (
+                      <div className="w-full h-full overflow-y-auto p-8" style={{ maxHeight: "80vh" }}>
+                        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
+                      </div>
+                    ) : (
+                      <div className="w-full flex items-center justify-center p-8">
+                        <p className="text-white/25 text-sm italic">No text content available</p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="w-full" style={{ aspectRatio: "16/9" }}>
                     <img src={getThumbnail(selectedPitch)} alt={selectedPitch.title} className="w-full h-full object-cover" />
@@ -463,7 +503,7 @@ export default function GalleryPage() {
               </div>
 
               {/* Right: Info */}
-              <div className="w-80 flex-shrink-0 flex flex-col p-6" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="w-96 flex-shrink-0 flex flex-col p-6" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
                 <button onClick={() => setSelectedPitch(null)}
                   className="self-end p-1.5 rounded-lg text-white/20 hover:text-white hover:bg-white/5 transition-colors mb-3">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -489,14 +529,8 @@ export default function GalleryPage() {
                 <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
                 <p className="text-xs text-white/35 mb-4">by {selectedPitch.name}</p>
 
-                <div className="flex-1 min-h-0 overflow-hidden mb-4">
-                  <p className="text-sm text-white/45 leading-relaxed line-clamp-6">{selectedPitch.description}</p>
-                  {selectedPitch.text_content && (
-                    <div className="mt-3 rounded-xl p-3 text-xs text-white/35 leading-relaxed line-clamp-4"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                      {selectedPitch.text_content}
-                    </div>
-                  )}
+                <div className="flex-1 min-h-0 overflow-y-auto mb-4">
+                  <p className="text-sm text-white/45 leading-relaxed">{selectedPitch.description}</p>
                 </div>
 
                 {selectedPitch.tags?.length > 0 && (

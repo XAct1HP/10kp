@@ -29,6 +29,7 @@ export async function GET(request) {
         title,
         description,
         file_name,
+        file_path,
         file_type,
         text_content,
         thumbnail_path,
