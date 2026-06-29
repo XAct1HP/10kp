@@ -28,47 +28,9 @@ export async function GET(request) {
     let text = "";
 
     if (/\.pdf$/i.test(fileName)) {
-      const PDFParser = (await import("pdf2json")).default;
-      text = await new Promise((resolve, reject) => {
-        const parser = new PDFParser();
-        parser.on("pdfParser_dataReady", (pdfData) => {
-          // pdf2json stores text in pages -> texts array
-          // Group text items by Y position to reconstruct lines properly
-          const pages = pdfData.Pages || [];
-          const allText = pages.map((page) => {
-            const texts = page.Texts || [];
-            if (texts.length === 0) return "";
-            // Sort by Y then X position
-            const sorted = texts.slice().sort((a, b) => a.y - b.y || a.x - b.x);
-            const lines = [];
-            let currentLine = [];
-            let currentY = sorted[0]?.y;
-            const lineThreshold = 0.5; // Y-distance threshold for same line
-            for (const t of sorted) {
-              const decoded = (t.R || []).map((r) => decodeURIComponent(r.T)).join("");
-              if (Math.abs(t.y - currentY) > lineThreshold) {
-                lines.push(currentLine.join(" "));
-                currentLine = [decoded];
-                currentY = t.y;
-              } else {
-                currentLine.push(decoded);
-              }
-            }
-            if (currentLine.length) lines.push(currentLine.join(" "));
-            // Join lines — detect paragraph breaks (larger Y gaps become double newlines)
-            return lines.join("\n");
-          }).join("\n\n");
-          // Clean up: collapse excessive whitespace within lines
-          const cleaned = allText
-            .split("\n")
-            .map((line) => line.replace(/\s+/g, " ").trim())
-            .join("\n")
-            .replace(/\n{3,}/g, "\n\n");
-          resolve(cleaned);
-        });
-        parser.on("pdfParser_dataError", (err) => reject(err.parserError || err));
-        parser.parseBuffer(buffer);
-      });
+      const { extractText } = await import("unpdf");
+      const result = await extractText(new Uint8Array(buffer));
+      text = result.text || "";
     } else if (/\.docx?$/i.test(fileName)) {
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
