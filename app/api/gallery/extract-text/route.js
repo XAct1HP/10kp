@@ -28,16 +28,22 @@ export async function GET(request) {
     let text = "";
 
     if (/\.pdf$/i.test(fileName)) {
-      // pdf-parse has a known issue loading its test file in some environments
-      // Use the underlying pdfjs lib directly as a workaround
-      const pdfParse = (await import("pdf-parse")).default;
-      try {
-        const parsed = await pdfParse(buffer, { max: 0 });
-        text = parsed.text;
-      } catch (pdfErr) {
-        console.error("pdf-parse error:", pdfErr);
-        return NextResponse.json({ error: "Failed to parse PDF: " + pdfErr.message }, { status: 500 });
-      }
+      const PDFParser = (await import("pdf2json")).default;
+      text = await new Promise((resolve, reject) => {
+        const parser = new PDFParser();
+        parser.on("pdfParser_dataReady", (pdfData) => {
+          // pdf2json stores text in pages -> texts array
+          const pages = pdfData.Pages || [];
+          const allText = pages.map((page) =>
+            (page.Texts || []).map((t) =>
+              (t.R || []).map((r) => decodeURIComponent(r.T)).join("")
+            ).join(" ")
+          ).join("\n\n");
+          resolve(allText);
+        });
+        parser.on("pdfParser_dataError", (err) => reject(err.parserError || err));
+        parser.parseBuffer(buffer);
+      });
     } else if (/\.docx?$/i.test(fileName)) {
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
