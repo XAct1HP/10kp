@@ -81,7 +81,7 @@ function useCountdown(targetDate) {
   return timeLeft;
 }
 
-const PITCHES_PER_PAGE = 10;
+const PITCHES_PER_PAGE = 12;
 const VOTES_PER_PAGE = 12;
 
 // ─── Main ─────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export default function AdminPage() {
   };
 
   // ── Helpers ──
-  const typeLabel = (p) => { if (p.file_type === "video") return "Video"; if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "Audio"; if (p.text_content) return "Text"; return "File"; };
+  const typeLabel = (p) => { if (p.file_type === "video") return "Video"; if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "Audio"; if (p.text_content || /\.(txt|pdf|doc|docx)$/i.test(p.file_name || "")) return "Text"; return "File"; };
   const typeColor = (p) => { const t = typeLabel(p); if (t === "Video") return { bg: "rgba(99,102,241,0.15)", c: "#818cf8" }; if (t === "Audio") return { bg: "rgba(236,72,153,0.15)", c: "#f472b6" }; if (t === "Text") return { bg: "rgba(34,197,94,0.15)", c: "#4ade80" }; return { bg: "rgba(255,255,255,0.08)", c: "rgba(255,255,255,0.5)" }; };
 
   // ── Loading guard ──
