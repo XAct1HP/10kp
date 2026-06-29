@@ -30,7 +30,16 @@ export async function GET(request) {
     if (/\.pdf$/i.test(fileName)) {
       const { extractText } = await import("unpdf");
       const result = await extractText(new Uint8Array(buffer));
-      text = result.text || "";
+      console.log("unpdf result type:", typeof result, "keys:", result ? Object.keys(result) : "null");
+      if (typeof result === "string") {
+        text = result;
+      } else if (result?.text) {
+        text = result.text;
+      } else if (result?.pages) {
+        text = result.pages.join("\n\n");
+      } else {
+        text = String(result || "");
+      }
     } else if (/\.docx?$/i.test(fileName)) {
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
