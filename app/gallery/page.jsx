@@ -463,9 +463,9 @@ export default function GalleryPage() {
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
             <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-              {/* Floating thumbnail for text pitches — overlaps top-left corner */}
-              {getPitchType(selectedPitch) === "text" && !selectedPitch.mux_playback_id && (
-                <img src={getThumbnail(selectedPitch)} alt=""
+              {/* Floating custom thumbnail — overlaps top-left corner (text & audio only, custom uploads only) */}
+              {(getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") && selectedPitch.thumbnail_path && (
+                <img src={selectedPitch.thumbnail_path} alt=""
                   className="absolute z-10 rounded-2xl pointer-events-none"
                   style={{
                     width: "350px",
@@ -483,21 +483,43 @@ export default function GalleryPage() {
               }}>
 
               {/* Left: Media / Content */}
-              <div className="flex-1 min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : getPitchType(selectedPitch) === "text" ? "#0a0f1e" : "#000" }}>
+              <div className="flex-1 min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : (getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") ? "#0a0f1e" : "#000" }}>
+                <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
                 {selectedPitch.mux_playback_id ? (
                   <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517"
                     style={{ width: "100%", aspectRatio: "16/9" }} />
+                ) : getPitchType(selectedPitch) === "audio" ? (
+                  <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
+                    {/* Audio player */}
+                    <div className="w-full px-8 pt-8 pb-4 flex-shrink-0">
+                      {selectedPitch.thumbnail_path && (
+                        <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                      )}
+                      {selectedPitch.file_path && (
+                        <audio controls className="w-full" style={{ filter: "invert(1) hue-rotate(180deg)", opacity: 0.7 }}>
+                          <source src={`/api/gallery/stream-audio?path=${encodeURIComponent(selectedPitch.file_path)}`} />
+                        </audio>
+                      )}
+                    </div>
+                    {/* Description text below player */}
+                    {(extractedText || selectedPitch.text_content || selectedPitch.description) && (
+                      <div className="w-full flex-1 overflow-y-auto text-pitch-scroll px-8 pb-8" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                        <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content || selectedPitch.description}</p>
+                      </div>
+                    )}
+                  </div>
                 ) : getPitchType(selectedPitch) === "text" ? (
                   <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
-                    <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
                     {extractingText ? (
                       <div className="w-full flex-1 flex items-center justify-center">
                         <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                       </div>
                     ) : (extractedText || selectedPitch.text_content) ? (
                       <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                        {/* Invisible spacer for the overlapping thumbnail */}
-                        <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                        {/* Invisible spacer for the overlapping thumbnail (only if custom thumbnail) */}
+                        {selectedPitch.thumbnail_path && (
+                          <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                        )}
                         <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content}</p>
                       </div>
                     ) : (
