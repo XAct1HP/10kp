@@ -27,7 +27,8 @@ export default function GalleryPage() {
   const [voting, setVoting] = useState({ maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
   const [voteSubmitting, setVoteSubmitting] = useState({});
   const [selectedPitch, setSelectedPitch] = useState(null);
-  const [fileUrl, setFileUrl] = useState(null);
+  const [extractedText, setExtractedText] = useState(null);
+  const [extractingText, setExtractingText] = useState(false);
 
   const [voterProfile, setVoterProfile] = useState({ name: "", email: "" });
   const [showVoterModal, setShowVoterModal] = useState(false);
@@ -73,15 +74,18 @@ export default function GalleryPage() {
 
   useEffect(() => { fetchSubmissions(); }, [voterProfile.email]);
 
-  // Fetch signed URL for document files when a pitch is selected
+  // Extract text from document files when a pitch is selected
   useEffect(() => {
-    setFileUrl(null);
+    setExtractedText(null);
+    setExtractingText(false);
     if (!selectedPitch?.file_path) return;
-    if (!/\.(pdf|doc|docx)$/i.test(selectedPitch.file_name || "")) return;
-    fetch(`/api/gallery/file-url?path=${encodeURIComponent(selectedPitch.file_path)}`)
+    if (!/\.(pdf|doc|docx|txt)$/i.test(selectedPitch.file_name || "")) return;
+    setExtractingText(true);
+    fetch(`/api/gallery/extract-text?path=${encodeURIComponent(selectedPitch.file_path)}&name=${encodeURIComponent(selectedPitch.file_name || "")}`)
       .then((r) => r.json())
-      .then((d) => { if (d.url) setFileUrl(d.url); })
-      .catch(() => {});
+      .then((d) => { if (d.text) setExtractedText(d.text); })
+      .catch(() => {})
+      .finally(() => setExtractingText(false));
   }, [selectedPitch?.id]);
 
   useEffect(() => {
@@ -456,16 +460,15 @@ export default function GalleryPage() {
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
             <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-              {/* Floating thumbnail for text pitches — centered on bottom edge */}
+              {/* Floating thumbnail for text pitches — overlaps top-left corner */}
               {getPitchType(selectedPitch) === "text" && !selectedPitch.mux_playback_id && (
                 <img src={getThumbnail(selectedPitch)} alt=""
                   className="absolute z-10 rounded-2xl pointer-events-none"
                   style={{
                     width: "350px",
                     height: "auto",
-                    bottom: "-120px",
-                    left: "50%",
-                    transform: "translateX(-70%)",
+                    top: "-24px",
+                    left: "-24px",
                     boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
                   }}
                 />
@@ -483,44 +486,16 @@ export default function GalleryPage() {
                     style={{ width: "100%", aspectRatio: "16/9" }} />
                 ) : getPitchType(selectedPitch) === "text" ? (
                   <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
-                    {/* Text content or document preview */}
-                    {selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "") ? (
-                      fileUrl ? (
-                        <iframe
-                          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                          className="w-full flex-1 border-0 rounded-none"
-                          style={{ minHeight: "400px" }}
-                          title={selectedPitch.title}
-                        />
-                      ) : (
-                        <div className="w-full flex-1 flex items-center justify-center">
-                          <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                        </div>
-                      )
-                    ) : selectedPitch.file_path && /\.(doc|docx)$/i.test(selectedPitch.file_name || "") ? (
-                      <div className="w-full flex-1 flex flex-col items-center justify-center p-8 gap-4">
-                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(242,181,23,0.1)" }}>
-                          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="rgba(242,181,23,0.7)" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                          </svg>
-                        </div>
-                        <p className="text-white/40 text-sm">{selectedPitch.file_name}</p>
-                        <a href={fileUrl || "#"} onClick={(e) => { if (!fileUrl) e.preventDefault(); }}
-                          target="_blank" rel="noopener noreferrer"
-                          className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all"
-                          style={{ background: "#F2B517", color: "#0B1A3B" }}>
-                          Download Document
-                        </a>
-                        {selectedPitch.text_content && (
-                          <div className="w-full mt-4 overflow-y-auto flex-1 px-2" style={{ maxHeight: "50vh" }}>
-                            <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
-                          </div>
-                        )}
+                    <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
+                    {extractingText ? (
+                      <div className="w-full flex-1 flex items-center justify-center">
+                        <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                       </div>
-                    ) : selectedPitch.text_content ? (
-                      <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", paddingBottom: "80px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                        <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
-                        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
+                    ) : (extractedText || selectedPitch.text_content) ? (
+                      <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                        {/* Invisible spacer for the overlapping thumbnail */}
+                        <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                        <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{extractedText || selectedPitch.text_content}</p>
                       </div>
                     ) : (
                       <div className="w-full flex items-center justify-center p-8">
