@@ -456,15 +456,16 @@ export default function GalleryPage() {
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
             <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-              {/* Floating thumbnail for text pitches — sits outside the modal */}
+              {/* Floating thumbnail for text pitches — centered on bottom edge */}
               {getPitchType(selectedPitch) === "text" && !selectedPitch.mux_playback_id && (
                 <img src={getThumbnail(selectedPitch)} alt=""
                   className="absolute z-10 rounded-2xl pointer-events-none"
                   style={{
                     width: "350px",
                     height: "auto",
-                    top: "-24px",
-                    left: "-24px",
+                    bottom: "-20px",
+                    left: "50%",
+                    transform: "translateX(-70%)",
                     boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
                   }}
                 />
@@ -485,16 +486,12 @@ export default function GalleryPage() {
                     {/* Text content or document preview */}
                     {selectedPitch.file_path && /\.(pdf)$/i.test(selectedPitch.file_name || "") ? (
                       fileUrl ? (
-                        <div className="w-full flex-1 flex flex-col" style={{ padding: "32px", paddingTop: "0" }}>
-                          {/* Spacer to clear the overlapping thumbnail */}
-                          <div style={{ float: "left", width: "340px", height: "210px", marginLeft: "-32px", marginRight: "20px", marginBottom: "4px" }} />
-                          <iframe
-                            src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                            className="w-full flex-1 border-0 rounded-xl"
-                            style={{ minHeight: "400px", clear: "both" }}
-                            title={selectedPitch.title}
-                          />
-                        </div>
+                        <iframe
+                          src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                          className="w-full flex-1 border-0 rounded-none"
+                          style={{ minHeight: "400px" }}
+                          title={selectedPitch.title}
+                        />
                       ) : (
                         <div className="w-full flex-1 flex items-center justify-center">
                           <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -521,9 +518,8 @@ export default function GalleryPage() {
                         )}
                       </div>
                     ) : selectedPitch.text_content ? (
-                      <div className="w-full h-full overflow-y-auto" style={{ maxHeight: "80vh", padding: "32px" }}>
-                        {/* Invisible spacer that text wraps around to clear the overlapping thumbnail */}
-                        <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                      <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                        <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
                         <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{selectedPitch.text_content}</p>
                       </div>
                     ) : (
