@@ -463,7 +463,7 @@ export default function GalleryPage() {
                   style={{
                     width: "350px",
                     height: "auto",
-                    bottom: "-60px",
+                    bottom: "-120px",
                     left: "50%",
                     transform: "translateX(-70%)",
                     boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)",
