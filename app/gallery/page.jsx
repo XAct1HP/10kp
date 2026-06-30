@@ -23,6 +23,7 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [galleryPage, setGalleryPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [voting, setVoting] = useState({ maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
   const [voteSubmitting, setVoteSubmitting] = useState({});
@@ -117,23 +118,53 @@ export default function GalleryPage() {
     if (updated) setSelectedPitch(updated);
   }, [allSubmissions]);
 
-  // ── Top 3 by votes ──
-  const topPitches = useMemo(() =>
-    [...allSubmissions].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0)).slice(0, TOP_COUNT),
+  const filteredSubmissions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return allSubmissions;
+
+    return allSubmissions.filter((pitch) => {
+      const title = (pitch.title || "").toLowerCase();
+      const name = (pitch.name || "").toLowerCase();
+      const description = (pitch.description || "").toLowerCase();
+      const textContent = (pitch.text_content || "").toLowerCase();
+      const fileName = (pitch.file_name || "").toLowerCase();
+      const tags = (pitch.tags || [])
+        .map((tag) => (tag?.name || "").toLowerCase())
+        .join(" ");
+
+      return (
+        title.includes(query) ||
+        name.includes(query) ||
+        description.includes(query) ||
+        textContent.includes(query) ||
+        fileName.includes(query) ||
+        tags.includes(query)
+      );
+    });
+  }, [allSubmissions, searchQuery]);
+
+  useEffect(() => {
+    setGalleryPage(1);
+  }, [searchQuery]);
+
+  // ── Top 3 by votes (constant, independent of search) ──
+  const topPitches = useMemo(
+    () =>
+      [...allSubmissions]
+        .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
+        .slice(0, TOP_COUNT),
     [allSubmissions]
   );
 
-  // ── Shuffled rest ──
+  // ── Searchable gallery list (all submissions; filtered when searching) ──
   const shuffledGallery = useMemo(() => {
-    const topIds = new Set(topPitches.map((p) => p.id));
-    const rest = allSubmissions.filter((p) => !topIds.has(p.id));
-    const arr = [...rest];
+    const arr = [...filteredSubmissions];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor((shuffleSeed * (i + 1) * 9301 + 49297) % arr.length);
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
-  }, [allSubmissions, topPitches, shuffleSeed]);
+  }, [filteredSubmissions, shuffleSeed]);
 
   const totalGalleryPages = Math.max(1, Math.ceil(shuffledGallery.length / CARDS_PER_PAGE));
   const paginatedGallery = shuffledGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
@@ -308,10 +339,19 @@ export default function GalleryPage() {
           </div>
         )}
 
+        {!loading && !error && allSubmissions.length > 0 && filteredSubmissions.length === 0 && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-5xl mb-3 opacity-25">🔍</div>
+              <p className="text-white/30 text-sm">No pitches match "{searchQuery}".</p>
+            </div>
+          </div>
+        )}
+
         {/* ═══════════════════════════════════════
              MAIN CONTENT — Top 3 + Grid
             ═══════════════════════════════════════ */}
-        {!loading && !error && allSubmissions.length > 0 && (
+        {!loading && !error && filteredSubmissions.length > 0 && (
           <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-8 lg:px-10 pt-4">
 
             {/* ── TOP 3 PODIUM ── */}
@@ -381,6 +421,40 @@ export default function GalleryPage() {
                 </div>
               </div>
             )}
+
+            {/* Search */}
+            <div className="flex-shrink-0 mb-4">
+              <div
+                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by title, submitter, description, or tag"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="text-white/30 hover:text-white/60 text-lg leading-none px-1"
+                    aria-label="Clear search"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-white/25 mt-1.5">
+                Showing {filteredSubmissions.length} of {allSubmissions.length} pitches
+              </p>
+            </div>
 
             {/* ── ALL PITCHES GRID ── */}
             <div>
