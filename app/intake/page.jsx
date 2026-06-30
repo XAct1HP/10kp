@@ -36,7 +36,7 @@ const TEXT_FILE_TYPES = [
 const VIDEO_FILE_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const AUDIO_FILE_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/webm"];
 const IMAGE_FILE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
 
 const ROLE_OPTIONS = [
@@ -208,7 +208,7 @@ export default function IntakePage() {
     const selected = e.target.files[0];
     if (!selected) return;
     if (selected.size > MAX_FILE_SIZE) {
-      setError("File must be under 50MB.");
+      setError("File must be under 500MB.");
       setFile(null);
       return;
     }
@@ -620,7 +620,7 @@ export default function IntakePage() {
       {pitchMode === "file" ? (
         <>
           <p className="text-white/40 text-xs mb-4">
-            Video (MP4, MOV, WebM), Audio (MP3, WAV, OGG, AAC), or Document (PDF, DOCX, TXT). Max 50MB.
+            Video (MP4, MOV, WebM), Audio (MP3, WAV, OGG, AAC), or Document (PDF, DOCX, TXT). Max 500MB.
           </p>
           <label
             htmlFor="file-upload"

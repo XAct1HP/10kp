@@ -215,7 +215,7 @@ sequenceDiagram
     I->>SB: SELECT * FROM tags ORDER BY name
     SB-->>I: availableTags
     U->>I: Fill form + upload file
-    I->>I: Validate fields, file type, 50MB limit
+    I->>I: Validate fields, file type, 500MB limit
     I->>SB: INSERT into pitches (user_id, name, role, schools, title, description)
     SB-->>I: pitch record (id)
     I->>SB: storage.upload pitch-files/{user_id}/{pitch_id}/{filename}
@@ -238,7 +238,7 @@ sequenceDiagram
 
 ### Accepted file types
 
-PDF, Office docs (`.doc`, `.docx`, `.ppt`, `.pptx`), plain text, video (`.mp4`, `.mov`, `.webm`), images (`.png`, `.jpg`, `.gif`, `.webp`), audio (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.weba`). Max size: **50 MB**.
+PDF, Office docs (`.doc`, `.docx`, `.ppt`, `.pptx`), plain text, video (`.mp4`, `.mov`, `.webm`), images (`.png`, `.jpg`, `.gif`, `.webp`), audio (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.weba`). Max size: **500 MB**.
 
 ### Storage path convention
 
