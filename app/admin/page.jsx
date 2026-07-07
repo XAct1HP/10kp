@@ -553,30 +553,86 @@ export default function AdminPage() {
 
                         {/* Chart body */}
                         <div className="flex-1 min-h-0 px-5 pb-5 overflow-hidden">
-                          {/* ── Activity Timeline ── */}
-                          {chartTab === "timeline" && (
-                            <div className="h-full flex items-end gap-px">
-                              {(() => {
-                                const tl = analytics.timeline || [];
-                                const maxVal = Math.max(...tl.map((d) => d.submissions + d.votes), 1);
-                                return tl.map((d, i) => {
-                                  const subH = (d.submissions / maxVal) * 100;
-                                  const voteH = (d.votes / maxVal) * 100;
-                                  return (
-                                    <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0 group relative" style={{ minWidth: 0 }}>
-                                      <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 pointer-events-none">
-                                        <div className="rounded-lg px-2 py-1 text-[10px] text-white whitespace-nowrap" style={{ background: "rgba(11,26,59,0.95)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                                          {d.date.slice(5)}: {d.submissions}s, {d.votes}v
-                                        </div>
-                                      </div>
-                                      <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(242,181,23,0.6)" }} />
-                                      <div className="w-full" style={{ height: `${subH}%`, minHeight: d.submissions > 0 ? "2px" : 0, background: "rgba(99,102,241,0.5)" }} />
+                          {/* ── Activity Timeline (auto-scaled with Y-axis + gridlines) ── */}
+                          {chartTab === "timeline" && (() => {
+                            const tl = analytics.timeline || [];
+                            const rawMax = Math.max(...tl.map((d) => d.submissions + d.votes), 0);
+
+                            // Nice-round the max so gridlines land on clean numbers.
+                            const niceMax = (v) => {
+                              if (v <= 0) return 4;
+                              const exp = Math.floor(Math.log10(v));
+                              const base = Math.pow(10, exp);
+                              const norm = v / base;
+                              let nice;
+                              if (norm <= 1) nice = 1;
+                              else if (norm <= 2) nice = 2;
+                              else if (norm <= 2.5) nice = 2.5;
+                              else if (norm <= 5) nice = 5;
+                              else nice = 10;
+                              return nice * base;
+                            };
+                            const scaleMax = niceMax(rawMax);
+                            const TICKS = 4; // 0, 1/4, 1/2, 3/4, max
+                            const tickValues = Array.from({ length: TICKS + 1 }, (_, i) => (scaleMax * (TICKS - i)) / TICKS);
+
+                            // Sparse X-axis: show ~6 labels evenly spaced.
+                            const labelStep = Math.max(1, Math.ceil(tl.length / 6));
+
+                            return (
+                              <div className="h-full flex flex-col">
+                                {/* Plot area: Y-axis column + bar area */}
+                                <div className="flex-1 flex min-h-0">
+                                  {/* Y-axis labels */}
+                                  <div className="flex flex-col justify-between pr-2 text-[10px] text-white/30 tabular-nums text-right flex-shrink-0" style={{ width: "28px" }}>
+                                    {tickValues.map((v, i) => (
+                                      <span key={i} style={{ lineHeight: 1 }}>{Number.isInteger(v) ? v : v.toFixed(1)}</span>
+                                    ))}
+                                  </div>
+
+                                  {/* Chart area with gridlines */}
+                                  <div className="relative flex-1 min-w-0">
+                                    {/* Horizontal gridlines */}
+                                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                                      {tickValues.map((_, i) => (
+                                        <div key={i} className="w-full" style={{ height: "1px", background: i === TICKS ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)" }} />
+                                      ))}
                                     </div>
-                                  );
-                                });
-                              })()}
-                            </div>
-                          )}
+
+                                    {/* Bars */}
+                                    <div className="absolute inset-0 flex items-end gap-px">
+                                      {tl.map((d, i) => {
+                                        const subH = scaleMax > 0 ? (d.submissions / scaleMax) * 100 : 0;
+                                        const voteH = scaleMax > 0 ? (d.votes / scaleMax) * 100 : 0;
+                                        return (
+                                          <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0 group relative h-full" style={{ minWidth: 0 }}>
+                                            <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 pointer-events-none left-1/2 -translate-x-1/2">
+                                              <div className="rounded-lg px-2 py-1 text-[10px] text-white whitespace-nowrap" style={{ background: "rgba(11,26,59,0.95)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                                                {d.date.slice(5)}: {d.submissions}s, {d.votes}v
+                                              </div>
+                                            </div>
+                                            <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(242,181,23,0.6)" }} />
+                                            <div className="w-full" style={{ height: `${subH}%`, minHeight: d.submissions > 0 ? "2px" : 0, background: "rgba(99,102,241,0.5)" }} />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* X-axis date labels */}
+                                <div className="flex mt-1.5 flex-shrink-0" style={{ paddingLeft: "28px" }}>
+                                  <div className="flex-1 flex gap-px">
+                                    {tl.map((d, i) => (
+                                      <div key={i} className="flex-1 text-center text-[9px] text-white/25 tabular-nums truncate" style={{ minWidth: 0 }}>
+                                        {i % labelStep === 0 ? d.date.slice(5) : ""}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* ── Pitch Types donut ── */}
                           {chartTab === "types" && (() => {
