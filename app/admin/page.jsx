@@ -114,6 +114,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("pitches");
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [chartTab, setChartTab] = useState("timeline");
 
   const [loadingState, setLoadingState] = useState({ date: true, pitches: true, tags: true, votes: true });
   const [error, setError] = useState("");
@@ -494,168 +495,204 @@ export default function AdminPage() {
                     <StatCard label="Video Views" value={analytics.mux.totalViews ?? "N/A"} icon="👁️" />
                   </div>
 
-                  {/* Row 2: Timeline + Type donut + Top pitches */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-3 flex-shrink-0" style={{ height: "38%" }}>
-                    {/* Activity Timeline */}
-                    <GlassCard className="lg:col-span-6 flex flex-col !p-4 min-h-0">
-                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Activity — Last 30 Days</p>
-                      <div className="flex-1 flex items-end gap-px min-h-0">
-                        {(() => {
-                          const tl = analytics.timeline || [];
-                          const maxVal = Math.max(...tl.map((d) => d.submissions + d.votes), 1);
-                          return tl.map((d, i) => {
-                            const subH = (d.submissions / maxVal) * 100;
-                            const voteH = (d.votes / maxVal) * 100;
+                  {/* Single tabbed graph */}
+                  {(() => {
+                    const chartTabs = [
+                      { id: "timeline", label: "Activity", subtitle: "Last 30 days" },
+                      { id: "types", label: "Pitch Types", subtitle: "Video / Audio / Text" },
+                      { id: "topPitches", label: "Top Pitches", subtitle: "Ranked by votes" },
+                      { id: "tags", label: "Tags", subtitle: "Most used" },
+                      { id: "schools", label: "Schools", subtitle: "Submission distribution" },
+                      { id: "videoViews", label: "Video Views", subtitle: "Mux playback" },
+                    ];
+                    const current = chartTabs.find((t) => t.id === chartTab) || chartTabs[0];
+                    return (
+                      <GlassCard className="flex-1 flex flex-col !p-0 min-h-0 overflow-hidden">
+                        {/* Tab strip */}
+                        <div className="flex items-center gap-1 px-3 pt-3 overflow-x-auto flex-shrink-0"
+                          style={{ scrollbarWidth: "none", msOverflowStyle: "none", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          {chartTabs.map((t) => {
+                            const active = chartTab === t.id;
                             return (
-                              <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0 group relative" style={{ minWidth: 0 }}>
-                                <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 pointer-events-none">
-                                  <div className="rounded-lg px-2 py-1 text-[9px] text-white whitespace-nowrap" style={{ background: "rgba(11,26,59,0.95)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                                    {d.date.slice(5)}: {d.submissions}s, {d.votes}v
-                                  </div>
-                                </div>
-                                <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(242,181,23,0.6)" }} />
-                                <div className="w-full" style={{ height: `${subH}%`, minHeight: d.submissions > 0 ? "2px" : 0, background: "rgba(99,102,241,0.5)" }} />
-                              </div>
+                              <button key={t.id} onClick={() => setChartTab(t.id)}
+                                className="px-3.5 py-2 rounded-t-lg text-xs font-semibold whitespace-nowrap transition-all relative flex-shrink-0"
+                                style={{
+                                  color: active ? "#F2B517" : "rgba(255,255,255,0.4)",
+                                  background: active ? "rgba(242,181,23,0.08)" : "transparent",
+                                }}>
+                                {t.label}
+                                {active && <span className="absolute left-2 right-2 bottom-0 h-0.5 rounded-full" style={{ background: "#F2B517" }} />}
+                              </button>
                             );
-                          });
-                        })()}
-                      </div>
-                      <div className="flex gap-4 mt-2 flex-shrink-0">
-                        <span className="flex items-center gap-1.5 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(99,102,241,0.5)" }} />Submissions</span>
-                        <span className="flex items-center gap-1.5 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(242,181,23,0.6)" }} />Votes</span>
-                      </div>
-                    </GlassCard>
+                          })}
+                        </div>
 
-                    {/* Pitch Type Donut */}
-                    <GlassCard className="lg:col-span-2 flex flex-col items-center justify-center !p-4 min-h-0">
-                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Pitch Types</p>
-                      {(() => {
-                        const { video, audio, text } = analytics.typeBreakdown;
-                        const total = video + audio + text || 1;
-                        const vPct = (video / total) * 100;
-                        const aPct = (audio / total) * 100;
-                        const tPct = (text / total) * 100;
-                        const vDeg = (video / total) * 360;
-                        const aDeg = (audio / total) * 360;
-                        return (
-                          <div className="relative flex-1 flex items-center justify-center w-full min-h-0">
-                            <div className="w-24 h-24 rounded-full relative" style={{
-                              background: `conic-gradient(
-                                rgba(99,102,241,0.7) 0deg ${vDeg}deg,
-                                rgba(236,72,153,0.7) ${vDeg}deg ${vDeg + aDeg}deg,
-                                rgba(34,197,94,0.7) ${vDeg + aDeg}deg 360deg
-                              )`
-                            }}>
-                              <div className="absolute inset-3 rounded-full flex items-center justify-center" style={{ background: "rgba(11,26,59,0.8)" }}>
-                                <span className="text-lg font-bold text-white">{total}</span>
-                              </div>
-                            </div>
+                        {/* Header row: title + legend/meta */}
+                        <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-shrink-0">
+                          <div>
+                            <p className="text-sm font-bold text-white leading-none">{current.label}</p>
+                            <p className="text-[10px] uppercase tracking-widest text-white/30 mt-1">{current.subtitle}</p>
                           </div>
-                        );
-                      })()}
-                      <div className="flex gap-3 mt-1 flex-shrink-0">
-                        <span className="flex items-center gap-1 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(99,102,241,0.7)" }} />{analytics.typeBreakdown.video}</span>
-                        <span className="flex items-center gap-1 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(236,72,153,0.7)" }} />{analytics.typeBreakdown.audio}</span>
-                        <span className="flex items-center gap-1 text-[9px] text-white/30"><span className="w-2 h-2 rounded-sm" style={{ background: "rgba(34,197,94,0.7)" }} />{analytics.typeBreakdown.text}</span>
-                      </div>
-                    </GlassCard>
-
-                    {/* Top Pitches by Votes */}
-                    <GlassCard className="lg:col-span-4 flex flex-col !p-4 min-h-0">
-                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Top Pitches by Votes</p>
-                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
-                        {(analytics.topPitchesByVotes || []).map((p, i) => {
-                          const maxV = analytics.topPitchesByVotes[0]?.votes || 1;
-                          const tc = p.type === "video" ? "rgba(99,102,241,0.5)" : p.type === "audio" ? "rgba(236,72,153,0.5)" : "rgba(34,197,94,0.5)";
-                          return (
-                            <div key={i} className="flex items-center gap-2 min-w-0">
-                              <span className="text-[11px] text-white/50 truncate w-28 flex-shrink-0" title={p.title}>{p.title}</span>
-                              <div className="flex-1 h-4 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-                                <div className="h-full rounded-md flex items-center pl-2 transition-all" style={{ width: `${Math.max((p.votes / maxV) * 100, 8)}%`, background: tc }}>
-                                  <span className="text-[10px] font-bold text-white/80">{p.votes}</span>
-                                </div>
-                              </div>
+                          {chartTab === "timeline" && (
+                            <div className="flex gap-4">
+                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(99,102,241,0.5)" }} />Submissions</span>
+                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(242,181,23,0.6)" }} />Votes</span>
                             </div>
-                          );
-                        })}
-                        {analytics.topPitchesByVotes.length === 0 && <p className="text-xs text-white/20 text-center">No votes yet</p>}
-                      </div>
-                    </GlassCard>
-                  </div>
-
-                  {/* Row 3: Tags + Schools + Mux Top Videos */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 flex-1 min-h-0">
-                    {/* Tag Popularity */}
-                    <GlassCard className="flex flex-col !p-4 min-h-0">
-                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Tag Popularity</p>
-                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
-                        {(analytics.tagPopularity || []).map((t, i) => {
-                          const maxT = analytics.tagPopularity[0]?.count || 1;
-                          return (
-                            <div key={i} className="flex items-center gap-2 min-w-0">
-                              <span className="text-[11px] text-white/50 truncate w-24 flex-shrink-0">{t.name}</span>
-                              <div className="flex-1 h-3.5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-                                <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((t.count / maxT) * 100, 8)}%`, background: "rgba(242,181,23,0.4)" }} />
-                              </div>
-                              <span className="text-[10px] text-white/30 tabular-nums w-5 text-right">{t.count}</span>
+                          )}
+                          {chartTab === "types" && (
+                            <div className="flex gap-4">
+                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(99,102,241,0.7)" }} />Video ({analytics.typeBreakdown.video})</span>
+                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(236,72,153,0.7)" }} />Audio ({analytics.typeBreakdown.audio})</span>
+                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(34,197,94,0.7)" }} />Text ({analytics.typeBreakdown.text})</span>
                             </div>
-                          );
-                        })}
-                        {analytics.tagPopularity.length === 0 && <p className="text-xs text-white/20 text-center">No tags used</p>}
-                      </div>
-                    </GlassCard>
+                          )}
+                          {chartTab === "videoViews" && analytics.mux.totalWatchTime != null && (
+                            <span className="text-[10px] text-white/40">{Math.round(analytics.mux.totalWatchTime / 1000)}s total watched</span>
+                          )}
+                        </div>
 
-                    {/* School Distribution */}
-                    <GlassCard className="flex flex-col !p-4 min-h-0">
-                      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2 flex-shrink-0">Schools</p>
-                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
-                        {(analytics.schoolDistribution || []).map((s, i) => {
-                          const maxS = analytics.schoolDistribution[0]?.count || 1;
-                          return (
-                            <div key={i} className="flex items-center gap-2 min-w-0">
-                              <span className="text-[11px] text-white/50 truncate w-24 flex-shrink-0" title={s.name}>{s.name}</span>
-                              <div className="flex-1 h-3.5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-                                <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((s.count / maxS) * 100, 8)}%`, background: "rgba(59,130,246,0.4)" }} />
-                              </div>
-                              <span className="text-[10px] text-white/30 tabular-nums w-5 text-right">{s.count}</span>
+                        {/* Chart body */}
+                        <div className="flex-1 min-h-0 px-5 pb-5 overflow-hidden">
+                          {/* ── Activity Timeline ── */}
+                          {chartTab === "timeline" && (
+                            <div className="h-full flex items-end gap-px">
+                              {(() => {
+                                const tl = analytics.timeline || [];
+                                const maxVal = Math.max(...tl.map((d) => d.submissions + d.votes), 1);
+                                return tl.map((d, i) => {
+                                  const subH = (d.submissions / maxVal) * 100;
+                                  const voteH = (d.votes / maxVal) * 100;
+                                  return (
+                                    <div key={i} className="flex-1 flex flex-col justify-end items-center gap-0 group relative" style={{ minWidth: 0 }}>
+                                      <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 pointer-events-none">
+                                        <div className="rounded-lg px-2 py-1 text-[10px] text-white whitespace-nowrap" style={{ background: "rgba(11,26,59,0.95)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                                          {d.date.slice(5)}: {d.submissions}s, {d.votes}v
+                                        </div>
+                                      </div>
+                                      <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(242,181,23,0.6)" }} />
+                                      <div className="w-full" style={{ height: `${subH}%`, minHeight: d.submissions > 0 ? "2px" : 0, background: "rgba(99,102,241,0.5)" }} />
+                                    </div>
+                                  );
+                                });
+                              })()}
                             </div>
-                          );
-                        })}
-                        {analytics.schoolDistribution.length === 0 && <p className="text-xs text-white/20 text-center">No school data</p>}
-                      </div>
-                    </GlassCard>
+                          )}
 
-                    {/* Mux: Top Videos by Views */}
-                    <GlassCard className="flex flex-col !p-4 min-h-0">
-                      <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                        <p className="text-[10px] uppercase tracking-widest text-white/30">Video Views</p>
-                        {analytics.mux.totalWatchTime != null && (
-                          <span className="text-[10px] text-white/20">{Math.round(analytics.mux.totalWatchTime / 1000)}s watched</span>
-                        )}
-                      </div>
-                      <div className="flex-1 flex flex-col justify-center gap-1.5 min-h-0 overflow-hidden">
-                        {analytics.mux.totalViews == null ? (
-                          <p className="text-xs text-white/20 text-center">Mux Data unavailable</p>
-                        ) : analytics.mux.topVideos.length === 0 ? (
-                          <p className="text-xs text-white/20 text-center">No video views yet</p>
-                        ) : (
-                          analytics.mux.topVideos.map((v, i) => {
-                            const maxMV = analytics.mux.topVideos[0]?.views || 1;
+                          {/* ── Pitch Types donut ── */}
+                          {chartTab === "types" && (() => {
+                            const { video, audio, text } = analytics.typeBreakdown;
+                            const total = video + audio + text || 1;
+                            const vDeg = (video / total) * 360;
+                            const aDeg = (audio / total) * 360;
                             return (
-                              <div key={i} className="flex items-center gap-2 min-w-0">
-                                <span className="text-[11px] text-white/50 truncate w-24 flex-shrink-0" title={v.title}>{v.title}</span>
-                                <div className="flex-1 h-3.5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-                                  <div className="h-full rounded-md flex items-center pl-2 transition-all" style={{ width: `${Math.max((v.views / maxMV) * 100, 8)}%`, background: "rgba(168,85,247,0.4)" }}>
-                                    <span className="text-[9px] font-bold text-white/70">{v.views}</span>
+                              <div className="h-full flex items-center justify-center">
+                                <div className="relative rounded-full" style={{
+                                  width: "min(240px, 60%)",
+                                  aspectRatio: "1 / 1",
+                                  background: `conic-gradient(
+                                    rgba(99,102,241,0.75) 0deg ${vDeg}deg,
+                                    rgba(236,72,153,0.75) ${vDeg}deg ${vDeg + aDeg}deg,
+                                    rgba(34,197,94,0.75) ${vDeg + aDeg}deg 360deg
+                                  )`
+                                }}>
+                                  <div className="absolute inset-6 rounded-full flex flex-col items-center justify-center" style={{ background: "rgba(11,26,59,0.85)" }}>
+                                    <span className="text-4xl font-black text-white leading-none">{total}</span>
+                                    <span className="text-[10px] uppercase tracking-widest text-white/30 mt-1">Pitches</span>
                                   </div>
                                 </div>
                               </div>
                             );
-                          })
-                        )}
-                      </div>
-                    </GlassCard>
-                  </div>
+                          })()}
+
+                          {/* ── Top Pitches ── */}
+                          {chartTab === "topPitches" && (
+                            <div className="h-full flex flex-col justify-center gap-2 overflow-y-auto">
+                              {(analytics.topPitchesByVotes || []).length === 0 ? (
+                                <p className="text-xs text-white/25 text-center">No votes yet</p>
+                              ) : analytics.topPitchesByVotes.map((p, i) => {
+                                const maxV = analytics.topPitchesByVotes[0]?.votes || 1;
+                                const tc = p.type === "video" ? "rgba(99,102,241,0.6)" : p.type === "audio" ? "rgba(236,72,153,0.6)" : "rgba(34,197,94,0.6)";
+                                return (
+                                  <div key={i} className="flex items-center gap-3 min-w-0">
+                                    <span className="text-[10px] text-white/25 w-4 flex-shrink-0 tabular-nums text-right">{i + 1}</span>
+                                    <span className="text-[12px] text-white/60 truncate w-48 flex-shrink-0" title={p.title}>{p.title}</span>
+                                    <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                      <div className="h-full rounded-md flex items-center pl-2 transition-all" style={{ width: `${Math.max((p.votes / maxV) * 100, 8)}%`, background: tc }}>
+                                        <span className="text-[10px] font-bold text-white/90">{p.votes}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* ── Tag Popularity ── */}
+                          {chartTab === "tags" && (
+                            <div className="h-full flex flex-col justify-center gap-2 overflow-y-auto">
+                              {(analytics.tagPopularity || []).length === 0 ? (
+                                <p className="text-xs text-white/25 text-center">No tags used</p>
+                              ) : analytics.tagPopularity.map((t, i) => {
+                                const maxT = analytics.tagPopularity[0]?.count || 1;
+                                return (
+                                  <div key={i} className="flex items-center gap-3 min-w-0">
+                                    <span className="text-[12px] text-white/60 truncate w-40 flex-shrink-0">{t.name}</span>
+                                    <div className="flex-1 h-4 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                      <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((t.count / maxT) * 100, 8)}%`, background: "rgba(242,181,23,0.5)" }} />
+                                    </div>
+                                    <span className="text-[11px] text-white/40 tabular-nums w-6 text-right">{t.count}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* ── Schools ── */}
+                          {chartTab === "schools" && (
+                            <div className="h-full flex flex-col justify-center gap-2 overflow-y-auto">
+                              {(analytics.schoolDistribution || []).length === 0 ? (
+                                <p className="text-xs text-white/25 text-center">No school data</p>
+                              ) : analytics.schoolDistribution.map((s, i) => {
+                                const maxS = analytics.schoolDistribution[0]?.count || 1;
+                                return (
+                                  <div key={i} className="flex items-center gap-3 min-w-0">
+                                    <span className="text-[12px] text-white/60 truncate w-40 flex-shrink-0" title={s.name}>{s.name}</span>
+                                    <div className="flex-1 h-4 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                      <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((s.count / maxS) * 100, 8)}%`, background: "rgba(59,130,246,0.5)" }} />
+                                    </div>
+                                    <span className="text-[11px] text-white/40 tabular-nums w-6 text-right">{s.count}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* ── Mux Video Views ── */}
+                          {chartTab === "videoViews" && (
+                            <div className="h-full flex flex-col justify-center gap-2 overflow-y-auto">
+                              {analytics.mux.totalViews == null ? (
+                                <p className="text-xs text-white/25 text-center">Mux Data unavailable</p>
+                              ) : analytics.mux.topVideos.length === 0 ? (
+                                <p className="text-xs text-white/25 text-center">No video views yet</p>
+                              ) : analytics.mux.topVideos.map((v, i) => {
+                                const maxMV = analytics.mux.topVideos[0]?.views || 1;
+                                return (
+                                  <div key={i} className="flex items-center gap-3 min-w-0">
+                                    <span className="text-[12px] text-white/60 truncate w-40 flex-shrink-0" title={v.title}>{v.title}</span>
+                                    <div className="flex-1 h-4 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                      <div className="h-full rounded-md flex items-center pl-2 transition-all" style={{ width: `${Math.max((v.views / maxMV) * 100, 8)}%`, background: "rgba(168,85,247,0.5)" }}>
+                                        <span className="text-[10px] font-bold text-white/90">{v.views}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </GlassCard>
+                    );
+                  })()}
                 </>
               )}
             </div>
