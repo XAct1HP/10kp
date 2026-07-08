@@ -115,6 +115,8 @@ export default function AdminPage() {
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [chartTab, setChartTab] = useState("timeline");
+  const [extractedAdminText, setExtractedAdminText] = useState(null);
+  const [extractingAdminText, setExtractingAdminText] = useState(false);
 
   const [loadingState, setLoadingState] = useState({ date: true, pitches: true, tags: true, votes: true });
   const [error, setError] = useState("");
@@ -165,6 +167,20 @@ export default function AdminPage() {
   useEffect(() => { if (user && isAdmin) { fetchDate(); fetchPitches(); fetchTags(); fetchVotes(); fetchDefThumb(); } }, [user, isAdmin, fetchDate, fetchPitches, fetchTags, fetchVotes, fetchDefThumb]);
   // Lazy-load analytics only when tab is selected
   useEffect(() => { if (activeTab === "analytics" && !analytics && !analyticsLoading) fetchAnalytics(); }, [activeTab, analytics, analyticsLoading, fetchAnalytics]);
+
+  // Extract text from PDF/DOC/DOCX/TXT when a text pitch is opened
+  useEffect(() => {
+    setExtractedAdminText(null);
+    setExtractingAdminText(false);
+    if (!selectedPitch?.file_path) return;
+    if (!/\.(pdf|doc|docx|txt)$/i.test(selectedPitch.file_name || "")) return;
+    setExtractingAdminText(true);
+    fetch(`/api/gallery/extract-text?path=${encodeURIComponent(selectedPitch.file_path)}&name=${encodeURIComponent(selectedPitch.file_name || "")}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.text) setExtractedAdminText(d.text); })
+      .catch(() => {})
+      .finally(() => setExtractingAdminText(false));
+  }, [selectedPitch?.id]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(""), 4000); return () => clearTimeout(t); } }, [success]);
 
   // ── Handlers ──
@@ -859,22 +875,52 @@ export default function AdminPage() {
                     <p className={`text-sm ${selectedPitch.mux_error ? "text-red-400" : "text-white/30"}`}>{selectedPitch.mux_error || `Video is ${selectedPitch.mux_status || "processing"}...`}</p>
                   </div>
                 )}
-                {selectedPitch.thumbnail_path && !selectedPitch.mux_playback_id && (
+
+                {/* Audio player */}
+                {typeLabel(selectedPitch) === "Audio" && selectedPitch.file_path && (
+                  <div className="mb-4 flex-shrink-0 flex items-center gap-3 rounded-xl p-3"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    {selectedPitch.thumbnail_path && (
+                      <img src={selectedPitch.thumbnail_path} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                    )}
+                    <audio controls className="w-full" style={{ filter: "invert(1) hue-rotate(180deg)", opacity: 0.75 }}>
+                      <source src={`/api/gallery/stream-audio?path=${encodeURIComponent(selectedPitch.file_path)}`} />
+                      Your browser doesn't support audio playback.
+                    </audio>
+                  </div>
+                )}
+
+                {/* Thumbnail (fallback, only for non-audio, non-video) */}
+                {selectedPitch.thumbnail_path && !selectedPitch.mux_playback_id && typeLabel(selectedPitch) !== "Audio" && (
                   <div className="mb-4 flex-shrink-0">
                     <img src={selectedPitch.thumbnail_path} alt="Thumbnail" className="max-h-32 rounded-xl object-cover" style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
                   </div>
                 )}
-                <div className="flex-1 min-h-0 overflow-hidden">
+
+                {/* Scrollable text area (description + pitch text together) */}
+                <div className="flex-1 min-h-0 overflow-y-auto pr-2" style={{ scrollbarWidth: "thin" }}>
                   <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Description</p>
-                  <p className="text-sm text-white/60 leading-relaxed line-clamp-6">{selectedPitch.description}</p>
+                  <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap break-words">
+                    {selectedPitch.description || <span className="italic text-white/25">No description</span>}
+                  </p>
+
+                  {(extractedAdminText || selectedPitch.text_content || extractingAdminText) && (
+                    <div className="mt-4">
+                      <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Pitch Text</p>
+                      {extractingAdminText ? (
+                        <div className="flex items-center gap-2 text-xs text-white/30">
+                          <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                          Extracting text...
+                        </div>
+                      ) : (
+                        <div className="rounded-xl p-3 text-sm text-white/55 leading-relaxed whitespace-pre-wrap break-words"
+                          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                          {extractedAdminText || selectedPitch.text_content}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {selectedPitch.text_content && (
-                  <div className="mt-3 flex-shrink-0">
-                    <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Pitch Text</p>
-                    <div className="rounded-xl p-3 text-sm text-white/50 leading-relaxed line-clamp-4"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>{selectedPitch.text_content}</div>
-                  </div>
-                )}
               </div>
 
               {/* Right sidebar */}
