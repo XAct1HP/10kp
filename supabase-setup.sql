@@ -167,6 +167,27 @@ create policy "Anyone can read competition settings"
 -- Note: Insert/update handled via service role key in API routes (admin-only)
 
 -- ============================================
+-- 5. Announcements table (admin-managed)
+-- ============================================
+
+create table if not exists public.announcements (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  content text not null,
+  is_published boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists announcements_updated_at_idx
+  on public.announcements (updated_at desc);
+
+create index if not exists announcements_is_published_idx
+  on public.announcements (is_published);
+
+alter table public.announcements enable row level security;
+
+-- ============================================
 -- Example: Insert some starter tags
 -- (replace these with your actual tags later)
 -- ============================================

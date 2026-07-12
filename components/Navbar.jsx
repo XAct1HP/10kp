@@ -55,6 +55,12 @@ export default function Navbar() {
             >
               Gallery
             </Link>
+            <Link
+              href="/announcements"
+              className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
+            >
+              Announcements
+            </Link>
 
             {loading ? null : user ? (
               <>
@@ -129,6 +135,13 @@ export default function Navbar() {
               className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
             >
               Gallery
+            </Link>
+            <Link
+              href="/announcements"
+              onClick={closeMenu}
+              className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
+            >
+              Announcements
             </Link>
 
             {loading ? null : user ? (

@@ -101,6 +101,31 @@ export default function AdminPage() {
   const [newTagName, setNewTagName] = useState("");
   const [votes, setVotes] = useState([]);
   const [votePage, setVotePage] = useState(1);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementForm, setAnnouncementForm] = useState({
+    id: null,
+    title: "",
+    content: "",
+    is_published: true,
+  });
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [announcementDeletingId, setAnnouncementDeletingId] = useState(null);
+  const [announcementTemplate, setAnnouncementTemplate] = useState("general");
+  const [templateFields, setTemplateFields] = useState({
+    winnerName: "",
+    pitchTitle: "",
+    prizeLabel: "",
+    competitionName: "",
+    dateValue: "",
+    details: "",
+  });
+  const [digestData, setDigestData] = useState({
+    submissions: [],
+    announcements: [],
+    competitionDate: null,
+  });
+  const [digestLoading, setDigestLoading] = useState(false);
+  const [digestLoaded, setDigestLoaded] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState("");
@@ -118,7 +143,13 @@ export default function AdminPage() {
   const [extractedAdminText, setExtractedAdminText] = useState(null);
   const [extractingAdminText, setExtractingAdminText] = useState(false);
 
-  const [loadingState, setLoadingState] = useState({ date: true, pitches: true, tags: true, votes: true });
+  const [loadingState, setLoadingState] = useState({
+    date: true,
+    pitches: true,
+    tags: true,
+    votes: true,
+    announcements: true,
+  });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -161,12 +192,65 @@ export default function AdminPage() {
   const fetchPitches = useCallback(async () => { try { setPitches(await apiFetch("/api/admin/pitches")); } catch {} finally { setLoadingState((s) => ({ ...s, pitches: false })); } }, []);
   const fetchTags = useCallback(async () => { try { setTags(await apiFetch("/api/admin/tags")); } catch {} finally { setLoadingState((s) => ({ ...s, tags: false })); } }, []);
   const fetchVotes = useCallback(async () => { try { setVotes(await apiFetch("/api/admin/votes")); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      setAnnouncements(await apiFetch("/api/admin/announcements"));
+    } catch {
+      // ignore
+    } finally {
+      setLoadingState((s) => ({ ...s, announcements: false }));
+    }
+  }, []);
   const fetchDefThumb = useCallback(async () => { try { const d = await apiFetch("/api/admin/default-thumbnails"); setDefaultThumbnails({ audio: d.default_audio_thumbnail || null, text: d.default_text_thumbnail || null }); } catch {} }, []);
   const fetchAnalytics = useCallback(async () => { setAnalyticsLoading(true); try { setAnalytics(await apiFetch("/api/admin/analytics")); } catch {} finally { setAnalyticsLoading(false); } }, []);
+  const fetchDigest = useCallback(async () => {
+    setDigestLoading(true);
+    try {
+      const [submissionsRes, announcementsRes, dateRes] = await Promise.all([
+        apiFetch("/api/gallery/submissions?page=1&pageSize=24"),
+        apiFetch("/api/announcements"),
+        apiFetch("/api/admin/competition-date"),
+      ]);
 
-  useEffect(() => { if (user && isAdmin) { fetchDate(); fetchPitches(); fetchTags(); fetchVotes(); fetchDefThumb(); } }, [user, isAdmin, fetchDate, fetchPitches, fetchTags, fetchVotes, fetchDefThumb]);
+      setDigestData({
+        submissions: submissionsRes?.submissions || [],
+        announcements: announcementsRes || [],
+        competitionDate: dateRes?.competition_date || null,
+      });
+      setDigestLoaded(true);
+    } catch {
+      // ignore
+    } finally {
+      setDigestLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchDate();
+      fetchPitches();
+      fetchTags();
+      fetchVotes();
+      fetchAnnouncements();
+      fetchDefThumb();
+    }
+  }, [
+    user,
+    isAdmin,
+    fetchDate,
+    fetchPitches,
+    fetchTags,
+    fetchVotes,
+    fetchAnnouncements,
+    fetchDefThumb,
+  ]);
   // Lazy-load analytics only when tab is selected
   useEffect(() => { if (activeTab === "analytics" && !analytics && !analyticsLoading) fetchAnalytics(); }, [activeTab, analytics, analyticsLoading, fetchAnalytics]);
+  useEffect(() => {
+    if (activeTab === "newspaper" && !digestLoaded && !digestLoading) {
+      fetchDigest();
+    }
+  }, [activeTab, digestLoaded, digestLoading, fetchDigest]);
 
   // Extract text from PDF/DOC/DOCX/TXT when a text pitch is opened
   useEffect(() => {
@@ -208,10 +292,224 @@ export default function AdminPage() {
     if (!file) return; setUploadingThumbnail(type); setError("");
     try { const fd = new FormData(); fd.append("file", file); fd.append("type", type); const d = await apiUpload("/api/admin/upload-thumbnail", fd); setDefaultThumbnails((p) => ({ ...p, [type]: d.url })); setSuccess(`Default ${type} thumbnail updated.`); } catch (e) { setError(e.message); } finally { setUploadingThumbnail(null); }
   };
+  const resetAnnouncementForm = () => {
+    setAnnouncementForm({ id: null, title: "", content: "", is_published: true });
+    setAnnouncementTemplate("general");
+    setTemplateFields({
+      winnerName: "",
+      pitchTitle: "",
+      prizeLabel: "",
+      competitionName: "",
+      dateValue: "",
+      details: "",
+    });
+  };
+
+  const startAnnouncementTemplate = (templateKey) => {
+    setAnnouncementTemplate(templateKey);
+    setAnnouncementForm((prev) => ({
+      ...prev,
+      id: null,
+      title:
+        templateKey === "winner-weekly-raffle"
+          ? "Weekly Raffle Winner Announcement"
+          : templateKey === "winner-pitch"
+          ? "Pitch Competition Winner Announcement"
+          : templateKey === "winner-monthly-grand"
+          ? "Monthly Grand Prize Winner Announcement"
+          : templateKey === "competition-create"
+          ? "New Competition Announcement"
+          : templateKey === "competition-submission-deadline"
+          ? "Submission Deadline Announcement"
+          : templateKey === "competition-judging-deadline"
+          ? "Judging Deadline Announcement"
+          : templateKey === "competition-winner-date"
+          ? "Winner Announcement Date Update"
+          : prev.title,
+      content: "",
+      is_published: true,
+    }));
+    setTemplateFields({
+      winnerName: "",
+      pitchTitle: "",
+      prizeLabel:
+        templateKey === "winner-weekly-raffle"
+          ? "Weekly Raffle"
+          : templateKey === "winner-pitch"
+          ? "Pitch Competition"
+          : templateKey === "winner-monthly-grand"
+          ? "Monthly Grand Prize"
+          : "",
+      competitionName: "",
+      dateValue: "",
+      details: "",
+    });
+  };
+
+  const buildAnnouncementPayload = () => {
+    if (announcementTemplate === "general") {
+      return {
+        title: announcementForm.title.trim(),
+        content: announcementForm.content.trim(),
+      };
+    }
+
+    const templateLabel =
+      announcementTemplate === "winner-weekly-raffle"
+        ? "Weekly Raffle Winner"
+        : announcementTemplate === "winner-pitch"
+        ? "Pitch Competition Winner"
+        : announcementTemplate === "winner-monthly-grand"
+        ? "Monthly Grand Prize Winner"
+        : announcementTemplate === "competition-create"
+        ? "Competition Created"
+        : announcementTemplate === "competition-submission-deadline"
+        ? "Submission Deadline"
+        : announcementTemplate === "competition-judging-deadline"
+        ? "Judging Deadline"
+        : "Winner Announcement Date";
+
+    const lines = [];
+    if (templateFields.winnerName.trim()) lines.push(`Winner: ${templateFields.winnerName.trim()}`);
+    if (templateFields.pitchTitle.trim()) lines.push(`Pitch: ${templateFields.pitchTitle.trim()}`);
+    if (templateFields.prizeLabel.trim()) lines.push(`Category: ${templateFields.prizeLabel.trim()}`);
+    if (templateFields.competitionName.trim()) lines.push(`Competition: ${templateFields.competitionName.trim()}`);
+    if (templateFields.dateValue) lines.push(`Date: ${new Date(templateFields.dateValue).toLocaleString()}`);
+    if (templateFields.details.trim()) lines.push(`Details: ${templateFields.details.trim()}`);
+    if (announcementForm.content.trim()) lines.push(announcementForm.content.trim());
+
+    return {
+      title: announcementForm.title.trim() || templateLabel,
+      content: lines.join("\n"),
+    };
+  };
+
+  const handleSaveAnnouncement = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    const payload = buildAnnouncementPayload();
+
+    if (!payload.title) {
+      setError("Announcement title is required.");
+      return;
+    }
+    if (!payload.content) {
+      setError("Announcement content is required.");
+      return;
+    }
+
+    setAnnouncementSubmitting(true);
+    try {
+      const requestPayload = {
+        ...payload,
+        is_published: announcementForm.is_published,
+      };
+
+      if (announcementForm.id) {
+        await apiFetch("/api/admin/announcements", {
+          method: "PUT",
+          body: JSON.stringify({ id: announcementForm.id, ...requestPayload }),
+        });
+        setSuccess("Announcement updated.");
+      } else {
+        await apiFetch("/api/admin/announcements", {
+          method: "POST",
+          body: JSON.stringify(requestPayload),
+        });
+        setSuccess("Announcement created.");
+      }
+
+      resetAnnouncementForm();
+      fetchAnnouncements();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAnnouncementSubmitting(false);
+    }
+  };
+
+  const handleEditAnnouncement = (item) => {
+    const isTemplateRecord =
+      item.title?.toLowerCase().includes("winner") ||
+      item.title?.toLowerCase().includes("competition") ||
+      item.title?.toLowerCase().includes("deadline");
+
+    setAnnouncementTemplate(isTemplateRecord ? "general" : "general");
+    setAnnouncementForm({
+      id: item.id,
+      title: item.title || "",
+      content: item.content || "",
+      is_published: Boolean(item.is_published),
+    });
+    setActiveTab("announcements");
+  };
+
+  const handleDeleteAnnouncement = async (id) => {
+    setError("");
+    setAnnouncementDeletingId(id);
+    try {
+      await apiFetch(`/api/admin/announcements?id=${id}`, { method: "DELETE" });
+      if (announcementForm.id === id) {
+        resetAnnouncementForm();
+      }
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      setSuccess("Announcement deleted.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAnnouncementDeletingId(null);
+    }
+  };
 
   // ── Helpers ──
   const typeLabel = (p) => { if (p.file_type === "video") return "Video"; if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "Audio"; if (p.text_content || /\.(txt|pdf|doc|docx)$/i.test(p.file_name || "")) return "Text"; return "File"; };
   const typeColor = (p) => { const t = typeLabel(p); if (t === "Video") return { bg: "rgba(99,102,241,0.15)", c: "#818cf8" }; if (t === "Audio") return { bg: "rgba(236,72,153,0.15)", c: "#f472b6" }; if (t === "Text") return { bg: "rgba(34,197,94,0.15)", c: "#4ade80" }; return { bg: "rgba(255,255,255,0.08)", c: "rgba(255,255,255,0.5)" }; };
+  const digestWeeklyStats = useMemo(() => {
+    const submissions = digestData.submissions || [];
+    const now = Date.now();
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const weekly = submissions.filter((p) => new Date(p.created_at).getTime() >= weekAgo);
+    const weeklyVotes = weekly.reduce((sum, p) => sum + (p.vote_count || 0), 0);
+
+    return {
+      count: weekly.length,
+      votes: weeklyVotes,
+      topTitle:
+        [...weekly].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))[0]?.title ||
+        "No new pitches this week",
+    };
+  }, [digestData.submissions]);
+  const digestTopPitches = useMemo(
+    () =>
+      [...(digestData.submissions || [])]
+        .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
+        .slice(0, 6),
+    [digestData.submissions]
+  );
+  const digestCommunityHighlights = useMemo(() => {
+    const tagCounts = {};
+    const creatorCounts = {};
+    (digestData.submissions || []).forEach((pitch) => {
+      (pitch.tags || []).forEach((tag) => {
+        if (!tag?.name) return;
+        tagCounts[tag.name] = (tagCounts[tag.name] || 0) + 1;
+      });
+      if (pitch.name) creatorCounts[pitch.name] = (creatorCounts[pitch.name] || 0) + 1;
+    });
+    return {
+      hottestTag: Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0] || null,
+      mostActive: Object.entries(creatorCounts).sort((a, b) => b[1] - a[1])[0] || null,
+      totalCreators: Object.keys(creatorCounts).length,
+    };
+  }, [digestData.submissions]);
+  const digestDeadline = useMemo(() => {
+    if (!digestData.competitionDate) return { text: "No upcoming deadline posted yet." };
+    const diff = new Date(digestData.competitionDate).getTime() - Date.now();
+    const daysLeft = Math.ceil(diff / (24 * 60 * 60 * 1000));
+    if (daysLeft < 0) return { text: "The current competition deadline has passed.", daysLeft };
+    return { text: `${daysLeft} day${daysLeft === 1 ? "" : "s"} remaining until submission close.`, daysLeft };
+  }, [digestData.competitionDate]);
 
   // ── Loading guard ──
   if (authLoading || !user || !isAdmin) {
@@ -227,6 +525,8 @@ export default function AdminPage() {
     { id: "pitches", label: "Pitches", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /> },
     { id: "tags", label: "Tags", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /> },
     { id: "votes", label: "Votes", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+    { id: "announcements", label: "Announcements", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882A1 1 0 0111.447 5h1.106a1 1 0 01.894.553l.68 1.36A1 1 0 0015.02 7h1.48a1 1 0 01.832 1.555l-.81 1.216a1 1 0 000 1.11l.81 1.216A1 1 0 0116.5 14h-1.48a1 1 0 00-.894.553l-.68 1.36a1 1 0 01-.894.553h-1.106a1 1 0 01-.894-.553l-.68-1.36A1 1 0 009.98 14H8.5a1 1 0 01-.832-1.555l.81-1.216a1 1 0 000-1.11l-.81-1.216A1 1 0 018.5 7h1.48a1 1 0 00.894-.553l.68-1.36zM12 10h.01M12 12.5v.01" /> },
+    { id: "newspaper", label: "Weekly Digest", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 5H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2zM7 9h10M7 13h6M7 17h4" /> },
     { id: "analytics", label: "Analytics", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
     { id: "settings", label: "Settings", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /> },
   ];
@@ -491,6 +791,375 @@ export default function AdminPage() {
                 </>
               )}
             </GlassCard>
+          )}
+
+          {/* ═══ ANNOUNCEMENTS ═══ */}
+          {activeTab === "announcements" && (
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 pb-2">
+              <GlassCard className="xl:col-span-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-maize font-semibold mb-1">
+                  Make Announcements
+                </p>
+                <h2 className="text-lg font-bold text-white mb-4">
+                  Make Announcements
+                </h2>
+
+                <div className="space-y-4 mb-5">
+                  <div>
+                    <p className="text-xs font-semibold text-white/60 mb-2">Winners</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startAnnouncementTemplate("winner-weekly-raffle")}
+                        className="text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
+                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                      >
+                        Add Weekly Raffle Winner
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startAnnouncementTemplate("winner-pitch")}
+                        className="text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
+                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                      >
+                        Add Pitch Competition Winner
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startAnnouncementTemplate("winner-monthly-grand")}
+                        className="text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
+                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                      >
+                        Add Monthly Grand Prize Winner
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-white/60 mb-2">General Updates</p>
+                    <button
+                      type="button"
+                      onClick={() => setAnnouncementTemplate("general")}
+                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
+                      style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                    >
+                      Custom Announcement
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveAnnouncement} className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Announcement title"
+                    value={announcementForm.title}
+                    onChange={(e) =>
+                      setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))
+                    }
+                    className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  />
+                  {announcementTemplate !== "general" && (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="Winner / person name"
+                        value={templateFields.winnerName}
+                        onChange={(e) =>
+                          setTemplateFields((prev) => ({ ...prev, winnerName: e.target.value }))
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Pitch / competition title"
+                        value={templateFields.pitchTitle}
+                        onChange={(e) =>
+                          setTemplateFields((prev) => ({ ...prev, pitchTitle: e.target.value }))
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Prize / category label"
+                        value={templateFields.prizeLabel}
+                        onChange={(e) =>
+                          setTemplateFields((prev) => ({ ...prev, prizeLabel: e.target.value }))
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Competition name"
+                        value={templateFields.competitionName}
+                        onChange={(e) =>
+                          setTemplateFields((prev) => ({ ...prev, competitionName: e.target.value }))
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                      <input
+                        type="datetime-local"
+                        value={templateFields.dateValue}
+                        onChange={(e) =>
+                          setTemplateFields((prev) => ({ ...prev, dateValue: e.target.value }))
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                      <textarea
+                        placeholder="Template-specific details"
+                        value={templateFields.details}
+                        onChange={(e) =>
+                          setTemplateFields((prev) => ({ ...prev, details: e.target.value }))
+                        }
+                        rows={3}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      />
+                    </>
+                  )}
+                  <textarea
+                    placeholder="Write announcement details..."
+                    value={announcementForm.content}
+                    onChange={(e) =>
+                      setAnnouncementForm((prev) => ({ ...prev, content: e.target.value }))
+                    }
+                    rows={6}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  />
+                  <label className="flex items-center gap-2 text-sm text-white/60">
+                    <input
+                      type="checkbox"
+                      checked={announcementForm.is_published}
+                      onChange={(e) =>
+                        setAnnouncementForm((prev) => ({
+                          ...prev,
+                          is_published: e.target.checked,
+                        }))
+                      }
+                    />
+                    Publish to announcement page
+                  </label>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="submit"
+                      disabled={announcementSubmitting}
+                      className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
+                    >
+                      {announcementSubmitting
+                        ? "Saving..."
+                        : announcementForm.id
+                        ? "Update"
+                        : "Create"}
+                    </button>
+                    {announcementForm.id && (
+                      <button
+                        type="button"
+                        onClick={resetAnnouncementForm}
+                        className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/45 hover:text-white/70 transition-colors"
+                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </GlassCard>
+
+              <GlassCard noPad className="xl:col-span-3">
+                <div className="px-5 py-4 border-b border-white/[0.04]">
+                  <h2 className="text-lg font-bold text-white">Posted Announcements</h2>
+                  <p className="text-xs text-white/30 mt-1">
+                    {announcements.length} total
+                  </p>
+                </div>
+                {loadingState.announcements ? (
+                  <p className="text-white/30 text-sm p-5">Loading...</p>
+                ) : announcements.length === 0 ? (
+                  <p className="text-white/30 text-sm p-5">No announcements yet.</p>
+                ) : (
+                  <div className="divide-y divide-white/[0.03]">
+                    {announcements.map((item) => (
+                      <div key={item.id} className="px-5 py-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-semibold text-white truncate">
+                                {item.title}
+                              </h3>
+                              <span
+                                className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                                  item.is_published
+                                    ? "bg-green-500/10 text-green-400"
+                                    : "bg-white/10 text-white/40"
+                                }`}
+                              >
+                                {item.is_published ? "Published" : "Draft"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-white/45 mt-1 whitespace-pre-wrap">
+                              {item.content}
+                            </p>
+                            <p className="text-[10px] text-white/25 mt-2">
+                              Updated{" "}
+                              {new Date(item.updated_at || item.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => handleEditAnnouncement(item)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/65 hover:text-white transition-colors"
+                              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAnnouncement(item.id)}
+                              disabled={announcementDeletingId === item.id}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-300 hover:text-red-200 transition-colors disabled:opacity-50"
+                              style={{ border: "1px solid rgba(239,68,68,0.25)" }}
+                            >
+                              {announcementDeletingId === item.id ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </GlassCard>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ WEEKLY DIGEST ═══ */}
+          {activeTab === "newspaper" && (
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              {digestLoading ? (
+                <div className="h-full flex items-center justify-center">
+                  <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 pb-2">
+                  <GlassCard className="xl:col-span-2">
+                    <h2 className="text-2xl font-bold text-white">10KP Weekly Digest</h2>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <p className="text-[10px] uppercase tracking-wider text-white/35">New This Week</p>
+                        <p className="text-3xl font-black text-white mt-1">{digestWeeklyStats.count}</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-maize text-navy">
+                        <p className="text-[10px] uppercase tracking-wider text-navy/70">Weekly Votes</p>
+                        <p className="text-3xl font-black mt-1">{digestWeeklyStats.votes}</p>
+                      </div>
+                      <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <p className="text-[10px] uppercase tracking-wider text-white/35">Top Weekly Pitch</p>
+                        <p className="text-sm font-semibold text-white mt-2 line-clamp-2">{digestWeeklyStats.topTitle}</p>
+                      </div>
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard>
+                    <h3 className="text-lg font-bold text-white">Upcoming Deadlines</h3>
+                    <p className="text-sm text-white/55 mt-2">{digestDeadline.text}</p>
+                    {digestData.competitionDate && (
+                      <p className="text-xs text-white/35 mt-3">
+                        Scheduled for {new Date(digestData.competitionDate).toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" })}
+                      </p>
+                    )}
+                  </GlassCard>
+
+                  <GlassCard className="xl:col-span-2">
+                    <h3 className="text-lg font-bold text-white">Platform Updates</h3>
+                    <div className="mt-3 space-y-2">
+                      {digestData.announcements.length === 0 ? (
+                        <p className="text-sm text-white/35">No platform updates posted this week.</p>
+                      ) : (
+                        digestData.announcements.slice(0, 4).map((a) => (
+                          <div key={a.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-white">{a.title}</p>
+                              <span className="text-[10px] text-white/30">{new Date(a.updated_at || a.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-xs text-white/55 mt-1 whitespace-pre-wrap line-clamp-3">{a.content}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard>
+                    <h3 className="text-lg font-bold text-white">Community Highlights</h3>
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div>
+                        <p className="text-white/35">Hottest Tag</p>
+                        <p className="font-semibold text-white">{digestCommunityHighlights.hottestTag ? `${digestCommunityHighlights.hottestTag[0]} (${digestCommunityHighlights.hottestTag[1]} pitches)` : "No tags yet"}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/35">Most Active Founder</p>
+                        <p className="font-semibold text-white">{digestCommunityHighlights.mostActive ? `${digestCommunityHighlights.mostActive[0]} (${digestCommunityHighlights.mostActive[1]} submissions)` : "No submissions yet"}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/35">Contributing Founders</p>
+                        <p className="font-semibold text-white">{digestCommunityHighlights.totalCreators}</p>
+                      </div>
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard className="xl:col-span-3">
+                    <h3 className="text-lg font-bold text-white">Top Pitches</h3>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                      {digestTopPitches.length === 0 ? (
+                        <p className="text-sm text-white/35">No pitches available yet.</p>
+                      ) : (
+                        digestTopPitches.map((pitch, idx) => (
+                          <div key={pitch.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                            <p className="text-[10px] uppercase tracking-wider text-white/35">Rank #{idx + 1}</p>
+                            <p className="text-sm font-semibold text-white mt-1 line-clamp-2">{pitch.title}</p>
+                            <p className="text-xs text-white/35 mt-1">By {pitch.name}</p>
+                            <p className="text-xs text-white/55 mt-2 line-clamp-2">{pitch.description}</p>
+                            <div className="mt-2 flex items-center justify-between">
+                              <span className="text-[11px] text-white/30">{(pitch.tags || []).slice(0, 2).map((t) => t.name).join(", ") || "No tags"}</span>
+                              <span className="text-sm font-bold text-maize">👍 {pitch.vote_count || 0}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </GlassCard>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ═══ ANALYTICS ═══ */}
