@@ -28,7 +28,7 @@ export default function Navbar() {
   return (
     <nav className="w-full bg-navy">
       <div className="px-4 sm:px-6 lg:px-10">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-20">
           {/* Logo / Home */}
           <div className="flex-shrink-0">
             <Link
@@ -39,9 +39,9 @@ export default function Navbar() {
               <Image
                 src="/10kp_tspnt.png"
                 alt="10KP Logo"
-                width={120}
-                height={40}
-                className="h-10 w-auto"
+                width={144}
+                height={48}
+                className="h-12 w-auto"
                 priority
               />
             </Link>
@@ -127,7 +127,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden border-t border-white/20 bg-navy">
+        <div className="md:hidden border-t border-white/20 bg-navy max-h-[calc(100vh-5rem)] overflow-y-auto">
           <div className="px-4 py-3 space-y-1">
             <Link
               href="/gallery"

@@ -24,7 +24,7 @@ export default function AuthCallbackPage() {
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+    <div className="flex items-center justify-center min-h-[calc(100vh-5rem)]">
       <p className="text-sm text-gray-500">Verifying your email...</p>
     </div>
   );

@@ -42,7 +42,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] flex items-center justify-end bg-cover bg-center"
+      className="relative min-h-[calc(100vh-5rem)] flex items-center justify-end bg-cover bg-center"
       style={{ backgroundImage: "url('/login-bg.png')" }}
     >
       {/* ───── Form (no card) ───── */}

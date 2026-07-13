@@ -824,7 +824,7 @@ export default function IntakePage() {
 
   return (
     <ProtectedRoute>
-      <div className="relative min-h-[calc(100vh-4rem)] flex overflow-hidden">
+      <div className="relative min-h-[calc(100vh-5rem)] flex overflow-hidden">
         {/* Background images with crossfade */}
         {FLOOR_IMAGES.map((src, i) => (
           <div
@@ -840,7 +840,7 @@ export default function IntakePage() {
         ))}
 
         {/* Glass card on the left */}
-        <div className="relative z-10 w-full lg:w-[520px] flex flex-col min-h-[calc(100vh-4rem)]">
+        <div className="relative z-10 w-full lg:w-[520px] flex flex-col min-h-[calc(100vh-5rem)]">
           <div
             className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-10"
             style={{

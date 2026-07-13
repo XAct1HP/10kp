@@ -52,7 +52,7 @@ export default function Home() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] flex flex-col bg-cover bg-center"
+      className="relative min-h-[calc(100vh-5rem)] flex flex-col bg-cover bg-center"
       style={{ backgroundImage: "url('/10kp_hero_image.png')" }}
     >
       {/* Gradient overlay */}
@@ -64,11 +64,11 @@ export default function Home() {
         }}
       />
 
-      {/* ── Bottom row: text left, countdown right ── */}
-      <div className="relative z-10 flex-1 flex items-end px-6 sm:px-10 lg:px-16 pb-10 sm:pb-14">
+      {/* ── Bottom row: text left, countdown right (stacks on mobile) ── */}
+      <div className="relative z-10 flex-1 flex flex-col lg:flex-row items-start lg:items-end gap-8 lg:gap-6 px-6 sm:px-10 lg:px-16 pt-10 lg:pt-0 pb-10 sm:pb-14">
 
         {/* Left — Headline + CTAs */}
-        <div className="max-w-2xl flex-shrink-0">
+        <div className="max-w-2xl flex-shrink-0 mt-auto lg:mt-0">
           <h1
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
@@ -121,9 +121,9 @@ export default function Home() {
         </div>
 
         {/* Right — Countdown */}
-        <div className="flex-1 flex justify-end items-end">
+        <div className="w-full lg:flex-1 flex justify-start lg:justify-end items-end">
           {competitionDate && timeLeft && !timeLeft.past && (
-            <div className="text-right">
+            <div className="text-left lg:text-right">
               <p
                 className="text-xs sm:text-sm uppercase tracking-[0.25em] mb-5 font-semibold"
                 style={{ color: "#F2B517" }}
@@ -131,19 +131,19 @@ export default function Home() {
                 Competition starts in
               </p>
               {/* Numbers row */}
-              <div className="flex items-center justify-end gap-3 sm:gap-5">
+              <div className="flex items-center justify-start lg:justify-end gap-2 sm:gap-5">
                 {[
                   { label: "Days", value: timeLeft.days },
                   { label: "Hours", value: timeLeft.hours },
                   { label: "Min", value: timeLeft.minutes },
                   { label: "Sec", value: timeLeft.seconds },
                 ].map(({ label, value }, i) => (
-                  <div key={label} className="flex items-center gap-3 sm:gap-5">
+                  <div key={label} className="flex items-center gap-2 sm:gap-5">
                     <div className="text-center">
                       <div
                         className="font-mono font-bold leading-none"
                         style={{
-                          fontSize: "clamp(3rem, 8vw, 6.5rem)",
+                          fontSize: "clamp(2rem, 8vw, 6.5rem)",
                           color: "#FFFFFF",
                           textShadow: "0 0 40px rgba(242,181,23,0.15), 0 4px 20px rgba(0,0,0,0.4)",
                         }}
@@ -167,7 +167,7 @@ export default function Home() {
                 ))}
               </div>
               {/* Accent line */}
-              <div className="mt-6 flex items-center gap-3 justify-end">
+              <div className="mt-6 flex items-center gap-3 justify-start lg:justify-end">
                 <div style={{ width: "20px", height: "3px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
                 <div style={{ width: "60px", height: "3px", background: "#F2B517", borderRadius: "2px" }} />
               </div>

@@ -7,3 +7,12 @@ select option {
   background: #0B1A3B;
   color: #fff;
 }
+
+/* Hide scrollbar for horizontally scrollable elements */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

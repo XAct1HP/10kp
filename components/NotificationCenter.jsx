@@ -89,7 +89,7 @@ export default function NotificationCenter() {
             onClick={() => setOpen(false)}
           />
           <aside
-            className="absolute top-16 right-0 h-[calc(100vh-4rem)] w-full sm:w-[420px] p-4"
+            className="absolute top-20 right-0 h-[calc(100vh-5rem)] w-full sm:w-[420px] p-4"
             style={{
               background: "linear-gradient(160deg, rgba(11,26,59,0.95), rgba(6,14,33,0.95))",
               backdropFilter: "blur(18px)",

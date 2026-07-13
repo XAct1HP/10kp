@@ -5,9 +5,7 @@ import { useAuth } from "../../lib/AuthContext";
 import MuxPlayer from "@mux/mux-player-react";
 
 const GALLERY_PAGE_SIZE = 200;
-const GRID_COLS = 6;
-const MAX_ROWS = 6;
-const CARDS_PER_PAGE = GRID_COLS * MAX_ROWS;
+const CARDS_PER_PAGE = 36; // 6 cols x 6 rows on desktop; wraps naturally on smaller screens
 const TOP_COUNT = 3;
 
 const RANK_BADGES = [
@@ -259,7 +257,7 @@ export default function GalleryPage() {
         .gallery-scroll { scrollbar-color: rgba(255,255,255,0.12) #060810; scrollbar-width: thin; }
       ` }} />
 
-      <div className="h-[calc(100vh-4rem)] overflow-y-auto flex flex-col gallery-scroll"
+      <div className="h-[calc(100vh-5rem)] overflow-y-auto flex flex-col gallery-scroll"
         style={{ background: "#060810" }}>
 
         {/* Navbar separator — maize gradient line */}
@@ -282,9 +280,9 @@ export default function GalleryPage() {
             style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
           {/* Hero content */}
-          <div className="absolute inset-0 flex items-start justify-between px-6 sm:px-10 lg:px-14 pt-6">
+          <div className="absolute inset-0 flex items-start justify-between gap-3 px-4 sm:px-10 lg:px-14 pt-5 sm:pt-6">
             {/* Left: label + title stacked */}
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
                 style={{ color: "#F2B517" }}>
                 10KP Competition
@@ -297,14 +295,14 @@ export default function GalleryPage() {
             {/* Right: votes */}
             <div className="flex-shrink-0 pt-0.5">
               {voterProfile.email ? (
-                <div className="flex items-center gap-2.5 rounded-full px-4 py-1.5"
+                <div className="flex items-center gap-1.5 sm:gap-2.5 rounded-full px-2.5 sm:px-4 py-1 sm:py-1.5"
                   style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)", backdropFilter: "blur(12px)" }}>
-                  <svg className="w-4 h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                  <span className="text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
-                  <span className="text-[11px] text-white/30">votes left</span>
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                  <span className="text-xs sm:text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
+                  <span className="hidden sm:inline text-[11px] text-white/30">votes left</span>
                 </div>
               ) : (
-                <p className="text-[11px] text-white/20">Click a pitch to vote</p>
+                <p className="text-[11px] text-white/20 hidden sm:block">Click a pitch to vote</p>
               )}
             </div>
             </div>
@@ -352,12 +350,12 @@ export default function GalleryPage() {
              MAIN CONTENT — Top 3 + Grid
             ═══════════════════════════════════════ */}
         {!loading && !error && filteredSubmissions.length > 0 && (
-          <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-8 lg:px-10 pt-4">
+          <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-8 lg:px-10 pt-4">
 
             {/* ── TOP 3 PODIUM ── */}
             {topPitches.length > 0 && (
               <div className="flex-shrink-0 mb-4">
-                <div className="grid gap-3 items-end"
+                <div className="grid gap-2 sm:gap-3 items-end"
                   style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.2fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
                   {(topPitches.length >= 3 ? [topPitches[1], topPitches[0], topPitches[2]] : topPitches).map((pitch, displayIdx) => {
                     const actualRank = topPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
@@ -458,8 +456,8 @@ export default function GalleryPage() {
 
             {/* ── ALL PITCHES GRID ── */}
             <div>
-              {/* Grid — 6 cols, no gap, Instagram-style */}
-              <div className="grid grid-cols-6 gap-0 rounded-xl overflow-hidden">
+              {/* Grid — responsive: 2 cols on phones, 3 on small tablets, 4 on tablets, 6 on desktop */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-0.5 sm:gap-0 rounded-xl overflow-hidden">
                 {paginatedGallery.map((pitch, i) => {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
 
@@ -533,14 +531,14 @@ export default function GalleryPage() {
 
         {/* ═══ PITCH DETAIL MODAL ═══ */}
         {selectedPitch && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
-            <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-              {/* Floating custom thumbnail — overlaps top-left corner (text & audio only, custom uploads only) */}
+            <div className="relative w-full max-w-6xl max-h-[92vh] sm:max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+              {/* Floating custom thumbnail — overlaps top-left corner (desktop only; hidden on mobile to avoid clipping) */}
               {(getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") && selectedPitch.thumbnail_path && (
                 <img src={selectedPitch.thumbnail_path} alt=""
-                  className="absolute z-10 rounded-2xl pointer-events-none"
+                  className="hidden md:block absolute z-10 rounded-2xl pointer-events-none"
                   style={{
                     width: "350px",
                     height: "auto",
@@ -550,7 +548,7 @@ export default function GalleryPage() {
                   }}
                 />
               )}
-              <div className="w-full max-h-[90vh] flex rounded-2xl overflow-hidden"
+              <div className="w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col md:flex-row rounded-2xl overflow-hidden"
               style={{
                 background: "linear-gradient(135deg, #0B1A3B 0%, #0d1f45 100%)",
                 boxShadow: "0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
@@ -563,7 +561,7 @@ export default function GalleryPage() {
                   <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517"
                     style={{ width: "100%", aspectRatio: "16/9" }} />
                 ) : getPitchType(selectedPitch) === "audio" ? (
-                  <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
+                  <div className="w-full h-full flex flex-col max-h-[45vh] md:max-h-[80vh]">
                     {/* Audio player */}
                     <div className="w-full px-8 pt-8 pb-4 flex-shrink-0">
                       {selectedPitch.thumbnail_path && (
@@ -583,7 +581,7 @@ export default function GalleryPage() {
                     )}
                   </div>
                 ) : getPitchType(selectedPitch) === "text" ? (
-                  <div className="w-full h-full flex flex-col" style={{ maxHeight: "80vh" }}>
+                  <div className="w-full h-full flex flex-col max-h-[45vh] md:max-h-[80vh]">
                     {extractingText ? (
                       <div className="w-full flex-1 flex items-center justify-center">
                         <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -610,7 +608,7 @@ export default function GalleryPage() {
               </div>
 
               {/* Right: Info */}
-              <div className="w-96 flex-shrink-0 flex flex-col p-6" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="w-full md:w-96 flex-shrink-0 flex flex-col p-5 sm:p-6 max-h-[45vh] md:max-h-none overflow-y-auto md:overflow-visible" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
                 <button onClick={() => setSelectedPitch(null)}
                   className="self-end p-1.5 rounded-lg text-white/20 hover:text-white hover:bg-white/5 transition-colors mb-3">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

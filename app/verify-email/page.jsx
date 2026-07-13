@@ -6,7 +6,7 @@ import Image from "next/image";
 export default function VerifyEmailPage() {
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] flex items-center justify-end bg-cover bg-center"
+      className="relative min-h-[calc(100vh-5rem)] flex items-center justify-end bg-cover bg-center"
       style={{ backgroundImage: "url('/login-bg.png')" }}
     >
       <div className="relative z-10 w-full max-w-md lg:mr-[8%] px-8 py-12 text-center">

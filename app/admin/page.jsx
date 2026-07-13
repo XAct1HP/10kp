@@ -514,7 +514,7 @@ export default function AdminPage() {
   // ── Loading guard ──
   if (authLoading || !user || !isAdmin) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)] bg-navy">
+      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-navy">
         <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
       </div>
     );
@@ -545,13 +545,13 @@ export default function AdminPage() {
   );
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] overflow-hidden bg-cover bg-center bg-fixed"
+    <div className="relative h-[calc(100vh-5rem)] overflow-hidden bg-cover bg-center bg-fixed"
       style={{ backgroundImage: "url('/admin_bg.png')" }}>
       {/* Overlay */}
       <div className="absolute inset-0" style={{ background: "linear-gradient(160deg, rgba(11,26,59,0.92) 0%, rgba(6,14,33,0.88) 50%, rgba(11,26,59,0.94) 100%)" }} />
 
       {/* ── SIDEBAR ─────────────────────────────────────────── */}
-      <aside className="fixed top-16 left-0 bottom-0 w-56 z-30 hidden lg:flex flex-col"
+      <aside className="fixed top-20 left-0 bottom-0 w-56 z-30 hidden lg:flex flex-col"
         style={{ background: "rgba(6,14,33,0.7)", backdropFilter: "blur(20px)", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
         {/* Brand */}
         <div className="px-5 pt-6 pb-4">
@@ -600,23 +600,25 @@ export default function AdminPage() {
         </div>
       </aside>
 
-      {/* ── MOBILE TAB BAR ──────────────────────────────────── */}
-      <div className="lg:hidden fixed top-16 left-0 right-0 z-30 flex"
+      {/* ── MOBILE TAB BAR (horizontally scrollable) ──────────── */}
+      <div className="lg:hidden fixed top-20 left-0 right-0 z-30 overflow-x-auto no-scrollbar"
         style={{ background: "rgba(6,14,33,0.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        {tabs.map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors relative ${active ? "text-maize" : "text-white/35"}`}>
-              {tab.label}
-              {active && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-maize rounded-full" />}
-            </button>
-          );
-        })}
+        <div className="flex min-w-max">
+          {tabs.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider transition-colors relative whitespace-nowrap ${active ? "text-maize" : "text-white/35"}`}>
+                {tab.label}
+                {active && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-maize rounded-full" />}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── MAIN CONTENT (no scroll) ────────────────────────── */}
-      <main className="relative z-10 lg:ml-56 h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+      <main className="relative z-10 lg:ml-56 h-[calc(100vh-5rem)] flex flex-col overflow-hidden">
         <div className="lg:hidden h-12 flex-shrink-0" />
 
         <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-10 py-5 min-h-0">
@@ -1503,14 +1505,14 @@ export default function AdminPage() {
 
       {/* ═══ PITCH DETAIL MODAL (viewport-fitted, no scroll) ═══ */}
       {selectedPitch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6 py-6"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-3 py-4 sm:px-6 sm:py-6"
           onClick={() => setSelectedPitch(null)}>
           <div className="w-full max-w-5xl max-h-full flex flex-col rounded-2xl overflow-hidden"
             style={{ background: "rgba(11,26,59,0.94)", backdropFilter: "blur(32px)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 80px rgba(0,0,0,0.5)" }}
             onClick={(e) => e.stopPropagation()}>
 
             {/* Header */}
-            <div className="flex items-start justify-between gap-4 px-7 pt-6 pb-3 flex-shrink-0">
+            <div className="flex items-start justify-between gap-4 px-4 sm:px-7 pt-5 sm:pt-6 pb-3 flex-shrink-0">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-1.5">
                   <span className="px-2.5 py-1 text-[11px] font-semibold rounded-lg uppercase tracking-wide"
@@ -1529,8 +1531,8 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Body — flex row, no scroll */}
-            <div className="flex-1 flex min-h-0 px-7 pb-6 gap-6">
+            {/* Body — flex column on mobile, row on desktop */}
+            <div className="flex-1 flex flex-col md:flex-row min-h-0 px-4 sm:px-7 pb-5 sm:pb-6 gap-4 md:gap-6 overflow-y-auto md:overflow-visible">
               {/* Left: media + description */}
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 {selectedPitch.file_type === "video" && selectedPitch.mux_playback_id && (
@@ -1593,7 +1595,7 @@ export default function AdminPage() {
               </div>
 
               {/* Right sidebar */}
-              <div className="w-64 flex-shrink-0 flex flex-col min-h-0 space-y-4">
+              <div className="w-full md:w-64 flex-shrink-0 flex flex-col min-h-0 space-y-4">
                 <div className="space-y-3 flex-shrink-0">
                   {[
                     { l: "Schools", v: (selectedPitch.schools || []).join(", ") || "None" },

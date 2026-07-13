@@ -228,7 +228,7 @@ export default function AnnouncementsPage() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] bg-cover bg-center bg-fixed"
+      className="relative min-h-[calc(100vh-5rem)] bg-cover bg-center bg-fixed"
       style={{ backgroundImage: "url('/admin_bg.png')" }}
     >
       <div
@@ -349,11 +349,11 @@ export default function AnnouncementsPage() {
 
       {selectedPitch && (
         <div
-          className="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-3 sm:p-4"
           onClick={() => setSelectedPitch(null)}
         >
           <div
-            className="w-full max-w-5xl max-h-[90vh] overflow-auto rounded-2xl border border-white/10 p-4"
+            className="w-full max-w-5xl max-h-[92vh] sm:max-h-[90vh] overflow-auto rounded-2xl border border-white/10 p-4"
             style={{
               background: "rgba(11,26,59,0.96)",
               backdropFilter: "blur(24px)",

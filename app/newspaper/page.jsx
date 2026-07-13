@@ -134,7 +134,7 @@ export default function FounderNewspaperPage() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-4rem)] bg-cover bg-center bg-fixed"
+      className="relative min-h-[calc(100vh-5rem)] bg-cover bg-center bg-fixed"
       style={{ backgroundImage: "url('/admin_bg.png')" }}
     >
       <div
