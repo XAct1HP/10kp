@@ -37,7 +37,7 @@ export default function Navbar() {
               onClick={closeMenu}
             >
               <Image
-                src="/10kp_logo_enhanced.png"
+                src="/10kp_tspnt.png"
                 alt="10KP Logo"
                 width={120}
                 height={40}
