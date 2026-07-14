@@ -81,27 +81,11 @@ export default function Home() {
 
       {/* MOBILE LAYOUT (< lg) */}
       <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-6 pb-8">
-        {/* TOP: eyebrow + countdown */}
-        <p
-          className="text-[10px] uppercase tracking-[0.3em] font-semibold mb-3"
-          style={{ color: "#F2B517" }}
-        >
-          10KP Competition
-        </p>
-
-        {/* Compact countdown card */}
+        {/* TOP: transparent countdown — matches desktop styling */}
         {countdownUnits && (
-          <div
-            className="rounded-2xl px-4 py-3.5"
-            style={{
-              background: "rgba(6,14,33,0.55)",
-              border: "1px solid rgba(242,181,23,0.25)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
-            }}
-          >
+          <div>
             <p
-              className="text-[9px] uppercase tracking-[0.28em] font-semibold mb-2.5"
+              className="text-[10px] uppercase tracking-[0.28em] font-semibold mb-4"
               style={{ color: "#F2B517" }}
             >
               Competition starts in
@@ -109,38 +93,39 @@ export default function Home() {
             <div className="flex items-center justify-between">
               {countdownUnits.map(({ label, value }, i) => (
                 <div key={label} className="flex items-center">
-                  <div className="text-center px-1">
+                  <div className="text-center">
                     <div
                       className="font-mono font-bold text-white leading-none tabular-nums"
-                      style={{ fontSize: "clamp(1.5rem, 7vw, 2.25rem)" }}
+                      style={{
+                        fontSize: "clamp(1.75rem, 8vw, 2.75rem)",
+                        textShadow: "0 0 30px rgba(242,181,23,0.2), 0 4px 16px rgba(0,0,0,0.5)",
+                      }}
                     >
                       {pad(value)}
                     </div>
-                    <div className="text-[9px] uppercase tracking-[0.15em] mt-1.5 text-white/40">
+                    <div className="text-[10px] uppercase tracking-[0.2em] mt-2 text-white/40">
                       {label}
                     </div>
                   </div>
                   {i < countdownUnits.length - 1 && (
-                    <div className="mx-1 sm:mx-2 flex flex-col gap-1 mb-3">
-                      <div className="w-1 h-1 rounded-full" style={{ background: "#F2B517", opacity: 0.6 }} />
-                      <div className="w-1 h-1 rounded-full" style={{ background: "#F2B517", opacity: 0.6 }} />
+                    <div className="mx-1 flex flex-col items-center gap-1.5 mb-4">
+                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#F2B517", opacity: 0.7 }} />
+                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#F2B517", opacity: 0.7 }} />
                     </div>
                   )}
                 </div>
               ))}
             </div>
+            {/* Accent line matching desktop */}
+            <div className="mt-5 flex items-center gap-2">
+              <div style={{ width: "16px", height: "2px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
+              <div style={{ width: "48px", height: "2px", background: "#F2B517", borderRadius: "2px" }} />
+            </div>
           </div>
         )}
 
         {timeLeft?.past && (
-          <div
-            className="inline-flex items-center gap-3 px-5 py-3.5 rounded-2xl"
-            style={{
-              background: "rgba(242,181,23,0.14)",
-              border: "1px solid rgba(242,181,23,0.3)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
+          <div className="flex items-center gap-3">
             <svg className="w-6 h-6 flex-shrink-0" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
