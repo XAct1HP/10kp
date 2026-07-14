@@ -342,6 +342,29 @@ export default function IntakePage() {
       }
       // If text-only, no file to upload — pitch is already created with text_content
 
+      // Kick off content moderation. Fire and forget — the pipeline runs in the
+      // background on the server. For video, the Mux webhook will trigger it
+      // when the asset is ready; this call is still fine because the API route
+      // short-circuits for video pitches.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          fetch("/api/intake/moderate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ pitchId: pitch.id }),
+          }).catch(() => {
+            // Non-fatal — the pitch still lives in the DB as 'pending' and
+            // will get picked up by admins or a retry.
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+
       setSubmittedVideoUpload(isVideoUpload);
       setSubmitted(true);
     } catch (err) {
@@ -801,9 +824,11 @@ export default function IntakePage() {
       </svg>
       <h2 className="text-3xl font-bold text-white mb-3">You have Reached the Top!</h2>
       <p className="text-white/60 text-sm mb-2">
-        {submittedVideoUpload
-          ? "Your pitch was submitted. Video processing may take a few minutes."
-          : "Your pitch has been submitted successfully!"}
+        Your pitch has been submitted and is being reviewed.
+      </p>
+      <p className="text-white/50 text-sm mb-2">
+        It will appear in the gallery once it&rsquo;s approved
+        {submittedVideoUpload ? " — video review can take a few minutes." : "."}
       </p>
       <p className="text-white/40 text-xs mb-10">Good luck in the competition.</p>
       <Link

@@ -42,6 +42,9 @@ export async function GET(request) {
           tags ( id, name )
         )
       `, { count: "exact" })
+      // Only approved pitches are visible in the public gallery.
+      // Pending / flagged / rejected pitches never appear here.
+      .eq("moderation_status", "approved")
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .range(from, to);

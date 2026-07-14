@@ -32,6 +32,14 @@ export async function GET(request) {
         mux_error,
         mux_playback_id,
         created_at,
+        moderation_status,
+        moderation_reason,
+        moderation_flags,
+        moderation_transcript,
+        moderation_reviewed_by,
+        moderation_reviewed_at,
+        moderation_priority,
+        moderation_checked_at,
         pitch_tags (
           tags ( id, name )
         ),
@@ -42,21 +50,33 @@ export async function GET(request) {
           created_at
         )
       `)
+      // Order flagged pitches to the top, then pending, then everything else
+      // (approved / rejected / errored). Within each bucket, newest first.
+      .order("moderation_priority", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Flatten the nested pitch_tags → tags structure
-    const pitches = data.map((pitch) => ({
-      ...pitch,
-      tags: pitch.pitch_tags?.map((pt) => pt.tags).filter(Boolean) || [],
-      votes: pitch.pitch_votes || [],
-      vote_count: pitch.pitch_votes?.length || 0,
-      pitch_tags: undefined,
-      pitch_votes: undefined,
-    }));
+    const STATUS_RANK = { flagged: 0, pending: 1, errored: 2, approved: 3, rejected: 4 };
+
+    // Flatten the nested pitch_tags → tags structure and sort by moderation state
+    const pitches = data
+      .map((pitch) => ({
+        ...pitch,
+        tags: pitch.pitch_tags?.map((pt) => pt.tags).filter(Boolean) || [],
+        votes: pitch.pitch_votes || [],
+        vote_count: pitch.pitch_votes?.length || 0,
+        pitch_tags: undefined,
+        pitch_votes: undefined,
+      }))
+      .sort((a, b) => {
+        const ra = STATUS_RANK[a.moderation_status] ?? 99;
+        const rb = STATUS_RANK[b.moderation_status] ?? 99;
+        if (ra !== rb) return ra - rb;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
 
     return NextResponse.json(pitches);
   } catch (err) {

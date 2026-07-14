@@ -38,6 +38,14 @@ export async function POST(request) {
         passthrough: pitchId,
         playback_policies: ["public"],
         video_quality: "basic",
+        // Auto-generate English subtitles so the moderation pipeline has a
+        // transcript available when the asset is ready.
+        generated_subtitles: [
+          {
+            language_code: "en",
+            name: "English (auto)",
+          },
+        ],
       },
     });
 

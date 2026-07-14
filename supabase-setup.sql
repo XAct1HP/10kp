@@ -35,6 +35,56 @@ alter table public.pitches
 
 create index if not exists pitches_mux_status_idx on public.pitches (mux_status);
 
+-- Content moderation columns
+alter table public.pitches
+  add column if not exists moderation_status text not null default 'pending',
+  add column if not exists moderation_reason text,
+  add column if not exists moderation_flags jsonb not null default '[]'::jsonb,
+  add column if not exists moderation_transcript text,
+  add column if not exists moderation_reviewed_by text,
+  add column if not exists moderation_reviewed_at timestamptz,
+  add column if not exists moderation_priority integer not null default 0,
+  add column if not exists moderation_checked_at timestamptz;
+
+alter table public.pitches
+  drop constraint if exists pitches_moderation_status_check;
+alter table public.pitches
+  add constraint pitches_moderation_status_check
+  check (moderation_status in ('pending','approved','rejected','flagged','errored'));
+
+create index if not exists pitches_moderation_status_idx
+  on public.pitches (moderation_status);
+create index if not exists pitches_moderation_priority_idx
+  on public.pitches (moderation_priority desc, created_at desc);
+
+-- Prevent non-service-role updates from mutating moderation_* fields.
+create or replace function public.pitches_protect_moderation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if current_setting('request.jwt.claim.role', true) = 'service_role' then
+    return new;
+  end if;
+  new.moderation_status := old.moderation_status;
+  new.moderation_reason := old.moderation_reason;
+  new.moderation_flags := old.moderation_flags;
+  new.moderation_transcript := old.moderation_transcript;
+  new.moderation_reviewed_by := old.moderation_reviewed_by;
+  new.moderation_reviewed_at := old.moderation_reviewed_at;
+  new.moderation_priority := old.moderation_priority;
+  new.moderation_checked_at := old.moderation_checked_at;
+  return new;
+end;
+$$;
+
+drop trigger if exists pitches_protect_moderation_trg on public.pitches;
+create trigger pitches_protect_moderation_trg
+  before update on public.pitches
+  for each row execute function public.pitches_protect_moderation();
+
 create table if not exists public.mux_webhook_logs (
   id uuid default gen_random_uuid() primary key,
   created_at timestamptz default now(),

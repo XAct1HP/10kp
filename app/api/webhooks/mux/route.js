@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { getMuxClient, getMuxWebhookSecret } from "../../../../lib/mux";
+import { moderatePitchAsync } from "../../../../lib/moderation/pipeline";
+
+export const runtime = "nodejs";
 
 function getEventIdentifiers(event) {
   const data = event.data || {};
@@ -305,6 +308,13 @@ export async function POST(request) {
           matchedBy,
         })
       );
+
+      // Kick off content moderation for the newly-ready video. This runs in
+      // the background — the pipeline pulls the auto-generated transcript,
+      // samples frames, and updates moderation_status on the row.
+      if (playbackId || updatedPitch.mux_playback_id) {
+        moderatePitchAsync(updatedPitch.id);
+      }
     } else if (
       event.type === "video.asset.errored" ||
       event.type === "video.upload.errored"

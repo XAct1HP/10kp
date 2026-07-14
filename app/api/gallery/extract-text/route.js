@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
+import { verifyAdmin } from "../../../../lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 
-// Extract text content from a PDF or DOCX file stored in Supabase
+// Extract text content from a PDF or DOCX file stored in Supabase.
+// Public callers (gallery, announcements) only get text for APPROVED pitches;
+// admins can extract text from any pitch (used to preview flagged content).
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,6 +18,27 @@ export async function GET(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+
+    // Enforce gallery visibility rules: approved-only unless admin.
+    const authHeader = request.headers.get("authorization");
+    let isAdminCaller = false;
+    if (authHeader?.startsWith("Bearer ")) {
+      const auth = await verifyAdmin(request);
+      if (!auth.error) isAdminCaller = true;
+    }
+
+    if (!isAdminCaller) {
+      const { data: owningPitch } = await supabaseAdmin
+        .from("pitches")
+        .select("id, moderation_status")
+        .eq("file_path", filePath)
+        .limit(1)
+        .maybeSingle();
+      if (!owningPitch || owningPitch.moderation_status !== "approved") {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+    }
+
     const { data, error } = await supabaseAdmin.storage
       .from("pitch-files")
       .download(filePath);

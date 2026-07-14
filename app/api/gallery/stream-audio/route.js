@@ -14,6 +14,20 @@ export async function GET(request) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+
+    // Only allow streaming the audio file if it belongs to an approved pitch.
+    // This is a public gallery endpoint — un-moderated content must not be
+    // reachable even by direct file_path guess.
+    const { data: owningPitch } = await supabaseAdmin
+      .from("pitches")
+      .select("id, moderation_status")
+      .eq("file_path", filePath)
+      .limit(1)
+      .maybeSingle();
+    if (!owningPitch || owningPitch.moderation_status !== "approved") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
     const { data, error } = await supabaseAdmin.storage
       .from("pitch-files")
       .download(filePath);

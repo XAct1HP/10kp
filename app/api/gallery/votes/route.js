@@ -54,14 +54,16 @@ export async function POST(request) {
     }
 
     // Use admin client so vote eligibility does not depend on pitch RLS visibility.
+    // Only approved pitches can be voted on — un-moderated pitches never
+    // appear in the public gallery, so they must not be votable either.
     const { data: pitch } = await supabaseAdmin
       .from("pitches")
-      .select("id")
+      .select("id, moderation_status")
       .eq("id", pitchId)
       .limit(1)
       .maybeSingle();
 
-    if (!pitch) {
+    if (!pitch || pitch.moderation_status !== "approved") {
       return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
     }
 

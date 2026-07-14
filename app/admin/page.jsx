@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
@@ -84,6 +84,72 @@ function useCountdown(targetDate) {
 const PITCHES_PER_PAGE = 12;
 const VOTES_PER_PAGE = 12;
 
+// Render `text` with <mark> spans around each moderation flag's char range.
+// `flags` is an array of { start_char, end_char, source, reason, category }.
+function HighlightedText({ text, flags }) {
+  if (!text) return null;
+  const ranges = (flags || [])
+    .filter(
+      (f) =>
+        f &&
+        (f.source === "text" || f.source === "transcript" || f.source === "audio") &&
+        Number.isInteger(f.start_char) &&
+        Number.isInteger(f.end_char) &&
+        f.end_char > f.start_char &&
+        f.start_char >= 0 &&
+        f.end_char <= text.length
+    )
+    .sort((a, b) => a.start_char - b.start_char);
+
+  if (ranges.length === 0) {
+    return <span className="whitespace-pre-wrap break-words">{text}</span>;
+  }
+
+  const parts = [];
+  let cursor = 0;
+  ranges.forEach((r, i) => {
+    if (r.start_char > cursor) {
+      parts.push(
+        <span key={`p-${i}`} className="whitespace-pre-wrap break-words">
+          {text.slice(cursor, r.start_char)}
+        </span>
+      );
+    }
+    parts.push(
+      <mark
+        key={`m-${i}`}
+        title={r.reason || r.category}
+        style={{
+          background: "rgba(239, 68, 68, 0.25)",
+          color: "#fecaca",
+          padding: "0 3px",
+          borderRadius: "3px",
+        }}
+        className="whitespace-pre-wrap break-words"
+      >
+        {text.slice(r.start_char, r.end_char)}
+      </mark>
+    );
+    cursor = r.end_char;
+  });
+  if (cursor < text.length) {
+    parts.push(
+      <span key="tail" className="whitespace-pre-wrap break-words">
+        {text.slice(cursor)}
+      </span>
+    );
+  }
+  return <>{parts}</>;
+}
+
+function formatTimestamp(seconds) {
+  if (typeof seconds !== "number" || isNaN(seconds)) return "";
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
+
 // ─── Main ─────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
@@ -142,6 +208,8 @@ export default function AdminPage() {
   const [chartTab, setChartTab] = useState("timeline");
   const [extractedAdminText, setExtractedAdminText] = useState(null);
   const [extractingAdminText, setExtractingAdminText] = useState(false);
+  const [moderationSubmitting, setModerationSubmitting] = useState(null); // "approve"|"reject"|null
+  const muxPlayerRef = useRef(null);
 
   const [loadingState, setLoadingState] = useState({
     date: true,
@@ -259,11 +327,22 @@ export default function AdminPage() {
     if (!selectedPitch?.file_path) return;
     if (!/\.(pdf|doc|docx|txt)$/i.test(selectedPitch.file_name || "")) return;
     setExtractingAdminText(true);
-    fetch(`/api/gallery/extract-text?path=${encodeURIComponent(selectedPitch.file_path)}&name=${encodeURIComponent(selectedPitch.file_name || "")}`)
-      .then((r) => r.json())
-      .then((d) => { if (d.text) setExtractedAdminText(d.text); })
-      .catch(() => {})
-      .finally(() => setExtractingAdminText(false));
+    // Send admin bearer token so unapproved / flagged pitches can be previewed.
+    (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch(
+          `/api/gallery/extract-text?path=${encodeURIComponent(selectedPitch.file_path)}&name=${encodeURIComponent(selectedPitch.file_name || "")}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        const d = await r.json();
+        if (d.text) setExtractedAdminText(d.text);
+      } catch {
+        /* ignore */
+      } finally {
+        setExtractingAdminText(false);
+      }
+    })();
   }, [selectedPitch?.id]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(""), 4000); return () => clearTimeout(t); } }, [success]);
 
@@ -280,6 +359,34 @@ export default function AdminPage() {
   const handleDeletePitch = async (pid) => {
     setError(""); setDeletingPitchId(pid);
     try { await apiFetch(`/api/admin/pitches?id=${pid}`, { method: "DELETE" }); setPitches((p) => p.filter((x) => x.id !== pid)); setDeleteConfirm(null); if (selectedPitch?.id === pid) setSelectedPitch(null); setSuccess("Pitch removed."); } catch (e) { setError(e.message); } finally { setDeletingPitchId(null); }
+  };
+  const handleModerationDecision = async (pitchId, decision) => {
+    setError(""); setModerationSubmitting(decision);
+    try {
+      const d = await apiFetch("/api/admin/pitches/moderation", {
+        method: "PATCH",
+        body: JSON.stringify({ pitchId, decision }),
+      });
+      // Merge the returned moderation fields back into local state.
+      setPitches((prev) =>
+        prev.map((p) => (p.id === pitchId ? { ...p, ...d.pitch } : p))
+      );
+      setSelectedPitch((prev) => (prev && prev.id === pitchId ? { ...prev, ...d.pitch } : prev));
+      setSuccess(decision === "approve" ? "Pitch approved." : "Pitch rejected.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setModerationSubmitting(null);
+    }
+  };
+  const seekMuxPlayer = (seconds) => {
+    const player = muxPlayerRef.current;
+    if (player && typeof seconds === "number") {
+      try {
+        player.currentTime = seconds;
+        if (typeof player.play === "function") player.play().catch(() => {});
+      } catch { /* ignore */ }
+    }
   };
   const handleExportCSV = () => {
     const rows = filteredPitches.map((p) => ({ Name: p.name, Title: p.title, Description: (p.description || "").replace(/[\n\r]+/g, " "), Role: p.role || "", Schools: (p.schools || []).join("; "), Tags: (p.tags || []).map((t) => t.name).join("; "), "File Type": p.file_type || "file", "File Name": p.file_name || "", Votes: p.vote_count || 0, "Submitted At": p.created_at ? new Date(p.created_at).toLocaleString() : "", "Mux Status": p.mux_status || "" }));
@@ -690,15 +797,42 @@ export default function AdminPage() {
                   <div className="flex-1 divide-y divide-white/[0.04]">
                     {paginatedPitches.map((pitch) => {
                       const tc = typeColor(pitch);
+                      const isFlagged = pitch.moderation_status === "flagged";
+                      const isRejected = pitch.moderation_status === "rejected";
+                      const isPending = pitch.moderation_status === "pending" || pitch.moderation_status === "errored";
                       return (
-                        <div key={pitch.id} className="flex items-center gap-4 px-5 py-2.5 cursor-pointer hover:bg-white/[0.03] transition-colors group"
+                        <div key={pitch.id}
+                          className={`flex items-center gap-4 px-5 py-2.5 cursor-pointer transition-colors group ${isFlagged ? "hover:bg-red-500/[0.08]" : "hover:bg-white/[0.03]"}`}
+                          style={isFlagged ? { background: "rgba(239, 68, 68, 0.06)", borderLeft: "3px solid #ef4444" } : undefined}
                           onClick={() => setSelectedPitch(pitch)}>
+                          {isFlagged && (
+                            <span title="Flagged for review" className="flex-shrink-0 text-red-400">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M4 3a1 1 0 011 1v16a1 1 0 11-2 0V4a1 1 0 011-1zm2 1h11.586a1 1 0 01.707 1.707L16 8l2.293 2.293A1 1 0 0117.586 12H6V4z" />
+                              </svg>
+                            </span>
+                          )}
                           <span className="px-2.5 py-1 text-[11px] font-semibold rounded-lg uppercase tracking-wide flex-shrink-0"
                             style={{ background: tc.bg, color: tc.c }}>{typeLabel(pitch)}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-white truncate group-hover:text-maize transition-colors">{pitch.title}</p>
+                            <p className={`text-sm font-semibold truncate transition-colors ${isFlagged ? "text-red-100 group-hover:text-red-200" : "text-white group-hover:text-maize"}`}>{pitch.title}</p>
                             <p className="text-xs text-white/35 truncate mt-0.5">{pitch.name} &middot; {pitch.role || "No role"}</p>
                           </div>
+                          {isFlagged && (
+                            <span className="hidden sm:inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-red-500/15 text-red-300">
+                              flagged
+                            </span>
+                          )}
+                          {isPending && (
+                            <span className="hidden sm:inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/[0.06] text-white/50">
+                              reviewing
+                            </span>
+                          )}
+                          {isRejected && (
+                            <span className="hidden sm:inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/[0.04] text-white/30">
+                              rejected
+                            </span>
+                          )}
                           {pitch.file_type === "video" && (
                             <span className={`hidden sm:inline-flex text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${pitch.mux_playback_id ? "bg-green-500/10 text-green-400" : pitch.mux_error ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>
                               {pitch.mux_playback_id ? "ready" : pitch.mux_error ? "error" : pitch.mux_status || "pending"}
@@ -1514,12 +1648,23 @@ export default function AdminPage() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4 px-4 sm:px-7 pt-5 sm:pt-6 pb-3 flex-shrink-0">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1.5">
+                <div className="flex items-center gap-3 mb-1.5 flex-wrap">
                   <span className="px-2.5 py-1 text-[11px] font-semibold rounded-lg uppercase tracking-wide"
                     style={{ background: typeColor(selectedPitch).bg, color: typeColor(selectedPitch).c }}>{typeLabel(selectedPitch)}</span>
                   {selectedPitch.file_type === "video" && (
                     <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${selectedPitch.mux_playback_id ? "bg-green-500/10 text-green-400" : selectedPitch.mux_error ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>
                       {selectedPitch.mux_playback_id ? "ready" : selectedPitch.mux_error ? "error" : selectedPitch.mux_status || "pending"}
+                    </span>
+                  )}
+                  {selectedPitch.moderation_status && (
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                      selectedPitch.moderation_status === "approved" ? "bg-green-500/10 text-green-400"
+                      : selectedPitch.moderation_status === "flagged" ? "bg-red-500/15 text-red-300"
+                      : selectedPitch.moderation_status === "rejected" ? "bg-white/[0.05] text-white/40"
+                      : selectedPitch.moderation_status === "errored" ? "bg-amber-500/10 text-amber-300"
+                      : "bg-white/[0.06] text-white/50"
+                    }`}>
+                      {selectedPitch.moderation_status}
                     </span>
                   )}
                 </div>
@@ -1531,13 +1676,98 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Moderation review panel — visible when the pitch is flagged, pending, errored, or already-reviewed */}
+            {selectedPitch.moderation_status && selectedPitch.moderation_status !== "approved" && (
+              <div className="mx-4 sm:mx-7 mb-3 rounded-xl p-3 flex-shrink-0"
+                style={{
+                  background: selectedPitch.moderation_status === "flagged" ? "rgba(239, 68, 68, 0.08)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${selectedPitch.moderation_status === "flagged" ? "rgba(239, 68, 68, 0.25)" : "rgba(255,255,255,0.06)"}`,
+                }}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M4 3a1 1 0 011 1v16a1 1 0 11-2 0V4a1 1 0 011-1zm2 1h11.586a1 1 0 01.707 1.707L16 8l2.293 2.293A1 1 0 0117.586 12H6V4z" />
+                      </svg>
+                      <p className="text-xs font-semibold text-white/80 uppercase tracking-wider">
+                        Moderation Review
+                      </p>
+                    </div>
+                    {selectedPitch.moderation_reason && (
+                      <p className="text-xs text-white/60 mb-2">{selectedPitch.moderation_reason}</p>
+                    )}
+                    {Array.isArray(selectedPitch.moderation_flags) && selectedPitch.moderation_flags.length > 0 && (
+                      <div className="space-y-2 mt-2">
+                        {selectedPitch.moderation_flags.map((f, i) => (
+                          <div key={i} className="flex items-start gap-3 rounded-lg p-2"
+                            style={{ background: "rgba(0,0,0,0.2)" }}>
+                            {f.frame_url && (
+                              <img src={f.frame_url} alt="" className="w-20 h-12 object-cover rounded flex-shrink-0"
+                                style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                                  style={{
+                                    background: f.severity === "high" ? "rgba(239,68,68,0.2)" : f.severity === "medium" ? "rgba(251,146,60,0.2)" : "rgba(255,255,255,0.05)",
+                                    color: f.severity === "high" ? "#fca5a5" : f.severity === "medium" ? "#fdba74" : "rgba(255,255,255,0.5)",
+                                  }}>
+                                  {f.severity || "medium"}
+                                </span>
+                                <span className="text-[10px] text-white/50 uppercase tracking-wide">{f.category}</span>
+                                {typeof f.timestamp_sec === "number" && selectedPitch.mux_playback_id && (
+                                  <button
+                                    onClick={() => seekMuxPlayer(f.timestamp_sec)}
+                                    className="text-[10px] font-semibold text-maize hover:text-yellow-300 transition-colors"
+                                    title="Jump to timestamp"
+                                  >
+                                    Jump to {formatTimestamp(f.timestamp_sec)}
+                                  </button>
+                                )}
+                              </div>
+                              {f.reason && <p className="text-xs text-white/70 leading-snug">{f.reason}</p>}
+                              {f.excerpt && (
+                                <p className="text-[11px] text-white/45 italic mt-1 line-clamp-2">&ldquo;{f.excerpt}&rdquo;</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedPitch.moderation_reviewed_by && (
+                      <p className="text-[10px] text-white/30 mt-2">
+                        Last reviewed by {selectedPitch.moderation_reviewed_by}
+                        {selectedPitch.moderation_reviewed_at && ` on ${new Date(selectedPitch.moderation_reviewed_at).toLocaleString()}`}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <button
+                      disabled={moderationSubmitting !== null}
+                      onClick={() => handleModerationDecision(selectedPitch.id, "approve")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-black bg-green-400 hover:bg-green-300 transition-colors disabled:opacity-50"
+                    >
+                      {moderationSubmitting === "approve" ? "Approving..." : "Approve"}
+                    </button>
+                    <button
+                      disabled={moderationSubmitting !== null}
+                      onClick={() => handleModerationDecision(selectedPitch.id, "reject")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-500 transition-colors disabled:opacity-50"
+                    >
+                      {moderationSubmitting === "reject" ? "Rejecting..." : "Reject"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Body — flex column on mobile, row on desktop */}
             <div className="flex-1 flex flex-col md:flex-row min-h-0 px-4 sm:px-7 pb-5 sm:pb-6 gap-4 md:gap-6 overflow-y-auto md:overflow-visible">
               {/* Left: media + description */}
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 {selectedPitch.file_type === "video" && selectedPitch.mux_playback_id && (
                   <div className="rounded-xl overflow-hidden flex-shrink-0 mb-4" style={{ maxHeight: "45vh" }}>
-                    <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517" style={{ width: "100%", maxHeight: "45vh" }} />
+                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517" style={{ width: "100%", maxHeight: "45vh" }} />
                   </div>
                 )}
                 {selectedPitch.file_type === "video" && !selectedPitch.mux_playback_id && (
@@ -1572,7 +1802,11 @@ export default function AdminPage() {
                 <div className="flex-1 min-h-0 overflow-y-auto pr-2" style={{ scrollbarWidth: "thin" }}>
                   <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Description</p>
                   <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap break-words">
-                    {selectedPitch.description || <span className="italic text-white/25">No description</span>}
+                    {selectedPitch.description ? (
+                      <HighlightedText text={selectedPitch.description} flags={selectedPitch.moderation_flags} />
+                    ) : (
+                      <span className="italic text-white/25">No description</span>
+                    )}
                   </p>
 
                   {(extractedAdminText || selectedPitch.text_content || extractingAdminText) && (
@@ -1584,11 +1818,27 @@ export default function AdminPage() {
                           Extracting text...
                         </div>
                       ) : (
-                        <div className="rounded-xl p-3 text-sm text-white/55 leading-relaxed whitespace-pre-wrap break-words"
+                        <div className="rounded-xl p-3 text-sm text-white/55 leading-relaxed"
                           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                          {extractedAdminText || selectedPitch.text_content}
+                          <HighlightedText
+                            text={extractedAdminText || selectedPitch.text_content || ""}
+                            flags={selectedPitch.moderation_flags}
+                          />
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {selectedPitch.moderation_transcript && (
+                    <div className="mt-4">
+                      <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Transcript (auto-generated)</p>
+                      <div className="rounded-xl p-3 text-sm text-white/55 leading-relaxed"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                        <HighlightedText
+                          text={selectedPitch.moderation_transcript}
+                          flags={selectedPitch.moderation_flags}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
