@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Full-bleed dark background — kills the white bars behind mobile browser overscroll */
+html, body {
+  background-color: #0B1A3B;
+  overscroll-behavior-y: none; /* prevent white flash on rubber-band scroll */
+}
+
 /* Dark-themed select dropdown options */
 select option {
   background: #0B1A3B;
