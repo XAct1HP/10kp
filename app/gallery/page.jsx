@@ -353,72 +353,109 @@ export default function GalleryPage() {
           <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-8 lg:px-10 pt-4">
 
             {/* ── TOP 3 PODIUM ── */}
-            {topPitches.length > 0 && (
-              <div className="flex-shrink-0 mb-4">
-                <div className="grid gap-2 sm:gap-3 items-end"
-                  style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.2fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
-                  {(topPitches.length >= 3 ? [topPitches[1], topPitches[0], topPitches[2]] : topPitches).map((pitch, displayIdx) => {
-                    const actualRank = topPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
-                    const badge = RANK_BADGES[actualRank];
-                    const isFirst = actualRank === 0;
-                    const isPulsing = pulsingVoteIds.includes(pitch.id);
+            {topPitches.length > 0 && (() => {
+              const renderPodiumCard = (pitch, actualRank, displayIdx, sizeVariant) => {
+                const badge = RANK_BADGES[actualRank];
+                const isFirst = actualRank === 0;
+                const isPulsing = pulsingVoteIds.includes(pitch.id);
+                // sizeVariant: "hero" (mobile 1st), "compact" (mobile 2/3), "desktop-first", "desktop-side"
+                const aspect = sizeVariant === "hero" ? "16/9"
+                  : sizeVariant === "compact" ? "1/1"
+                  : sizeVariant === "desktop-first" ? "16/7.5"
+                  : "16/9";
+                const titleSize = sizeVariant === "hero" ? "17px"
+                  : sizeVariant === "compact" ? "12px"
+                  : isFirst ? "16px" : "14px";
+                const subtitleSize = sizeVariant === "compact" ? "10px" : "12px";
+                const infoPad = sizeVariant === "compact" ? "p-2.5" : "p-4";
+                const badgePad = sizeVariant === "compact" ? "pl-1 pr-2 py-0.5" : "pl-1.5 pr-3 py-1";
+                const badgeIcon = sizeVariant === "compact" ? "w-4 h-4" : "w-6 h-6";
+                const badgeIconSvg = sizeVariant === "compact" ? "w-2.5 h-2.5" : "w-3.5 h-3.5";
+                const badgeText = sizeVariant === "compact" ? "text-[9px]" : "text-[11px]";
+                const votePad = sizeVariant === "compact" ? "px-2 py-1" : "px-3 py-1.5";
+                const voteIcon = sizeVariant === "compact" ? "w-3.5 h-3.5" : "w-5 h-5";
+                const voteText = sizeVariant === "compact" ? "text-xs" : "text-base";
+                const cornerPos = sizeVariant === "compact" ? "top-1.5" : "top-3";
+                const cornerLeft = sizeVariant === "compact" ? "left-1.5" : "left-3";
+                const cornerRight = sizeVariant === "compact" ? "right-1.5" : "right-3";
 
-                    return (
-                      <button key={pitch.id}
-                        onClick={() => setSelectedPitch(pitch)}
-                        className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] ${isPulsing ? "ring-2 ring-[#F2B517]" : ""}`}
-                        style={{
-                          aspectRatio: isFirst ? "16/7.5" : "16/9",
-                          boxShadow: `${badge.shadow}, 0 8px 32px rgba(0,0,0,0.4)`,
-                          border: `1px solid ${badge.ring}`,
-                          animation: "fadeInUp 0.5s ease-out both",
-                          animationDelay: `${displayIdx * 0.12}s`,
-                        }}>
-                        <img src={getThumbnail(pitch)} alt={pitch.title}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                return (
+                  <button key={pitch.id}
+                    onClick={() => setSelectedPitch(pitch)}
+                    className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? "ring-2 ring-[#F2B517]" : ""}`}
+                    style={{
+                      aspectRatio: aspect,
+                      boxShadow: `${badge.shadow}, 0 8px 32px rgba(0,0,0,0.4)`,
+                      border: `1px solid ${badge.ring}`,
+                      animation: "fadeInUp 0.5s ease-out both",
+                      animationDelay: `${displayIdx * 0.12}s`,
+                    }}>
+                    <img src={getThumbnail(pitch)} alt={pitch.title}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
 
-                        {/* Always-visible gradient */}
-                        <div className="absolute inset-0"
-                          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.35) 45%, transparent 75%)" }} />
+                    <div className="absolute inset-0"
+                      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.35) 45%, transparent 75%)" }} />
 
-                        {/* Crown badge */}
-                        <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full pl-1.5 pr-3 py-1"
-                          style={{ background: badge.gradient, boxShadow: badge.shadow }}>
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)" }}>
-                            <svg className="w-3.5 h-3.5" fill={badge.textColor} viewBox="0 0 24 24">
-                              <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
-                            </svg>
-                          </div>
-                          <span className="text-[11px] font-black tracking-wider" style={{ color: badge.textColor }}>{badge.short}</span>
-                        </div>
+                    {/* Crown badge */}
+                    <div className={`absolute ${cornerPos} ${cornerLeft} flex items-center gap-1.5 rounded-full ${badgePad}`}
+                      style={{ background: badge.gradient, boxShadow: badge.shadow }}>
+                      <div className={`${badgeIcon} rounded-full flex items-center justify-center`} style={{ background: "rgba(0,0,0,0.2)" }}>
+                        <svg className={badgeIconSvg} fill={badge.textColor} viewBox="0 0 24 24">
+                          <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                        </svg>
+                      </div>
+                      <span className={`${badgeText} font-black tracking-wider`} style={{ color: badge.textColor }}>{badge.short}</span>
+                    </div>
 
-                        {/* Vote — maize star, big */}
-                        <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5"
-                          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(242,181,23,0.2)" }}>
-                          <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24">
-                            <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
-                          </svg>
-                          <span className="text-base font-black" style={{ color: "#F2B517" }}>{pitch.vote_count || 0}</span>
-                        </div>
+                    {/* Vote badge */}
+                    <div className={`absolute ${cornerPos} ${cornerRight} flex items-center gap-1 rounded-full ${votePad}`}
+                      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(242,181,23,0.2)" }}>
+                      <svg className={voteIcon} fill="#F2B517" viewBox="0 0 24 24">
+                        <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
+                      </svg>
+                      <span className={`${voteText} font-black`} style={{ color: "#F2B517" }}>{pitch.vote_count || 0}</span>
+                    </div>
 
-                        {/* Info */}
-                        <div className="absolute bottom-0 left-0 right-0 p-4">
-                          <p className="text-white font-bold truncate leading-tight" style={{ fontSize: isFirst ? "16px" : "14px" }}>{pitch.title}</p>
-                          <p className="text-white/40 text-xs truncate mt-0.5">{pitch.name}</p>
-                        </div>
+                    {/* Info */}
+                    <div className={`absolute bottom-0 left-0 right-0 ${infoPad}`}>
+                      <p className="text-white font-bold truncate leading-tight" style={{ fontSize: titleSize }}>{pitch.title}</p>
+                      <p className="text-white/50 truncate mt-0.5" style={{ fontSize: subtitleSize }}>{pitch.name}</p>
+                    </div>
 
-                        {/* Voted */}
-                        {pitch.user_has_voted && (
-                          <div className="absolute bottom-3 right-3 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                    {pitch.user_has_voted && (
+                      <div className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 right-1.5 w-5 h-5" : "bottom-3 right-3 w-7 h-7"} rounded-full flex items-center justify-center`} style={{ background: "#F2B517" }}>
+                        <svg className={sizeVariant === "compact" ? "w-3 h-3" : "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              };
+
+              return (
+                <div className="flex-shrink-0 mb-4">
+                  {/* Mobile podium — 1st hero, 2nd/3rd row below */}
+                  <div className="md:hidden space-y-2">
+                    {renderPodiumCard(topPitches[0], 0, 0, "hero")}
+                    {topPitches.length > 1 && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {topPitches[1] && renderPodiumCard(topPitches[1], 1, 1, "compact")}
+                        {topPitches[2] && renderPodiumCard(topPitches[2], 2, 2, "compact")}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop podium — 2nd | 1st (larger) | 3rd */}
+                  <div className="hidden md:grid gap-3 items-end"
+                    style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.2fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
+                    {(topPitches.length >= 3 ? [topPitches[1], topPitches[0], topPitches[2]] : topPitches).map((pitch, displayIdx) => {
+                      const actualRank = topPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
+                      const variant = actualRank === 0 ? "desktop-first" : "desktop-side";
+                      return renderPodiumCard(pitch, actualRank, displayIdx, variant);
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Search */}
             <div className="flex-shrink-0 mb-4">
@@ -563,9 +600,19 @@ export default function GalleryPage() {
                 ) : getPitchType(selectedPitch) === "audio" ? (
                   <div className="w-full h-full flex flex-col max-h-[45vh] md:max-h-[80vh]">
                     {/* Audio player */}
-                    <div className="w-full px-8 pt-8 pb-4 flex-shrink-0">
+                    <div className="w-full px-5 sm:px-8 pt-5 sm:pt-8 pb-4 flex-shrink-0">
+                      {/* Reserved space for floating thumbnail — desktop only (thumbnail is hidden on mobile) */}
                       {selectedPitch.thumbnail_path && (
-                        <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                        <div className="hidden md:block" style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                      )}
+                      {/* Mobile inline thumbnail — since the floating one is hidden, show a compact version here */}
+                      {selectedPitch.thumbnail_path && (
+                        <img
+                          src={selectedPitch.thumbnail_path}
+                          alt=""
+                          className="md:hidden w-full aspect-video rounded-xl object-cover mb-4"
+                          style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
                       )}
                       {selectedPitch.file_path && (
                         <audio controls className="w-full" style={{ filter: "invert(1) hue-rotate(180deg)", opacity: 0.7 }}>
@@ -575,7 +622,7 @@ export default function GalleryPage() {
                     </div>
                     {/* Description text below player */}
                     {(extractedText || selectedPitch.text_content || selectedPitch.description) && (
-                      <div className="w-full flex-1 overflow-y-auto text-pitch-scroll px-8 pb-8" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                      <div className="w-full flex-1 overflow-y-auto text-pitch-scroll px-5 sm:px-8 pb-6 sm:pb-8" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content || selectedPitch.description}</p>
                       </div>
                     )}
@@ -587,10 +634,19 @@ export default function GalleryPage() {
                         <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                       </div>
                     ) : (extractedText || selectedPitch.text_content) ? (
-                      <div className="w-full h-full overflow-y-auto text-pitch-scroll" style={{ maxHeight: "80vh", padding: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                        {/* Invisible spacer for the overlapping thumbnail (only if custom thumbnail) */}
+                      <div className="w-full h-full overflow-y-auto text-pitch-scroll p-5 sm:p-8 md:max-h-[80vh]" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                        {/* Desktop: reserve space for the floating thumbnail overlay */}
                         {selectedPitch.thumbnail_path && (
-                          <div style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                          <div className="hidden md:block" style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
+                        )}
+                        {/* Mobile: show the thumbnail inline since the floating one is hidden */}
+                        {selectedPitch.thumbnail_path && (
+                          <img
+                            src={selectedPitch.thumbnail_path}
+                            alt=""
+                            className="md:hidden w-full aspect-video rounded-xl object-cover mb-4"
+                            style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                          />
                         )}
                         <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content}</p>
                       </div>
@@ -690,7 +746,7 @@ export default function GalleryPage() {
           </div>
         )}
 
-        {/* ═══ VOTER MODAL ═══ */}
+        {/* VOTER MODAL */}
         {showVoterModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4"
             style={{ background: "rgba(0,0,0,0.75)" }}
