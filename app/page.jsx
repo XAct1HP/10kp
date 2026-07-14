@@ -80,7 +80,8 @@ export default function Home() {
       />
 
       {/* MOBILE LAYOUT (< lg) */}
-      <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-8 pb-8">
+      <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-6 pb-8">
+        {/* TOP: eyebrow + countdown */}
         <p
           className="text-[10px] uppercase tracking-[0.3em] font-semibold mb-3"
           style={{ color: "#F2B517" }}
@@ -88,22 +89,10 @@ export default function Home() {
           10KP Competition
         </p>
 
-        <h1
-          className="font-bold text-white tracking-tight leading-[1.05] mb-4"
-          style={{ fontSize: "clamp(2rem, 9vw, 3.25rem)" }}
-        >
-          Embracing{" "}
-          <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
-        </h1>
-
-        <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed mb-7">
-          Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
-        </p>
-
         {/* Compact countdown card */}
         {countdownUnits && (
           <div
-            className="mb-7 rounded-2xl px-4 py-3.5"
+            className="rounded-2xl px-4 py-3.5"
             style={{
               background: "rgba(6,14,33,0.55)",
               border: "1px solid rgba(242,181,23,0.25)",
@@ -145,7 +134,7 @@ export default function Home() {
 
         {timeLeft?.past && (
           <div
-            className="mb-7 inline-flex items-center gap-3 px-5 py-3.5 rounded-2xl"
+            className="inline-flex items-center gap-3 px-5 py-3.5 rounded-2xl"
             style={{
               background: "rgba(242,181,23,0.14)",
               border: "1px solid rgba(242,181,23,0.3)",
@@ -159,15 +148,16 @@ export default function Home() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 mt-auto">
+        {/* MIDDLE: buttons — smaller, sit above the headline */}
+        <div className="flex flex-col gap-2.5 mt-6">
           <Link
             href="/intake"
-            className="relative flex items-center justify-center gap-2 w-full py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black active:scale-[0.98] group"
+            className="relative flex items-center justify-center gap-2 w-full py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 overflow-hidden text-black active:scale-[0.98] group"
             style={{ background: "#F2B517" }}
           >
             <span className="relative z-10 flex items-center gap-2">
               Submit Your Pitch
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
             </span>
@@ -175,7 +165,7 @@ export default function Home() {
 
           <Link
             href="/gallery"
-            className="flex items-center justify-center gap-2 w-full py-4 text-sm font-semibold rounded-xl transition-all duration-200 active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 w-full py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 active:scale-[0.98]"
             style={{
               border: "1.5px solid rgba(255,255,255,0.25)",
               color: "rgba(255,255,255,0.9)",
@@ -184,10 +174,25 @@ export default function Home() {
             }}
           >
             View Gallery
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
           </Link>
+        </div>
+
+        {/* BOTTOM: headline + description — pushed to the bottom via mt-auto */}
+        <div className="mt-auto pt-10">
+          <h1
+            className="font-bold text-white tracking-tight leading-[1.05] mb-4"
+            style={{ fontSize: "clamp(2rem, 9vw, 3.25rem)" }}
+          >
+            Embracing{" "}
+            <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
+          </h1>
+
+          <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed">
+            Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
+          </p>
         </div>
       </div>
 
