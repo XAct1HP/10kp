@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 
 function useCountdown(targetDate) {
@@ -81,7 +81,7 @@ export default function Home() {
 
       {/* MOBILE LAYOUT (< lg) */}
       <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-6 pb-8">
-        {/* TOP: transparent countdown — matches desktop styling */}
+        {/* TOP: transparent countdown with centered separators */}
         {countdownUnits && (
           <div>
             <p
@@ -90,9 +90,13 @@ export default function Home() {
             >
               Competition starts in
             </p>
-            <div className="flex items-center justify-between">
+            {/* 7-column grid: 4 numbers + 3 centered separators */}
+            <div
+              className="grid items-center"
+              style={{ gridTemplateColumns: "1fr auto 1fr auto 1fr auto 1fr" }}
+            >
               {countdownUnits.map(({ label, value }, i) => (
-                <div key={label} className="flex items-center">
+                <Fragment key={label}>
                   <div className="text-center">
                     <div
                       className="font-mono font-bold text-white leading-none tabular-nums"
@@ -108,18 +112,13 @@ export default function Home() {
                     </div>
                   </div>
                   {i < countdownUnits.length - 1 && (
-                    <div className="mx-1 flex flex-col items-center gap-1.5 mb-4">
+                    <div className="flex flex-col items-center gap-1.5 mb-4">
                       <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#F2B517", opacity: 0.7 }} />
                       <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#F2B517", opacity: 0.7 }} />
                     </div>
                   )}
-                </div>
+                </Fragment>
               ))}
-            </div>
-            {/* Accent line matching desktop */}
-            <div className="mt-5 flex items-center gap-2">
-              <div style={{ width: "16px", height: "2px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
-              <div style={{ width: "48px", height: "2px", background: "#F2B517", borderRadius: "2px" }} />
             </div>
           </div>
         )}
@@ -133,39 +132,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* MIDDLE: buttons — smaller, sit above the headline */}
-        <div className="flex flex-col gap-2.5 mt-6">
-          <Link
-            href="/intake"
-            className="relative flex items-center justify-center gap-2 w-full py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 overflow-hidden text-black active:scale-[0.98] group"
-            style={{ background: "#F2B517" }}
-          >
-            <span className="relative z-10 flex items-center gap-2">
-              Submit Your Pitch
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </span>
-          </Link>
-
-          <Link
-            href="/gallery"
-            className="flex items-center justify-center gap-2 w-full py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 active:scale-[0.98]"
-            style={{
-              border: "1.5px solid rgba(255,255,255,0.25)",
-              color: "rgba(255,255,255,0.9)",
-              background: "rgba(255,255,255,0.04)",
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            View Gallery
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </Link>
-        </div>
-
-        {/* BOTTOM: headline + description — pushed to the bottom via mt-auto */}
+        {/* BOTTOM: headline + description + side-by-side buttons */}
         <div className="mt-auto pt-10">
           <h1
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
@@ -175,9 +142,41 @@ export default function Home() {
             <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
           </h1>
 
-          <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed">
+          <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed mb-6">
             Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
           </p>
+
+          {/* Side-by-side CTAs */}
+          <div className="flex gap-2.5">
+            <Link
+              href="/intake"
+              className="relative flex-1 flex items-center justify-center gap-1.5 py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 overflow-hidden text-black active:scale-[0.98] group"
+              style={{ background: "#F2B517" }}
+            >
+              <span className="relative z-10 flex items-center gap-1.5">
+                Submit Pitch
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </span>
+            </Link>
+
+            <Link
+              href="/gallery"
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 active:scale-[0.98]"
+              style={{
+                border: "1.5px solid rgba(255,255,255,0.25)",
+                color: "rgba(255,255,255,0.9)",
+                background: "rgba(255,255,255,0.04)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              View Gallery
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </Link>
+          </div>
         </div>
       </div>
 
