@@ -37,6 +37,7 @@ export default function GalleryPage() {
   const [voterForm, setVoterForm] = useState({ name: "", email: "" });
 
   const [defaultThumbnails, setDefaultThumbnails] = useState({ audioThumbnail: null, textThumbnail: null });
+  const [gifFallbackByPitchId, setGifFallbackByPitchId] = useState({});
 
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
@@ -170,12 +171,32 @@ export default function GalleryPage() {
   const paginatedGallery = shuffledGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
 
   // ── Helpers ──
+  const getMuxThumbnail = (playbackId) =>
+    `https://image.mux.com/${playbackId}/thumbnail.jpg?time=1&width=640&height=360&fit_mode=smartcrop`;
+
+  const getMuxGifPreview = (playbackId) =>
+    `https://image.mux.com/${playbackId}/animated.gif?start=0&end=2.8&fps=8&width=640&fit_mode=smartcrop`;
+
   const getThumbnail = (pitch) => {
     if (pitch.thumbnail_path) return pitch.thumbnail_path;
-    if (pitch.mux_playback_id) return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=640&height=360&fit_mode=smartcrop`;
+    if (pitch.mux_playback_id) return getMuxThumbnail(pitch.mux_playback_id);
     if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return defaultThumbnails.audioThumbnail || "/placeholder.png";
     if (pitch.text_content || /\.(txt|pdf|doc|docx)$/i.test(pitch.file_name || "")) return defaultThumbnails.textThumbnail || "/placeholder.png";
     return "/placeholder.png";
+  };
+
+  const getGalleryPreview = (pitch) => {
+    const isVideo = getPitchType(pitch) === "video";
+    if (isVideo && pitch.mux_playback_id && !gifFallbackByPitchId[pitch.id]) {
+      return getMuxGifPreview(pitch.mux_playback_id);
+    }
+    return getThumbnail(pitch);
+  };
+
+  const handlePreviewError = (pitch) => {
+    const isVideo = getPitchType(pitch) === "video";
+    if (!isVideo || !pitch.mux_playback_id) return;
+    setGifFallbackByPitchId((prev) => (prev[pitch.id] ? prev : { ...prev, [pitch.id]: true }));
   };
 
   const getPitchType = (p) => {
@@ -376,7 +397,8 @@ export default function GalleryPage() {
                           animation: "fadeInUp 0.5s ease-out both",
                           animationDelay: `${displayIdx * 0.12}s`,
                         }}>
-                        <img src={getThumbnail(pitch)} alt={pitch.title}
+                        <img src={getGalleryPreview(pitch)} alt={pitch.title}
+                          onError={() => handlePreviewError(pitch)}
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
 
                         {/* Always-visible gradient */}
@@ -472,7 +494,8 @@ export default function GalleryPage() {
                         animation: "fadeInUp 0.3s ease-out both",
                         animationDelay: `${i * 0.025}s`,
                       }}>
-                      <img src={getThumbnail(pitch)} alt={pitch.title}
+                      <img src={getGalleryPreview(pitch)} alt={pitch.title}
+                        onError={() => handlePreviewError(pitch)}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
 
                       {/* Hover overlay */}
