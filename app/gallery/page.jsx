@@ -39,6 +39,8 @@ export default function GalleryPage() {
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
 
+  const [hoveredPitchId, setHoveredPitchId] = useState(null);
+
   const [shuffleSeed] = useState(() => Math.random());
 
   // ── Auto-fill voter from auth ──
@@ -174,6 +176,11 @@ export default function GalleryPage() {
     if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return defaultThumbnails.audioThumbnail || "/placeholder.png";
     if (pitch.text_content || /\.(txt|pdf|doc|docx)$/i.test(pitch.file_name || "")) return defaultThumbnails.textThumbnail || "/placeholder.png";
     return "/placeholder.png";
+  };
+
+  const getAnimatedThumbnail = (pitch) => {
+    if (!pitch?.mux_playback_id) return null;
+    return `https://image.mux.com/${pitch.mux_playback_id}/animated.gif?width=640&height=360&fps=15`;
   };
 
   const getPitchType = (p) => {
@@ -352,8 +359,8 @@ export default function GalleryPage() {
         {!loading && !error && filteredSubmissions.length > 0 && (
           <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-8 lg:px-10 pt-4">
 
-            {/* ── TOP 3 PODIUM ── */}
-            {topPitches.length > 0 && (() => {
+            {/* ── TOP 3 PODIUM (only when we actually have a top 3) ── */}
+            {topPitches.length >= 3 && (() => {
               const renderPodiumCard = (pitch, actualRank, displayIdx, sizeVariant) => {
                 const badge = RANK_BADGES[actualRank];
                 const isFirst = actualRank === 0;
@@ -379,9 +386,14 @@ export default function GalleryPage() {
                 const cornerLeft = sizeVariant === "compact" ? "left-1.5" : "left-3";
                 const cornerRight = sizeVariant === "compact" ? "right-1.5" : "right-3";
 
+                const animatedSrc = getAnimatedThumbnail(pitch);
+                const isHovered = hoveredPitchId === pitch.id;
+
                 return (
                   <button key={pitch.id}
                     onClick={() => setSelectedPitch(pitch)}
+                    onMouseEnter={() => setHoveredPitchId(pitch.id)}
+                    onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
                     className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? "ring-2 ring-[#F2B517]" : ""}`}
                     style={{
                       aspectRatio: aspect,
@@ -392,6 +404,10 @@ export default function GalleryPage() {
                     }}>
                     <img src={getThumbnail(pitch)} alt={pitch.title}
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                    {animatedSrc && isHovered && (
+                      <img src={animatedSrc} alt=""
+                        className="absolute inset-0 w-full h-full object-cover" aria-hidden="true" />
+                    )}
 
                     <div className="absolute inset-0"
                       style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.35) 45%, transparent 75%)" }} />
@@ -497,10 +513,14 @@ export default function GalleryPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-0.5 sm:gap-0 rounded-xl overflow-hidden">
                 {paginatedGallery.map((pitch, i) => {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
+                  const animatedSrc = getAnimatedThumbnail(pitch);
+                  const isHovered = hoveredPitchId === pitch.id;
 
                   return (
                     <button key={pitch.id}
                       onClick={() => setSelectedPitch(pitch)}
+                      onMouseEnter={() => setHoveredPitchId(pitch.id)}
+                      onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
                       className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
                       style={{
                         aspectRatio: "16/9",
@@ -509,6 +529,10 @@ export default function GalleryPage() {
                       }}>
                       <img src={getThumbnail(pitch)} alt={pitch.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                      {animatedSrc && isHovered && (
+                        <img src={animatedSrc} alt=""
+                          className="absolute inset-0 w-full h-full object-cover" aria-hidden="true" />
+                      )}
 
                       {/* Hover overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5">
