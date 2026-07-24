@@ -183,46 +183,4 @@ export async function PATCH(request) {
         retry: { finalState: outcome?.finalState, skipped: outcome?.skipped },
       });
     } catch (err) {
-      // The pipeline itself handles failure state internally, so just
-      // surface the error to the admin.
-      return NextResponse.json({
-        pitch: updated,
-        retry: { error: err.message },
-      });
-    }
-  }
-
-  return NextResponse.json({ pitch: updated });
-}
-
-// GET /api/admin/pitches/moderation?pitchId=...
-// Returns the moderation audit log for a specific pitch.
-export async function GET(request) {
-  const auth = await verifyAdmin(request);
-  if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-  const { searchParams } = new URL(request.url);
-  const pitchId = searchParams.get("pitchId");
-  if (!pitchId) {
-    return NextResponse.json({ error: "pitchId is required" }, { status: 400 });
-  }
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("moderation_audit")
-    .select("*")
-    .eq("pitch_id", pitchId)
-    .order("created_at", { ascending: false });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  return NextResponse.json({ audit: data });
-}
-
-function normalizeAction(body) {
-  if (body.decision === "approve") return "approve";
-  if (body.decision === "reject") return "reject";
-  const a = body.action;
-  if (a === "return_to_review" || a === "retry" || a === "add_note") return a;
-  return null;
-}
+      // The pipeline itself handles failure state interna
