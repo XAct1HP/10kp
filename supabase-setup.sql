@@ -85,6 +85,64 @@ create trigger pitches_protect_moderation_trg
   before update on public.pitches
   for each row execute function public.pitches_protect_moderation();
 
+-- ─── Moderation v2 columns (see migrations/20260723_moderation_v2.sql
+--     for the full state model and comments) ──────────────────────────
+alter table public.pitches
+  add column if not exists media_status text not null default 'uploading',
+  add column if not exists transcript_status text not null default 'not_started',
+  add column if not exists transcript text,
+  add column if not exists transcript_language text,
+  add column if not exists transcript_last_error text,
+  add column if not exists moderation_state text not null default 'not_started',
+  add column if not exists moderation_version integer not null default 2,
+  add column if not exists moderation_source text,
+  add column if not exists moderation_started_at timestamptz,
+  add column if not exists moderation_completed_at timestamptz,
+  add column if not exists moderation_summary text,
+  add column if not exists moderation_reasons jsonb not null default '[]'::jsonb,
+  add column if not exists moderation_categories jsonb not null default '[]'::jsonb,
+  add column if not exists moderation_scores jsonb not null default '{}'::jsonb,
+  add column if not exists moderation_admin_notes text,
+  add column if not exists moderation_attempt_count integer not null default 0,
+  add column if not exists moderation_last_attempt_at timestamptz,
+  add column if not exists moderation_next_attempt_at timestamptz,
+  add column if not exists moderation_last_error text,
+  add column if not exists visual_moderation_status text not null default 'not_applicable',
+  add column if not exists visual_moderation_result jsonb,
+  add column if not exists transcript_moderation_status text not null default 'not_applicable',
+  add column if not exists transcript_moderation_result jsonb,
+  add column if not exists mux_moderation_job_id text,
+  add column if not exists mux_moderation_result jsonb;
+
+create table if not exists public.moderation_webhook_events (
+  id uuid default gen_random_uuid() primary key,
+  provider text not null,
+  event_id text not null,
+  event_type text,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz,
+  processing_status text not null default 'received',
+  last_error text,
+  attempt_count integer not null default 0,
+  payload jsonb,
+  constraint moderation_webhook_events_provider_event_id_key unique (provider, event_id)
+);
+alter table public.moderation_webhook_events enable row level security;
+
+create table if not exists public.moderation_audit (
+  id uuid default gen_random_uuid() primary key,
+  pitch_id uuid not null references public.pitches(id) on delete cascade,
+  action text not null,
+  previous_state text,
+  new_state text,
+  reviewed_by text,
+  reason text,
+  admin_notes text,
+  details jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.moderation_audit enable row level security;
+
 create table if not exists public.mux_webhook_logs (
   id uuid default gen_random_uuid() primary key,
   created_at timestamptz default now(),

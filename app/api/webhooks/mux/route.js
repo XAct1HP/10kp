@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { getMuxClient, getMuxWebhookSecret } from "../../../../lib/mux";
-import { moderatePitchAsync } from "../../../../lib/moderation/pipeline";
+import {
+  runModerationInBackground,
+  markMediaStatus,
+} from "../../../../lib/moderation/pipeline";
+import { MEDIA_STATUS } from "../../../../lib/moderation/types";
+import {
+  claimWebhookEvent,
+  markWebhookProcessed,
+  markWebhookFailed,
+} from "../../../../lib/moderation/webhook-idempotency";
 
 export const runtime = "nodejs";
+
+// ─── Helpers ──────────────────────────────────────────────────────────
 
 function getEventIdentifiers(event) {
   const data = event.data || {};
@@ -29,122 +40,72 @@ function getMuxErrorMessage(data) {
   const messages = Array.isArray(data?.errors?.messages)
     ? data.errors.messages.filter(Boolean).join("; ")
     : null;
-
   return [type, messages].filter(Boolean).join(": ") || "Mux processing error.";
 }
 
 function isUuidLike(value) {
   return typeof value === "string"
-    ? /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        value
-      )
+    ? /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
     : false;
 }
 
 function safeParseJson(value) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(value); } catch { return null; }
 }
 
 async function findPitchByColumn(supabaseAdmin, column, value) {
   const { data, error } = await supabaseAdmin
     .from("pitches")
-    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error")
+    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error, media_status")
     .eq(column, value)
     .limit(1)
     .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to look up pitch by ${column}: ${error.message}`);
-  }
-
+  if (error) throw new Error(`Failed to look up pitch by ${column}: ${error.message}`);
   return data || null;
 }
 
 async function resolvePitch(event, supabaseAdmin) {
   const identifiers = getEventIdentifiers(event);
-
   if (identifiers.assetId) {
     const pitch = await findPitchByColumn(supabaseAdmin, "mux_asset_id", identifiers.assetId);
-    if (pitch) {
-      return { pitch, identifiers, matchedBy: "mux_asset_id" };
-    }
+    if (pitch) return { pitch, identifiers, matchedBy: "mux_asset_id" };
   }
-
   if (identifiers.uploadId) {
     const pitch = await findPitchByColumn(supabaseAdmin, "mux_upload_id", identifiers.uploadId);
-    if (pitch) {
-      return { pitch, identifiers, matchedBy: "mux_upload_id" };
-    }
+    if (pitch) return { pitch, identifiers, matchedBy: "mux_upload_id" };
   }
-
+  // Passthrough is client-supplied — only trust UUIDs, and only after the
+  // asset-id / upload-id fallbacks have failed. This prevents a spoofed
+  // passthrough from redirecting a webhook to another user's pitch.
   if (isUuidLike(identifiers.passthrough)) {
     const pitch = await findPitchByColumn(supabaseAdmin, "id", identifiers.passthrough);
-    if (pitch) {
-      return { pitch, identifiers, matchedBy: "passthrough" };
-    }
+    if (pitch) return { pitch, identifiers, matchedBy: "passthrough" };
   }
-
   return { pitch: null, identifiers, matchedBy: null };
 }
 
 async function ensurePlaybackId(mux, assetId, playbackId) {
-  if (playbackId || !assetId) {
-    return playbackId || null;
-  }
-
+  if (playbackId || !assetId) return playbackId || null;
   try {
-    const createdPlayback = await mux.video.assets.createPlaybackId(assetId, {
-      policy: "public",
-    });
-
-    return createdPlayback?.id || null;
+    const created = await mux.video.assets.createPlaybackId(assetId, { policy: "public" });
+    return created?.id || null;
   } catch (error) {
-    console.error("[Mux webhook] failed to create fallback playback ID", {
-      assetId,
-      error: error.message,
+    console.error("[mux.webhook] failed to create fallback playback ID", {
+      assetId, error: error.message,
     });
     return null;
   }
-}
-
-async function updatePitch(supabaseAdmin, pitchId, update) {
-  const { data, error } = await supabaseAdmin
-    .from("pitches")
-    .update(update)
-    .eq("id", pitchId)
-    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error")
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update pitch ${pitchId}: ${error.message}`);
-  }
-
-  return data;
 }
 
 async function writeWebhookLog(supabaseAdmin, entry) {
   try {
     await supabaseAdmin.from("mux_webhook_logs").insert(entry);
   } catch (error) {
-    console.error("[Mux webhook] failed to persist webhook log", {
-      error: error.message,
-    });
+    console.error("[mux.webhook] failed to persist webhook log", { error: error.message });
   }
 }
 
-function buildWebhookLog({
-  status,
-  message,
-  event,
-  identifiers,
-  pitch,
-  matchedBy,
-  payload,
-}) {
+function buildWebhookLog({ status, message, event, identifiers, pitch, matchedBy, payload }) {
   return {
     event_type: event?.type || payload?.type || null,
     status,
@@ -159,258 +120,180 @@ function buildWebhookLog({
   };
 }
 
+async function updatePitch(supabaseAdmin, pitchId, update) {
+  const { data, error } = await supabaseAdmin
+    .from("pitches")
+    .update(update)
+    .eq("id", pitchId)
+    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error, media_status")
+    .single();
+  if (error) throw new Error(`Failed to update pitch ${pitchId}: ${error.message}`);
+  return data;
+}
+
+// ─── Handler ──────────────────────────────────────────────────────────
 export async function POST(request) {
   const rawBody = await request.text();
   const parsedPayload = safeParseJson(rawBody);
   const supabaseAdmin = getSupabaseAdmin();
 
+  // Signature verification — MUST run against the raw body, not the parsed
+  // JSON. Fail closed with 400 if invalid.
+  let event;
   try {
     const mux = getMuxClient();
     const webhookSecret = getMuxWebhookSecret();
+    event = await mux.webhooks.unwrap(rawBody, request.headers, webhookSecret);
+  } catch (error) {
+    await writeWebhookLog(supabaseAdmin, buildWebhookLog({
+      status: "invalid_signature",
+      message: error.message,
+      identifiers: parsedPayload ? getEventIdentifiers(parsedPayload) : {},
+      payload: parsedPayload,
+    }));
+    console.warn("[mux.webhook] invalid signature", { error: error.message });
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
+  }
 
-    let event;
-    try {
-      event = await mux.webhooks.unwrap(rawBody, request.headers, webhookSecret);
-    } catch (error) {
-      const parsedIdentifiers = parsedPayload
-        ? getEventIdentifiers(parsedPayload)
-        : {
-            uploadId: null,
-            assetId: null,
-            playbackId: null,
-            passthrough: null,
-          };
+  // Idempotency claim — a duplicate delivery short-circuits with 200.
+  const eventHeaderId = request.headers.get("mux-signature")?.split(",")?.[0]?.split("=")?.[1]
+    || event.id
+    || event.data?.id
+    || null;
+  const claim = await claimWebhookEvent("mux", eventHeaderId, event.type, event);
+  if (claim.alreadyProcessed) {
+    // Duplicate — Mux occasionally re-delivers. Ack politely.
+    return NextResponse.json({ message: "ok", duplicate: true });
+  }
 
-      await writeWebhookLog(
-        supabaseAdmin,
-        buildWebhookLog({
-          status: "invalid_signature",
-          message: error.message,
-          identifiers: parsedIdentifiers,
-          payload: parsedPayload,
-        })
-      );
-
-      console.warn("[Mux webhook] invalid signature", {
-        error: error.message,
-      });
-      return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
-    }
-
+  try {
+    const mux = getMuxClient();
     const { pitch, identifiers, matchedBy } = await resolvePitch(event, supabaseAdmin);
 
-    console.info("[Mux webhook] received", {
-      eventType: event.type,
-      uploadId: identifiers.uploadId,
-      assetId: identifiers.assetId,
-      playbackId: identifiers.playbackId,
-      passthrough: identifiers.passthrough,
-      matchedPitchId: pitch?.id || null,
-      matchedBy,
-    });
-
     if (!pitch) {
-      await writeWebhookLog(
-        supabaseAdmin,
-        buildWebhookLog({
-          status: "no_match",
-          message: "No row matched by mux_asset_id, mux_upload_id, or passthrough pitch id.",
-          event,
-          identifiers,
-          matchedBy,
-        })
-      );
-
-      console.warn("[Mux webhook] no matching pitch row", {
-        eventType: event.type,
-        uploadId: identifiers.uploadId,
-        assetId: identifiers.assetId,
-        playbackId: identifiers.playbackId,
-        passthrough: identifiers.passthrough,
-        reason: "No row matched by mux_asset_id, mux_upload_id, or passthrough pitch id.",
-      });
+      await writeWebhookLog(supabaseAdmin, buildWebhookLog({
+        status: "no_match",
+        message: "No row matched by mux_asset_id, mux_upload_id, or passthrough pitch id.",
+        event, identifiers, matchedBy,
+      }));
+      await markWebhookProcessed(claim.id, { processing_status: "ignored" });
       return NextResponse.json({ message: "ok" });
     }
 
-    if (event.type === "video.upload.asset_created") {
-      const updatedPitch = await updatePitch(supabaseAdmin, pitch.id, {
-        mux_upload_id: identifiers.uploadId || pitch.mux_upload_id,
-        mux_asset_id: identifiers.assetId || pitch.mux_asset_id,
-        mux_status: pitch.mux_playback_id ? "ready" : "processing",
-        mux_error: pitch.mux_playback_id ? null : pitch.mux_error,
-      });
-
-      console.info("[Mux webhook] updated pitch", {
-        eventType: event.type,
-        matchedPitchId: pitch.id,
-        updateResult: updatedPitch,
-      });
-
-      await writeWebhookLog(
-        supabaseAdmin,
-        buildWebhookLog({
+    switch (event.type) {
+      case "video.upload.asset_created": {
+        const updated = await updatePitch(supabaseAdmin, pitch.id, {
+          mux_upload_id: identifiers.uploadId || pitch.mux_upload_id,
+          mux_asset_id: identifiers.assetId || pitch.mux_asset_id,
+          mux_status: pitch.mux_playback_id ? "ready" : "processing",
+          media_status: pitch.mux_playback_id ? MEDIA_STATUS.READY : MEDIA_STATUS.PROCESSING,
+          mux_error: pitch.mux_playback_id ? null : pitch.mux_error,
+        });
+        await writeWebhookLog(supabaseAdmin, buildWebhookLog({
           status: "updated",
           message: "Stored mux_asset_id from video.upload.asset_created.",
-          event,
-          identifiers: {
-            ...identifiers,
-            playbackId: updatedPitch.mux_playback_id,
-          },
-          pitch: updatedPitch,
-          matchedBy,
-        })
-      );
-    } else if (event.type === "video.asset.ready") {
-      const playbackId = await ensurePlaybackId(
-        mux,
-        identifiers.assetId || pitch.mux_asset_id,
-        identifiers.playbackId || pitch.mux_playback_id
-      );
-      const readyWithoutPlaybackMessage =
-        "Mux asset is ready, but no playback ID is available for gallery playback.";
-      const updatedPitch = await updatePitch(supabaseAdmin, pitch.id, {
-        mux_upload_id: identifiers.uploadId || pitch.mux_upload_id,
-        mux_asset_id: identifiers.assetId || pitch.mux_asset_id,
-        mux_playback_id: playbackId || pitch.mux_playback_id,
-        mux_status: "ready",
-        mux_error: playbackId || pitch.mux_playback_id ? null : readyWithoutPlaybackMessage,
-      });
+          event, identifiers: { ...identifiers, playbackId: updated.mux_playback_id },
+          pitch: updated, matchedBy,
+        }));
+        break;
+      }
 
-      if (!playbackId && !pitch.mux_playback_id) {
-        console.error("[Mux webhook] ready asset missing playback ID", {
-          eventType: event.type,
-          matchedPitchId: pitch.id,
-          uploadId: identifiers.uploadId,
-          assetId: identifiers.assetId,
+      case "video.asset.ready": {
+        const playbackId = await ensurePlaybackId(
+          mux,
+          identifiers.assetId || pitch.mux_asset_id,
+          identifiers.playbackId || pitch.mux_playback_id
+        );
+        const missingPlaybackMsg = "Mux asset is ready, but no playback ID is available for gallery playback.";
+        const updated = await updatePitch(supabaseAdmin, pitch.id, {
+          mux_upload_id: identifiers.uploadId || pitch.mux_upload_id,
+          mux_asset_id: identifiers.assetId || pitch.mux_asset_id,
+          mux_playback_id: playbackId || pitch.mux_playback_id,
+          mux_status: "ready",
+          media_status: MEDIA_STATUS.READY,
+          mux_error: playbackId || pitch.mux_playback_id ? null : missingPlaybackMsg,
         });
+        await writeWebhookLog(supabaseAdmin, buildWebhookLog({
+          status: playbackId || updated.mux_playback_id ? "updated" : "ready_missing_playback",
+          message: playbackId || updated.mux_playback_id
+            ? "Stored ready asset and playback ID."
+            : missingPlaybackMsg,
+          event, identifiers: { ...identifiers, playbackId: playbackId || updated.mux_playback_id },
+          pitch: updated, matchedBy,
+        }));
+        // Kick moderation once we have a playback ID (and thus can fetch the
+        // transcript). The pipeline is idempotent so a duplicate trigger from
+        // a re-delivered webhook is harmless.
+        if (playbackId || updated.mux_playback_id) {
+          runModerationInBackground(updated.id);
+        }
+        break;
       }
 
-      console.info("[Mux webhook] updated pitch", {
-        eventType: event.type,
-        matchedPitchId: pitch.id,
-        updateResult: updatedPitch,
-      });
-
-      await writeWebhookLog(
-        supabaseAdmin,
-        buildWebhookLog({
-          status: playbackId || updatedPitch.mux_playback_id ? "updated" : "ready_missing_playback",
-          message:
-            playbackId || updatedPitch.mux_playback_id
-              ? "Stored ready asset and playback ID."
-              : readyWithoutPlaybackMessage,
-          event,
-          identifiers: {
-            ...identifiers,
-            playbackId: playbackId || updatedPitch.mux_playback_id,
-          },
-          pitch: updatedPitch,
-          matchedBy,
-        })
-      );
-
-      // Kick off content moderation for the newly-ready video. This runs in
-      // the background — the pipeline pulls the auto-generated transcript,
-      // samples frames, and updates moderation_status on the row.
-      if (playbackId || updatedPitch.mux_playback_id) {
-        moderatePitchAsync(updatedPitch.id);
-      }
-    } else if (
-      event.type === "video.asset.errored" ||
-      event.type === "video.upload.errored"
-    ) {
-      if (pitch.mux_playback_id) {
-        await writeWebhookLog(
-          supabaseAdmin,
-          buildWebhookLog({
+      case "video.asset.errored":
+      case "video.upload.errored": {
+        // Never overwrite a healthy ready asset with a stale errored event.
+        if (pitch.mux_playback_id) {
+          await writeWebhookLog(supabaseAdmin, buildWebhookLog({
             status: "skipped_errored",
             message: "Skipped errored update because the pitch already has a playback ID.",
-            event,
-            identifiers: {
-              ...identifiers,
-              playbackId: pitch.mux_playback_id,
-            },
-            pitch,
-            matchedBy,
-          })
-        );
-
-        console.warn("[Mux webhook] skipped errored update because playback is already available", {
-          eventType: event.type,
-          matchedPitchId: pitch.id,
-          uploadId: identifiers.uploadId,
-          assetId: identifiers.assetId,
-          playbackId: pitch.mux_playback_id,
+            event, identifiers: { ...identifiers, playbackId: pitch.mux_playback_id },
+            pitch, matchedBy,
+          }));
+          break;
+        }
+        const updated = await updatePitch(supabaseAdmin, pitch.id, {
+          mux_upload_id: identifiers.uploadId || pitch.mux_upload_id,
+          mux_asset_id: identifiers.assetId || pitch.mux_asset_id,
+          mux_status: "errored",
+          media_status: MEDIA_STATUS.ERRORED,
+          mux_error: getMuxErrorMessage(event.data),
         });
-        return NextResponse.json({ message: "ok" });
+        await writeWebhookLog(supabaseAdmin, buildWebhookLog({
+          status: "updated",
+          message: updated.mux_error || "Stored errored asset state.",
+          event, identifiers, pitch: updated, matchedBy,
+        }));
+        break;
       }
 
-      const updatedPitch = await updatePitch(supabaseAdmin, pitch.id, {
-        mux_upload_id: identifiers.uploadId || pitch.mux_upload_id,
-        mux_asset_id: identifiers.assetId || pitch.mux_asset_id,
-        mux_status: "errored",
-        mux_error: getMuxErrorMessage(event.data),
-      });
+      case "video.asset.track.ready": {
+        // A caption track finished generating. Re-run moderation so the
+        // transcript channel picks it up on the next attempt.
+        if (pitch.mux_playback_id) {
+          runModerationInBackground(pitch.id);
+        }
+        await writeWebhookLog(supabaseAdmin, buildWebhookLog({
+          status: "track_ready",
+          message: "Caption track ready — re-queued moderation.",
+          event, identifiers, pitch, matchedBy,
+        }));
+        break;
+      }
 
-      console.info("[Mux webhook] updated pitch", {
-        eventType: event.type,
-        matchedPitchId: pitch.id,
-        updateResult: updatedPitch,
-      });
-
-      await writeWebhookLog(
-        supabaseAdmin,
-        buildWebhookLog({
-          status: "updated",
-          message: updatedPitch.mux_error || "Stored errored asset state.",
-          event,
-          identifiers,
-          pitch: updatedPitch,
-          matchedBy,
-        })
-      );
-    } else {
-      await writeWebhookLog(
-        supabaseAdmin,
-        buildWebhookLog({
+      default:
+        await writeWebhookLog(supabaseAdmin, buildWebhookLog({
           status: "ignored",
           message: "Received an unsupported Mux event type.",
-          event,
-          identifiers,
-          pitch,
-          matchedBy,
-        })
-      );
-
-      console.info("[Mux webhook] ignored unsupported event", {
-        eventType: event.type,
-      });
+          event, identifiers, pitch, matchedBy,
+        }));
+        break;
     }
 
+    await markWebhookProcessed(claim.id);
     return NextResponse.json({ message: "ok" });
   } catch (error) {
-    const parsedIdentifiers = parsedPayload
-      ? getEventIdentifiers(parsedPayload)
-      : {
-          uploadId: null,
-          assetId: null,
-          playbackId: null,
-          passthrough: null,
-        };
-
-    await writeWebhookLog(
-      supabaseAdmin,
-      buildWebhookLog({
-        status: "handler_error",
-        message: error.message,
-        identifiers: parsedIdentifiers,
-        payload: parsedPayload,
-      })
-    );
-
-    console.error("[Mux webhook] handler failed", {
-      error: error.message,
-    });
+    await writeWebhookLog(supabaseAdmin, buildWebhookLog({
+      status: "handler_error",
+      message: error.message,
+      identifiers: parsedPayload ? getEventIdentifiers(parsedPayload) : {},
+      payload: parsedPayload,
+    }));
+    await markWebhookFailed(claim.id, error.message);
+    console.error("[mux.webhook] handler failed", { error: error.message });
+    // Return 500 so Mux retries with backoff. The idempotency table will
+    // treat the next delivery as a retry (not a duplicate) because the
+    // current row is marked `failed`.
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

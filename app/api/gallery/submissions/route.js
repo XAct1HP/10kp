@@ -43,8 +43,12 @@ export async function GET(request) {
         )
       `, { count: "exact" })
       // Only approved pitches are visible in the public gallery.
-      // Pending / flagged / rejected pitches never appear here.
+      // Defense in depth — check BOTH the v1 and v2 moderation columns.
+      // The DB trigger already prevents non-service-role writes from
+      // setting either column, but if a future migration accidentally
+      // drops one filter the other still catches the mistake.
       .eq("moderation_status", "approved")
+      .eq("moderation_state", "approved")
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .range(from, to);

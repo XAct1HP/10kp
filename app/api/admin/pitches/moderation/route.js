@@ -1,49 +1,199 @@
 import { NextResponse } from "next/server";
 import { verifyAdmin } from "../../../../../lib/adminAuth";
 import { getSupabaseAdmin } from "../../../../../lib/supabase";
+import { writeAudit } from "../../../../../lib/moderation/audit";
+import { enqueueForModeration } from "../../../../../lib/moderation/pipeline";
+import { MODERATION_STATE } from "../../../../../lib/moderation/types";
 
 // PATCH /api/admin/pitches/moderation
-// Body: { pitchId: string, decision: "approve" | "reject", note?: string }
-// Admin manually overrides the moderation decision on a pitch.
+//
+// Body variants:
+//   { pitchId, decision: "approve" | "reject", note?: string }
+//   { pitchId, action: "return_to_review",   note?: string }
+//   { pitchId, action: "retry",              note?: string }
+//   { pitchId, action: "add_note",           note: string }
+//
+// All actions require an authenticated admin. Every action writes an
+// audit row and returns the updated pitch's moderation fields.
 export async function PATCH(request) {
   const auth = await verifyAdmin(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  try {
-    const { pitchId, decision, note } = await request.json();
-    if (!pitchId || !["approve", "reject"].includes(decision)) {
-      return NextResponse.json(
-        { error: "pitchId and decision (approve|reject) are required" },
-        { status: 400 }
-      );
-    }
-
-    const supabaseAdmin = getSupabaseAdmin();
-    const now = new Date().toISOString();
-    const update = {
-      moderation_status: decision === "approve" ? "approved" : "rejected",
-      moderation_priority: 0,
-      moderation_reviewed_by: auth.user.email,
-      moderation_reviewed_at: now,
-    };
-    if (note) update.moderation_reason = note;
-
-    const { data, error } = await supabaseAdmin
-      .from("pitches")
-      .update(update)
-      .eq("id", pitchId)
-      .select(
-        "id, moderation_status, moderation_reason, moderation_reviewed_by, moderation_reviewed_at, moderation_priority"
-      )
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json({ pitch: data });
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  let body;
+  try { body = await request.json(); } catch { body = {}; }
+  const pitchId = body.pitchId;
+  if (!pitchId) {
+    return NextResponse.json({ error: "pitchId is required" }, { status: 400 });
   }
+
+  const supabase = getSupabaseAdmin();
+  const { data: pitch, error: pitchErr } = await supabase
+    .from("pitches")
+    .select("id, moderation_state, moderation_status")
+    .eq("id", pitchId)
+    .single();
+  if (pitchErr || !pitch) {
+    return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
+  }
+
+  const action = normalizeAction(body);
+  if (!action) {
+    return NextResponse.json(
+      { error: "Missing action — provide decision ('approve'|'reject') or action ('return_to_review'|'retry'|'add_note')" },
+      { status: 400 }
+    );
+  }
+
+  const now = new Date().toISOString();
+  const reviewer = auth.user.email;
+  const note = typeof body.note === "string" ? body.note.trim() : "";
+
+  let update = {};
+  let auditAction;
+  let newState = pitch.moderation_state;
+
+  switch (action) {
+    case "approve":
+      newState = MODERATION_STATE.APPROVED;
+      update = {
+        moderation_state: MODERATION_STATE.APPROVED,
+        moderation_status: "approved",           // v1 mirror
+        moderation_priority: 0,
+        moderation_reviewed_by: reviewer,
+        moderation_reviewed_at: now,
+        moderation_completed_at: now,
+        moderation_summary: note || "Manually approved by administrator.",
+      };
+      if (note) update.moderation_admin_notes = note;
+      auditAction = "admin_approved";
+      break;
+
+    case "reject":
+      newState = MODERATION_STATE.REJECTED;
+      update = {
+        moderation_state: MODERATION_STATE.REJECTED,
+        moderation_status: "rejected",           // v1 mirror
+        moderation_priority: 0,
+        moderation_reviewed_by: reviewer,
+        moderation_reviewed_at: now,
+        moderation_completed_at: now,
+        moderation_summary: note || "Manually rejected by administrator.",
+      };
+      if (note) update.moderation_admin_notes = note;
+      auditAction = "admin_rejected";
+      break;
+
+    case "return_to_review":
+      newState = MODERATION_STATE.NEEDS_REVIEW;
+      update = {
+        moderation_state: MODERATION_STATE.NEEDS_REVIEW,
+        moderation_status: "flagged",            // v1 mirror
+        moderation_priority: 100,
+        moderation_reviewed_by: reviewer,
+        moderation_reviewed_at: now,
+        moderation_summary: note || "Returned to review by administrator.",
+      };
+      if (note) update.moderation_admin_notes = note;
+      auditAction = "admin_returned_to_review";
+      break;
+
+    case "retry":
+      // Reset the state so runModeration's atomic reservation can pick it
+      // up. We DON'T bump attempt_count here — that's the pipeline's job.
+      update = {
+        moderation_state: MODERATION_STATE.QUEUED,
+        moderation_priority: 100,
+        moderation_reviewed_by: reviewer,
+        moderation_reviewed_at: now,
+        moderation_next_attempt_at: now,
+        moderation_last_error: null,
+        moderation_summary: "Retry requested by administrator.",
+        // Reset per-component states so the pipeline re-runs everything.
+        visual_moderation_status: "queued",
+        transcript_moderation_status: "queued",
+        // Clear the Mux job ID so a fresh Robots job is started.
+        mux_moderation_job_id: null,
+      };
+      if (note) update.moderation_admin_notes = note;
+      newState = MODERATION_STATE.QUEUED;
+      auditAction = "admin_retry_requested";
+      break;
+
+    case "add_note":
+      if (!note) {
+        return NextResponse.json({ error: "note is required for add_note" }, { status: 400 });
+      }
+      update = {
+        moderation_admin_notes: note,
+        moderation_reviewed_by: reviewer,
+        moderation_reviewed_at: now,
+      };
+      auditAction = "admin_note_added";
+      break;
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from("pitches")
+    .update(update)
+    .eq("id", pitchId)
+    .select(
+      "id, moderation_state, moderation_status, moderation_summary, moderation_reason, moderation_reviewed_by, moderation_reviewed_at, moderation_priority, moderation_admin_notes, moderation_attempt_count, moderation_next_attempt_at, moderation_last_error"
+    )
+    .single();
+
+  if (updateErr) {
+    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  await writeAudit(supabase, {
+    pitchId,
+    action: auditAction,
+    previousState: pitch.moderation_state,
+    newState,
+    reviewedBy: reviewer,
+    reason: note || null,
+    adminNotes: note || null,
+  });
+
+  // For retry, schedule the pipeline via the same enqueue helper the
+  // intake route uses so the reconciler picks it up immediately.
+  if (action === "retry") {
+    await enqueueForModeration(pitchId, { source: "admin_retry" });
+  }
+
+  return NextResponse.json({ pitch: updated });
+}
+
+// GET /api/admin/pitches/moderation?pitchId=...
+// Returns the moderation audit log for a specific pitch.
+export async function GET(request) {
+  const auth = await verifyAdmin(request);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+  const { searchParams } = new URL(request.url);
+  const pitchId = searchParams.get("pitchId");
+  if (!pitchId) {
+    return NextResponse.json({ error: "pitchId is required" }, { status: 400 });
+  }
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("moderation_audit")
+    .select("*")
+    .eq("pitch_id", pitchId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ audit: data });
+}
+
+function normalizeAction(body) {
+  if (body.decision === "approve") return "approve";
+  if (body.decision === "reject") return "reject";
+  const a = body.action;
+  if (a === "return_to_review" || a === "retry" || a === "add_note") return a;
+  return null;
 }

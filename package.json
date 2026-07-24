@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test __tests__/*.test.js"
   },
   "dependencies": {
     "@mux/mux-node": "^14.1.1",

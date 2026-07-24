@@ -150,6 +150,40 @@ function formatTimestamp(seconds) {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+// Internal notes editor for the moderation panel.
+// Notes are admin-visible only and stored in `moderation_admin_notes`.
+function ModerationNoteEditor({ pitch, onSave, saving }) {
+  const [value, setValue] = useState(pitch?.moderation_admin_notes || "");
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    setValue(pitch?.moderation_admin_notes || "");
+    setDirty(false);
+  }, [pitch?.id]);
+  return (
+    <div className="mt-3">
+      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">
+        Internal note (admins only)
+      </label>
+      <div className="flex gap-2 items-stretch">
+        <textarea
+          value={value}
+          onChange={(e) => { setValue(e.target.value); setDirty(true); }}
+          placeholder="Add context for other admins reviewing this pitch..."
+          rows={2}
+          className="flex-1 text-xs text-white/80 bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 focus:outline-none focus:border-white/20 resize-none"
+        />
+        <button
+          disabled={!dirty || !value.trim() || saving}
+          onClick={() => onSave(value.trim())}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-black bg-white/70 hover:bg-white/80 transition-colors disabled:opacity-30"
+        >
+          {saving ? "Saving..." : "Save note"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
@@ -360,19 +394,39 @@ export default function AdminPage() {
     setError(""); setDeletingPitchId(pid);
     try { await apiFetch(`/api/admin/pitches?id=${pid}`, { method: "DELETE" }); setPitches((p) => p.filter((x) => x.id !== pid)); setDeleteConfirm(null); if (selectedPitch?.id === pid) setSelectedPitch(null); setSuccess("Pitch removed."); } catch (e) { setError(e.message); } finally { setDeletingPitchId(null); }
   };
-  const handleModerationDecision = async (pitchId, decision) => {
+  const handleModerationDecision = async (pitchId, decision, note) => {
     setError(""); setModerationSubmitting(decision);
     try {
       const d = await apiFetch("/api/admin/pitches/moderation", {
         method: "PATCH",
-        body: JSON.stringify({ pitchId, decision }),
+        body: JSON.stringify({ pitchId, decision, note: note || undefined }),
       });
-      // Merge the returned moderation fields back into local state.
       setPitches((prev) =>
         prev.map((p) => (p.id === pitchId ? { ...p, ...d.pitch } : p))
       );
       setSelectedPitch((prev) => (prev && prev.id === pitchId ? { ...prev, ...d.pitch } : prev));
       setSuccess(decision === "approve" ? "Pitch approved." : "Pitch rejected.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setModerationSubmitting(null);
+    }
+  };
+  const handleModerationAction = async (pitchId, action, note) => {
+    setError(""); setModerationSubmitting(action);
+    try {
+      const d = await apiFetch("/api/admin/pitches/moderation", {
+        method: "PATCH",
+        body: JSON.stringify({ pitchId, action, note: note || undefined }),
+      });
+      setPitches((prev) =>
+        prev.map((p) => (p.id === pitchId ? { ...p, ...d.pitch } : p))
+      );
+      setSelectedPitch((prev) => (prev && prev.id === pitchId ? { ...prev, ...d.pitch } : prev));
+      const msg = action === "retry" ? "Moderation retry queued."
+                : action === "return_to_review" ? "Returned to review."
+                : "Note saved.";
+      setSuccess(msg);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1741,7 +1795,7 @@ export default function AdminPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2 flex-shrink-0">
+                  <div className="flex flex-col gap-2 flex-shrink-0 min-w-[140px]">
                     <button
                       disabled={moderationSubmitting !== null}
                       onClick={() => handleModerationDecision(selectedPitch.id, "approve")}
@@ -1756,8 +1810,30 @@ export default function AdminPage() {
                     >
                       {moderationSubmitting === "reject" ? "Rejecting..." : "Reject"}
                     </button>
+                    <button
+                      disabled={moderationSubmitting !== null}
+                      onClick={() => handleModerationAction(selectedPitch.id, "return_to_review")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 transition-colors disabled:opacity-50"
+                      title="Return to needs-review queue"
+                    >
+                      {moderationSubmitting === "return_to_review" ? "Returning..." : "Return to review"}
+                    </button>
+                    <button
+                      disabled={moderationSubmitting !== null}
+                      onClick={() => handleModerationAction(selectedPitch.id, "retry")}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 transition-colors disabled:opacity-50"
+                      title="Re-run the automated moderation pipeline"
+                    >
+                      {moderationSubmitting === "retry" ? "Retrying..." : "Retry moderation"}
+                    </button>
                   </div>
                 </div>
+                {/* Internal note textarea + save */}
+                <ModerationNoteEditor
+                  pitch={selectedPitch}
+                  onSave={(note) => handleModerationAction(selectedPitch.id, "add_note", note)}
+                  saving={moderationSubmitting === "add_note"}
+                />
               </div>
             )}
 

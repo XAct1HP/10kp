@@ -261,6 +261,10 @@ export default function IntakePage() {
     setError("");
     setSubmitting(true);
     const isVideoUpload = file && VIDEO_FILE_TYPES.includes(file.type);
+    const isAudioUpload = file && AUDIO_FILE_TYPES.includes(file.type);
+    // Audio pitches also go through Mux — Mux generates the captions the
+    // moderation pipeline uses as a transcript.
+    const isMuxUpload = isVideoUpload || isAudioUpload;
     const isTextOnly = pitchMode === "text" && !file;
     let createdPitchId = null;
 
@@ -274,10 +278,10 @@ export default function IntakePage() {
           schools,
           title: pitchTitle.trim(),
           description: description.trim(),
-          file_type: isVideoUpload ? "video" : "file",
+          file_type: isVideoUpload ? "video" : isAudioUpload ? "audio" : "file",
           file_name: file ? file.name : (isTextOnly ? "Text Submission" : null),
           text_content: pitchMode === "text" ? textContent.trim() || null : null,
-          mux_status: isVideoUpload ? "pending" : null,
+          mux_status: isMuxUpload ? "pending" : null,
           mux_error: null,
         })
         .select()
@@ -312,24 +316,27 @@ export default function IntakePage() {
         }
       }
 
-      if (isVideoUpload) {
+      if (isMuxUpload) {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !session?.access_token) throw new Error("Unable to verify session for video upload.");
+        if (sessionError || !session?.access_token) throw new Error("Unable to verify session for media upload.");
 
         const uploadRes = await fetch("/api/mux/create-upload", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ pitchId: pitch.id }),
+          body: JSON.stringify({
+            pitchId: pitch.id,
+            kind: isVideoUpload ? "video" : "audio",
+          }),
         });
         const uploadData = await uploadRes.json();
-        if (!uploadRes.ok || !uploadData.uploadUrl) throw new Error(uploadData.error || "Failed to create video upload session.");
+        if (!uploadRes.ok || !uploadData.uploadUrl) throw new Error(uploadData.error || "Failed to create upload session.");
 
         const putRes = await fetch(uploadData.uploadUrl, {
           method: "PUT",
           headers: { "Content-Type": file.type || "application/octet-stream" },
           body: file,
         });
-        if (!putRes.ok) throw new Error("Video upload failed. Please try again.");
+        if (!putRes.ok) throw new Error(`${isVideoUpload ? "Video" : "Audio"} upload failed. Please try again.`);
 
         await supabase.from("pitches").update({ mux_status: "processing", mux_error: null }).eq("id", pitch.id);
       } else if (file) {
@@ -365,11 +372,11 @@ export default function IntakePage() {
         /* ignore */
       }
 
-      setSubmittedVideoUpload(isVideoUpload);
+      setSubmittedVideoUpload(isMuxUpload);
       setSubmitted(true);
     } catch (err) {
-      if (createdPitchId && file && VIDEO_FILE_TYPES.includes(file?.type)) {
-        await supabase.from("pitches").update({ mux_status: "errored", mux_error: err.message || "Video upload failed." }).eq("id", createdPitchId);
+      if (createdPitchId && file && (VIDEO_FILE_TYPES.includes(file?.type) || AUDIO_FILE_TYPES.includes(file?.type))) {
+        await supabase.from("pitches").update({ mux_status: "errored", mux_error: err.message || "Upload failed." }).eq("id", createdPitchId);
       }
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -824,11 +831,11 @@ export default function IntakePage() {
       </svg>
       <h2 className="text-3xl font-bold text-white mb-3">You have Reached the Top!</h2>
       <p className="text-white/60 text-sm mb-2">
-        Your pitch has been submitted and is being reviewed.
+        Your pitch was submitted and is awaiting administrative review.
       </p>
       <p className="text-white/50 text-sm mb-2">
         It will appear in the gallery once it&rsquo;s approved
-        {submittedVideoUpload ? " — video review can take a few minutes." : "."}
+        {submittedVideoUpload ? " — media review can take a few minutes." : "."}
       </p>
       <p className="text-white/40 text-xs mb-10">Good luck in the competition.</p>
       <Link
