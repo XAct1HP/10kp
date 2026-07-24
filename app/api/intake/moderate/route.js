@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 import { verifyUser } from "../../../../lib/userAuth";
 import {
+  runModeration,
   enqueueForModeration,
-  runModerationInBackground,
 } from "../../../../lib/moderation/pipeline";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
-// POST /api/intake/moderate
-// Body: { pitchId }
-//
-// Called by the intake form once a pitch row exists (and any Supabase-hosted
-// file has finished uploading). For video/audio (Mux) pitches, the actual
-// pipeline runs when the Mux webhook fires video.asset.ready — we just
-// mark the row as queued here so the reconciler picks it up if the webhook
-// is late or missed. For text / text-doc pitches we optimistically kick the
-// pipeline off in the background right away.
+// POST /api/intake/moderate — body: { pitchId }
+// Text / text-doc pitches run the pipeline synchronously so the terminal
+// state is set before we respond. Mux pitches only enqueue — the webhook
+// re-triggers runModeration once the asset is ready.
 export async function POST(request) {
   const auth = await verifyUser(request);
   if (auth.error) {
@@ -38,27 +34,33 @@ export async function POST(request) {
       return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
     }
 
-    // Always mark queued — this is the durable signal for the reconciler.
-    await enqueueForModeration(pitchId, { source: "intake" });
-
-    // Optimistically run the pipeline in the background for pitches that
-    // don't rely on the Mux webhook. Video/audio pipelines require the
-    // asset to reach `ready` before the transcript and Robots job make
-    // sense, so we skip the background run for them and let the webhook
-    // trigger runModerationInBackground.
     const isMux = pitch.file_type === "video" ||
                   pitch.file_type === "audio" ||
                   Boolean(pitch.mux_upload_id) ||
                   Boolean(pitch.mux_asset_id);
-    if (!isMux) {
-      runModerationInBackground(pitchId);
+
+    if (isMux) {
+      await enqueueForModeration(pitchId, { source: "intake" });
+      return NextResponse.json({
+        status: "queued",
+        message: "Your pitch was uploaded and is being processed. It will appear in the gallery once approved.",
+      });
     }
 
-    return NextResponse.json({
-      status: "queued",
-      message:
-        "Your pitch was submitted and is being reviewed. It will appear in the gallery once approved.",
-    });
+    try {
+      const outcome = await runModeration(pitchId);
+      return NextResponse.json({
+        status: outcome?.finalState || "processing",
+        message: "Your pitch was submitted and reviewed. It will appear in the gallery once approved.",
+      });
+    } catch (err) {
+      // Pipeline already persisted failure/retry state internally.
+      return NextResponse.json({
+        status: "queued",
+        message: "Your pitch was submitted and is awaiting administrative review.",
+        error: err.message,
+      });
+    }
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

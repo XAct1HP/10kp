@@ -150,189 +150,230 @@ function formatTimestamp(seconds) {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-// ─── Full moderation report ──────────────────────────────────────
-// Renders every v2 moderation field: per-channel status, category flags
-// with evidence, guidebook violations, Mux visual scores, transcript,
-// attempt info, and the current admin-visible summary.
-function ModerationReport({ pitch }) {
-  if (!pitch) return null;
-  const summary = pitch.moderation_summary || pitch.moderation_reason;
-  const categories = Array.isArray(pitch.moderation_categories)
-    ? pitch.moderation_categories : [];
-  const reasons = Array.isArray(pitch.moderation_reasons)
-    ? pitch.moderation_reasons : [];
-  const visual = pitch.visual_moderation_result || pitch.mux_moderation_result;
-  const transcriptRes = pitch.transcript_moderation_result;
-  const scores = pitch.moderation_scores || {};
-
-  const chipColor = (state) => {
-    switch (state) {
-      case "approved": return "bg-green-500/10 text-green-300 border border-green-500/25";
-      case "needs_review": return "bg-red-500/10 text-red-300 border border-red-500/25";
-      case "rejected": return "bg-white/[0.05] text-white/50 border border-white/10";
-      case "failed": return "bg-amber-500/10 text-amber-300 border border-amber-500/25";
-      case "processing": case "queued": return "bg-blue-500/10 text-blue-300 border border-blue-500/25";
-      default: return "bg-white/[0.04] text-white/40 border border-white/10";
-    }
-  };
-  const sevColor = (sev) => sev === "high" ? "text-red-300"
-    : sev === "medium" ? "text-amber-300"
-    : "text-white/50";
-
+// ─── Moderation report ──────────────────────────────────────────
+// Redesigned for scannability: big verdict, one-line summary, a compact
+// channel row, and detail sections that expand on click.
+function ChannelDot({ label, state }) {
+  const colors = {
+    approved: { dot: "#4ade80", fg: "text-green-300", bg: "bg-green-500/8" },
+    needs_review: { dot: "#f87171", fg: "text-red-300", bg: "bg-red-500/8" },
+    rejected: { dot: "#525252", fg: "text-white/50", bg: "bg-white/[0.04]" },
+    failed: { dot: "#fbbf24", fg: "text-amber-300", bg: "bg-amber-500/8" },
+    processing: { dot: "#60a5fa", fg: "text-blue-300", bg: "bg-blue-500/8" },
+    queued: { dot: "#60a5fa", fg: "text-blue-300", bg: "bg-blue-500/8" },
+    ready: { dot: "#4ade80", fg: "text-green-300", bg: "bg-green-500/8" },
+    not_applicable: { dot: "#525252", fg: "text-white/35", bg: "bg-white/[0.03]" },
+  }[state] || { dot: "#525252", fg: "text-white/35", bg: "bg-white/[0.03]" };
+  const stateLabel = state?.replace(/_/g, " ") || "—";
   return (
-    <div className="mt-3 rounded-xl p-3.5 space-y-3"
-      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-[10px] uppercase tracking-widest text-white/40 font-semibold">Moderation report</p>
-        {pitch.moderation_state && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-semibold ${chipColor(pitch.moderation_state)}`}>
-            state: {pitch.moderation_state}
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-0 ${colors.bg}`}
+      style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
+      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: colors.dot }} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] uppercase tracking-widest text-white/40 leading-tight">{label}</p>
+        <p className={`text-xs font-semibold capitalize truncate ${colors.fg}`}>{stateLabel}</p>
+      </div>
+    </div>
+  );
+}
+
+function Collapsible({ title, count, defaultOpen, children }) {
+  const [open, setOpen] = useState(defaultOpen ?? false);
+  return (
+    <div className="rounded-xl overflow-hidden"
+      style={{ background: "rgba(0,0,0,0.15)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.02] transition-colors"
+      >
+        <svg className={`w-3 h-3 text-white/40 transition-transform ${open ? "rotate-90" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+        <span className="text-xs font-semibold text-white/75 flex-1">{title}</span>
+        {typeof count === "number" && count > 0 && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.05] text-white/50 font-mono">
+            {count}
           </span>
         )}
-        {typeof pitch.moderation_attempt_count === "number" && pitch.moderation_attempt_count > 0 && (
-          <span className="text-[10px] text-white/40">attempt #{pitch.moderation_attempt_count}</span>
-        )}
+      </button>
+      {open && <div className="px-3 pb-3 pt-1">{children}</div>}
+    </div>
+  );
+}
+
+function ModerationReport({ pitch }) {
+  if (!pitch) return null;
+
+  const summary = pitch.moderation_summary || pitch.moderation_reason;
+  const categories = (Array.isArray(pitch.moderation_categories) ? pitch.moderation_categories : [])
+    .filter((c) => c && c.flagged !== false);
+  const reasons = Array.isArray(pitch.moderation_reasons) ? pitch.moderation_reasons : [];
+  const visual = pitch.visual_moderation_result || pitch.mux_moderation_result;
+  const scores = pitch.moderation_scores || {};
+  const hasVisual = pitch.visual_moderation_status && pitch.visual_moderation_status !== "not_applicable";
+  const hasTranscript = pitch.transcript_moderation_status && pitch.transcript_moderation_status !== "not_applicable";
+
+  const verdictStyle = {
+    approved:      { bg: "linear-gradient(135deg, rgba(74,222,128,0.15), rgba(74,222,128,0.05))", border: "rgba(74,222,128,0.35)", fg: "#86efac", label: "Approved" },
+    needs_review:  { bg: "linear-gradient(135deg, rgba(248,113,113,0.15), rgba(248,113,113,0.05))", border: "rgba(248,113,113,0.35)", fg: "#fca5a5", label: "Needs review" },
+    rejected:      { bg: "linear-gradient(135deg, rgba(115,115,115,0.15), rgba(115,115,115,0.05))", border: "rgba(115,115,115,0.35)", fg: "rgba(255,255,255,0.7)", label: "Rejected" },
+    failed:        { bg: "linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))", border: "rgba(251,191,36,0.35)", fg: "#fcd34d", label: "Failed" },
+    processing:    { bg: "linear-gradient(135deg, rgba(96,165,250,0.15), rgba(96,165,250,0.05))", border: "rgba(96,165,250,0.35)", fg: "#93c5fd", label: "Processing" },
+    queued:        { bg: "linear-gradient(135deg, rgba(96,165,250,0.15), rgba(96,165,250,0.05))", border: "rgba(96,165,250,0.35)", fg: "#93c5fd", label: "Queued" },
+    not_started:   { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.1)", fg: "rgba(255,255,255,0.5)", label: "Not started" },
+  }[pitch.moderation_state] || { bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.1)", fg: "rgba(255,255,255,0.5)", label: pitch.moderation_state || "—" };
+
+  const shouldAutoOpen = pitch.moderation_state === "needs_review" || pitch.moderation_state === "rejected";
+
+  return (
+    <div className="mt-3 space-y-2.5">
+      {/* Verdict banner */}
+      <div className="rounded-xl p-3.5"
+        style={{ background: verdictStyle.bg, border: `1px solid ${verdictStyle.border}` }}>
+        <div className="flex items-baseline justify-between gap-3 mb-1.5">
+          <p className="text-lg font-black tracking-tight" style={{ color: verdictStyle.fg }}>
+            {verdictStyle.label}
+          </p>
+          {typeof pitch.moderation_attempt_count === "number" && pitch.moderation_attempt_count > 0 && (
+            <span className="text-[10px] text-white/40 font-mono">attempt {pitch.moderation_attempt_count}</span>
+          )}
+        </div>
+        {summary && <p className="text-xs text-white/70 leading-relaxed">{summary}</p>}
       </div>
 
-      {summary && (
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-0.5">Summary</p>
-          <p className="text-sm text-white/80 leading-relaxed">{summary}</p>
-        </div>
-      )}
-
-      {/* Per-channel status */}
-      <div>
-        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Per-channel status</p>
-        <div className="flex flex-wrap gap-1.5">
-          {["text_moderation", "visual_moderation_status", "transcript_moderation_status", "transcript_status", "media_status"].map((k) => {
-            const label = { text_moderation: "text", visual_moderation_status: "visual", transcript_moderation_status: "transcript", transcript_status: "captions", media_status: "media" }[k];
-            const value = k === "text_moderation" ? "run" : pitch[k];
-            if (!value) return null;
-            return (
-              <span key={k} className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-semibold ${chipColor(value)}`}>
-                {label}: {value}
-              </span>
-            );
-          })}
-        </div>
+      {/* Channel row — only shows the ones that actually ran */}
+      <div className="flex gap-2">
+        <ChannelDot label="Text" state={pitch.moderation_state === "not_started" ? "not_applicable" : "approved"} />
+        {hasTranscript && <ChannelDot label="Transcript" state={pitch.transcript_moderation_status} />}
+        {hasVisual && <ChannelDot label="Visual (Mux)" state={pitch.visual_moderation_status} />}
       </div>
 
-      {/* Category flags */}
+      {/* Findings */}
       {categories.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Flagged categories</p>
+        <Collapsible title="Flagged categories" count={categories.length} defaultOpen={shouldAutoOpen}>
           <div className="space-y-1.5">
-            {categories.map((c, i) => (
-              <div key={i} className="rounded-lg px-2.5 py-1.5"
-                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {c.channel && <span className="text-[9px] uppercase tracking-wider text-white/35">{c.channel}</span>}
-                  <span className="text-xs font-semibold text-white/90">{c.category}</span>
-                  {c.severity && <span className={`text-[10px] font-semibold uppercase ${sevColor(c.severity)}`}>{c.severity}</span>}
-                  {typeof c.confidence === "number" && (
-                    <span className="text-[10px] text-white/40">conf {c.confidence.toFixed(2)}</span>
+            {categories.map((c, i) => {
+              const sev = c.severity === "high" ? { fg: "text-red-300", bg: "bg-red-500/15" }
+                        : c.severity === "medium" ? { fg: "text-amber-300", bg: "bg-amber-500/15" }
+                        : { fg: "text-white/50", bg: "bg-white/[0.06]" };
+              return (
+                <div key={i} className="rounded-lg px-3 py-2"
+                  style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-sm font-semibold text-white/90">{c.category}</span>
+                    {c.severity && (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-semibold tracking-wider ${sev.fg} ${sev.bg}`}>
+                        {c.severity}
+                      </span>
+                    )}
+                    {c.channel && (
+                      <span className="text-[9px] text-white/30 uppercase tracking-wider ml-auto">
+                        via {c.channel}
+                      </span>
+                    )}
+                  </div>
+                  {c.explanation && (
+                    <p className="text-xs text-white/60 leading-relaxed">{c.explanation}</p>
+                  )}
+                  {Array.isArray(c.evidence) && c.evidence.length > 0 && (
+                    <div className="mt-1.5 space-y-1">
+                      {c.evidence.map((e, j) => (
+                        <p key={j} className="text-[11px] text-white/50 italic pl-2 border-l-2 border-red-500/30">
+                          "{e}"
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {Array.isArray(c.timestamps) && c.timestamps.length > 0 && (
+                    <p className="text-[10px] text-white/40 mt-1.5 font-mono">
+                      {c.timestamps.map((t) => formatTimestamp(t)).join(" · ")}
+                    </p>
                   )}
                 </div>
-                {c.explanation && <p className="text-xs text-white/60 mt-1">{c.explanation}</p>}
-                {Array.isArray(c.evidence) && c.evidence.length > 0 && (
-                  <ul className="mt-1 space-y-0.5">
-                    {c.evidence.map((e, j) => (
-                      <li key={j} className="text-[11px] text-white/50 italic border-l-2 border-white/15 pl-2">"{e}"</li>
-                    ))}
-                  </ul>
-                )}
-                {Array.isArray(c.timestamps) && c.timestamps.length > 0 && (
-                  <p className="text-[11px] text-white/40 mt-1">
-                    Video timestamps: {c.timestamps.map((t) => formatTimestamp(t)).join(", ")}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
+        </Collapsible>
       )}
 
-      {/* Guidebook violations */}
       {reasons.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Guidebook violations</p>
+        <Collapsible title="Guidebook violations" count={reasons.length} defaultOpen={shouldAutoOpen}>
           <div className="space-y-1.5">
             {reasons.map((r, i) => (
-              <div key={i} className="rounded-lg px-2.5 py-1.5"
-                style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
-                {r.rule && <p className="text-xs font-semibold text-red-300">{r.rule}</p>}
-                {r.explanation && <p className="text-xs text-white/70 mt-0.5">{r.explanation}</p>}
+              <div key={i} className="rounded-lg px-3 py-2"
+                style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.18)" }}>
+                {r.rule && <p className="text-xs font-semibold text-red-300 mb-0.5">{r.rule}</p>}
+                {r.explanation && <p className="text-xs text-white/70 leading-relaxed">{r.explanation}</p>}
                 {Array.isArray(r.evidence) && r.evidence.length > 0 && (
-                  <ul className="mt-1 space-y-0.5">
+                  <div className="mt-1.5 space-y-1">
                     {r.evidence.map((e, j) => (
-                      <li key={j} className="text-[11px] text-white/50 italic border-l-2 border-white/15 pl-2">"{e}"</li>
+                      <p key={j} className="text-[11px] text-white/50 italic pl-2 border-l-2 border-red-500/30">
+                        "{e}"
+                      </p>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             ))}
           </div>
-        </div>
+        </Collapsible>
       )}
 
-      {/* Mux visual scores */}
-      {(visual || scores.visual) && (
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Mux Robots visual scores</p>
-          <div className="rounded-lg px-2.5 py-1.5 text-xs text-white/60"
-            style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      {(scores.visual || visual) && (
+        <Collapsible title="Mux Robots scores" count={visual?.flagged_thumbnails?.length || 0}>
+          <div className="text-xs text-white/70 space-y-1.5">
             {scores.visual && (
-              <p>
-                Max scores — sexual: <span className="text-white/90 font-mono">{Number(scores.visual.sexual ?? 0).toFixed(3)}</span>,
-                {" "}violence: <span className="text-white/90 font-mono">{Number(scores.visual.violence ?? 0).toFixed(3)}</span>
-              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg px-2.5 py-1.5" style={{ background: "rgba(0,0,0,0.2)" }}>
+                  <p className="text-[9px] uppercase tracking-widest text-white/40">Sexual</p>
+                  <p className="text-sm font-mono text-white/90">{Number(scores.visual.sexual ?? 0).toFixed(3)}</p>
+                </div>
+                <div className="rounded-lg px-2.5 py-1.5" style={{ background: "rgba(0,0,0,0.2)" }}>
+                  <p className="text-[9px] uppercase tracking-widest text-white/40">Violence</p>
+                  <p className="text-sm font-mono text-white/90">{Number(scores.visual.violence ?? 0).toFixed(3)}</p>
+                </div>
+              </div>
             )}
             {visual?.flagged_thumbnails?.length > 0 && (
-              <p className="mt-1 text-white/50">
-                Flagged frames at: {visual.flagged_thumbnails.map((t) => formatTimestamp(t.time || 0)).join(", ")}
+              <p className="text-[11px] text-white/50">
+                Flagged frames: <span className="font-mono">{visual.flagged_thumbnails.map((t) => formatTimestamp(t.time || 0)).join(" · ")}</span>
               </p>
             )}
-            {visual?.job_id && (
-              <p className="mt-1 text-[10px] text-white/30">Mux Robots job: {visual.job_id}</p>
-            )}
-            {pitch.mux_moderation_job_id && !visual?.job_id && (
-              <p className="mt-1 text-[10px] text-white/30">Mux Robots job: {pitch.mux_moderation_job_id}</p>
+            {(visual?.job_id || pitch.mux_moderation_job_id) && (
+              <p className="text-[10px] text-white/30 font-mono break-all">
+                job: {visual?.job_id || pitch.mux_moderation_job_id}
+              </p>
             )}
           </div>
-        </div>
+        </Collapsible>
       )}
 
-      {/* Transcript preview */}
       {pitch.transcript && (
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <p className="text-[10px] uppercase tracking-widest text-white/40">Transcript</p>
-            {pitch.transcript_language && (
-              <span className="text-[10px] text-white/30">({pitch.transcript_language})</span>
-            )}
-          </div>
-          <div className="rounded-lg px-2.5 py-1.5 max-h-40 overflow-y-auto text-xs text-white/60 whitespace-pre-wrap"
-            style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <Collapsible title={`Transcript${pitch.transcript_language ? ` (${pitch.transcript_language})` : ""}`}>
+          <div className="max-h-40 overflow-y-auto no-scrollbar text-xs text-white/65 leading-relaxed whitespace-pre-wrap"
+            style={{ background: "rgba(0,0,0,0.25)", borderRadius: "0.5rem", padding: "0.5rem 0.75rem" }}>
             {pitch.transcript}
           </div>
-        </div>
+        </Collapsible>
       )}
 
-      {/* Errors and lifecycle */}
       {(pitch.moderation_last_error || pitch.transcript_last_error) && (
-        <div>
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Errors</p>
+        <div className="rounded-xl px-3 py-2"
+          style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)" }}>
+          <p className="text-[10px] uppercase tracking-widest text-amber-300/70 font-semibold mb-1">Pipeline error</p>
           {pitch.moderation_last_error && (
-            <p className="text-xs text-amber-300 font-mono break-all">{pitch.moderation_last_error}</p>
+            <p className="text-xs text-amber-200/90 font-mono break-all">{pitch.moderation_last_error}</p>
           )}
           {pitch.transcript_last_error && (
-            <p className="text-xs text-amber-300 font-mono break-all mt-1">Transcript: {pitch.transcript_last_error}</p>
+            <p className="text-xs text-amber-200/90 font-mono break-all mt-1">
+              Transcript: {pitch.transcript_last_error}
+            </p>
           )}
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 text-[10px] text-white/35 pt-1 border-t border-white/5">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-white/30 px-1">
         {pitch.moderation_started_at && (
           <span>Started {new Date(pitch.moderation_started_at).toLocaleString()}</span>
         )}
@@ -340,7 +381,7 @@ function ModerationReport({ pitch }) {
           <span>Completed {new Date(pitch.moderation_completed_at).toLocaleString()}</span>
         )}
         {pitch.moderation_next_attempt_at && !pitch.moderation_completed_at && (
-          <span>Next retry {new Date(pitch.moderation_next_attempt_at).toLocaleString()}</span>
+          <span>Retry {new Date(pitch.moderation_next_attempt_at).toLocaleString()}</span>
         )}
       </div>
     </div>
@@ -1927,9 +1968,12 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Scrollable content — everything below the sticky header scrolls together */}
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+
             {/* Moderation review panel — visible when the pitch is flagged, pending, errored, or already-reviewed */}
             {selectedPitch.moderation_status && selectedPitch.moderation_status !== "approved" && (
-              <div className="mx-4 sm:mx-7 mb-3 rounded-xl p-3 flex-shrink-0"
+              <div className="mx-4 sm:mx-7 mb-3 rounded-xl p-3"
                 style={{
                   background: selectedPitch.moderation_status === "flagged" ? "rgba(239, 68, 68, 0.08)" : "rgba(255,255,255,0.03)",
                   border: `1px solid ${selectedPitch.moderation_status === "flagged" ? "rgba(239, 68, 68, 0.25)" : "rgba(255,255,255,0.06)"}`,
@@ -1946,44 +1990,6 @@ export default function AdminPage() {
                     </div>
                     {selectedPitch.moderation_reason && (
                       <p className="text-xs text-white/60 mb-2">{selectedPitch.moderation_reason}</p>
-                    )}
-                    {Array.isArray(selectedPitch.moderation_flags) && selectedPitch.moderation_flags.length > 0 && (
-                      <div className="space-y-2 mt-2">
-                        {selectedPitch.moderation_flags.map((f, i) => (
-                          <div key={i} className="flex items-start gap-3 rounded-lg p-2"
-                            style={{ background: "rgba(0,0,0,0.2)" }}>
-                            {f.frame_url && (
-                              <img src={f.frame_url} alt="" className="w-20 h-12 object-cover rounded flex-shrink-0"
-                                style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
-                                  style={{
-                                    background: f.severity === "high" ? "rgba(239,68,68,0.2)" : f.severity === "medium" ? "rgba(251,146,60,0.2)" : "rgba(255,255,255,0.05)",
-                                    color: f.severity === "high" ? "#fca5a5" : f.severity === "medium" ? "#fdba74" : "rgba(255,255,255,0.5)",
-                                  }}>
-                                  {f.severity || "medium"}
-                                </span>
-                                <span className="text-[10px] text-white/50 uppercase tracking-wide">{f.category}</span>
-                                {typeof f.timestamp_sec === "number" && selectedPitch.mux_playback_id && (
-                                  <button
-                                    onClick={() => seekMuxPlayer(f.timestamp_sec)}
-                                    className="text-[10px] font-semibold text-maize hover:text-yellow-300 transition-colors"
-                                    title="Jump to timestamp"
-                                  >
-                                    Jump to {formatTimestamp(f.timestamp_sec)}
-                                  </button>
-                                )}
-                              </div>
-                              {f.reason && <p className="text-xs text-white/70 leading-snug">{f.reason}</p>}
-                              {f.excerpt && (
-                                <p className="text-[11px] text-white/45 italic mt-1 line-clamp-2">&ldquo;{f.excerpt}&rdquo;</p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                     )}
                     {selectedPitch.moderation_reviewed_by && (
                       <p className="text-[10px] text-white/30 mt-2">
@@ -2025,9 +2031,7 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
-                {/* Full v2 moderation report */}
                 <ModerationReport pitch={selectedPitch} />
-                {/* Internal note textarea + save */}
                 <ModerationNoteEditor
                   pitch={selectedPitch}
                   onSave={(note) => handleModerationAction(selectedPitch.id, "add_note", note)}
@@ -2036,10 +2040,9 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Body — flex column on mobile, row on desktop */}
-            <div className="flex-1 flex flex-col md:flex-row min-h-0 px-4 sm:px-7 pb-5 sm:pb-6 gap-4 md:gap-6 overflow-y-auto md:overflow-visible">
-              {/* Left: media + description */}
-              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+            {/* Body — flex column on mobile, row on desktop. Parent wrapper handles scrolling. */}
+            <div className="flex flex-col md:flex-row px-4 sm:px-7 pb-5 sm:pb-6 gap-4 md:gap-6">
+              <div className="flex-1 flex flex-col min-w-0">
                 {selectedPitch.file_type === "video" && selectedPitch.mux_playback_id && (
                   <div className="rounded-xl overflow-hidden flex-shrink-0 mb-4" style={{ maxHeight: "45vh" }}>
                     <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517" style={{ width: "100%", maxHeight: "45vh" }} />
@@ -2048,12 +2051,24 @@ export default function AdminPage() {
                 {selectedPitch.file_type === "video" && !selectedPitch.mux_playback_id && (
                   <div className="mb-4 flex items-center justify-center h-32 rounded-xl flex-shrink-0"
                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <p className={`text-sm ${selectedPitch.mux_error ? "text-red-400" : "text-white/30"}`}>{selectedPitch.mux_error || `Video is ${selectedPitch.mux_status || "processing"}...`}</p>
+                    <p className={`text-sm ${selectedPitch.mux_error ? "text-red-400" : "text-white/30"}`}>
+                      {selectedPitch.mux_error || `Video is ${selectedPitch.mux_status || "processing"}...`}
+                    </p>
                   </div>
                 )}
 
-                {/* Audio player */}
-                {typeLabel(selectedPitch) === "Audio" && selectedPitch.file_path && (
+                {/* Audio — Mux-backed */}
+                {(typeLabel(selectedPitch) === "Audio" || selectedPitch.file_type === "audio") && selectedPitch.mux_playback_id && (
+                  <div className="mb-4 flex-shrink-0 flex items-center gap-3 rounded-xl p-3"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    {selectedPitch.thumbnail_path && (
+                      <img src={selectedPitch.thumbnail_path} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                    )}
+                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517" audio style={{ width: "100%" }} />
+                  </div>
+                )}
+                {/* Audio — legacy Supabase-hosted */}
+                {(typeLabel(selectedPitch) === "Audio" || selectedPitch.file_type === "audio") && !selectedPitch.mux_playback_id && selectedPitch.file_path && (
                   <div className="mb-4 flex-shrink-0 flex items-center gap-3 rounded-xl p-3"
                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     {selectedPitch.thumbnail_path && (
@@ -2061,20 +2076,26 @@ export default function AdminPage() {
                     )}
                     <audio controls className="w-full" style={{ filter: "invert(1) hue-rotate(180deg)", opacity: 0.75 }}>
                       <source src={`/api/gallery/stream-audio?path=${encodeURIComponent(selectedPitch.file_path)}`} />
-                      Your browser doesn't support audio playback.
                     </audio>
                   </div>
                 )}
+                {/* Audio — processing */}
+                {(typeLabel(selectedPitch) === "Audio" || selectedPitch.file_type === "audio") && !selectedPitch.mux_playback_id && !selectedPitch.file_path && (
+                  <div className="mb-4 flex items-center justify-center h-20 rounded-xl flex-shrink-0"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className={`text-sm ${selectedPitch.mux_error ? "text-red-400" : "text-white/30"}`}>
+                      {selectedPitch.mux_error || `Audio is ${selectedPitch.mux_status || "processing"}...`}
+                    </p>
+                  </div>
+                )}
 
-                {/* Thumbnail (fallback, only for non-audio, non-video) */}
                 {selectedPitch.thumbnail_path && !selectedPitch.mux_playback_id && typeLabel(selectedPitch) !== "Audio" && (
                   <div className="mb-4 flex-shrink-0">
                     <img src={selectedPitch.thumbnail_path} alt="Thumbnail" className="max-h-32 rounded-xl object-cover" style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
                   </div>
                 )}
 
-                {/* Scrollable text area (description + pitch text together) */}
-                <div className="flex-1 min-h-0 overflow-y-auto pr-2" style={{ scrollbarWidth: "thin" }}>
+                <div>
                   <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Description</p>
                   <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap break-words">
                     {selectedPitch.description ? (
@@ -2095,33 +2116,17 @@ export default function AdminPage() {
                       ) : (
                         <div className="rounded-xl p-3 text-sm text-white/55 leading-relaxed"
                           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                          <HighlightedText
-                            text={extractedAdminText || selectedPitch.text_content || ""}
-                            flags={selectedPitch.moderation_flags}
-                          />
+                          <HighlightedText text={extractedAdminText || selectedPitch.text_content || ""} flags={selectedPitch.moderation_flags} />
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {selectedPitch.moderation_transcript && (
-                    <div className="mt-4">
-                      <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Transcript (auto-generated)</p>
-                      <div className="rounded-xl p-3 text-sm text-white/55 leading-relaxed"
-                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                        <HighlightedText
-                          text={selectedPitch.moderation_transcript}
-                          flags={selectedPitch.moderation_flags}
-                        />
-                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Right sidebar */}
-              <div className="w-full md:w-64 flex-shrink-0 flex flex-col min-h-0 space-y-4">
-                <div className="space-y-3 flex-shrink-0">
+              {/* Sidebar */}
+              <div className="w-full md:w-64 flex-shrink-0 flex flex-col space-y-4">
+                <div className="space-y-3">
                   {[
                     { l: "Schools", v: (selectedPitch.schools || []).join(", ") || "None" },
                     { l: "File", v: selectedPitch.file_name || "None" },
@@ -2129,6 +2134,76 @@ export default function AdminPage() {
                     <div key={l}>
                       <p className="text-[10px] text-white/25 uppercase tracking-widest mb-0.5">{l}</p>
                       <p className="text-xs text-white/50 truncate">{v}</p>
+                    </div>
+                  ))}
+                </div>
+                {selectedPitch.tags?.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Tags</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedPitch.tags.map((tag) => (
+                        <span key={tag.id} className="px-2 py-0.5 text-[11px] rounded-md font-medium"
+                          style={{ background: "rgba(242,181,23,0.1)", color: "rgba(242,181,23,0.7)" }}>{tag.name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] text-white/25 uppercase tracking-widest mb-1.5">Votes ({selectedPitch.vote_count || 0})</p>
+                  {selectedPitch.votes?.length > 0 ? (
+                    <div className="rounded-xl divide-y divide-white/[0.03]"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      {selectedPitch.votes.slice(0, 6).map((vote, idx) => (
+                        <div key={`${vote.created_at}-${idx}`} className="px-3 py-1.5">
+                          <p className="text-xs text-white/50 truncate">{vote.voter_name || vote.voter_email || "Unknown"}</p>
+                          <p className="text-[10px] text-white/20">{new Date(vote.created_at).toLocaleString()}</p>
+                        </div>
+                      ))}
+                      {selectedPitch.votes.length > 6 && (
+                        <div className="px-3 py-1.5"><p className="text-[10px] text-white/25">+{selectedPitch.votes.length - 6} more</p></div>
+                      )}
+                    </div>
+                  ) : <p className="text-xs text-white/25">No votes yet.</p>}
+                </div>
+                <button onClick={() => setDeleteConfirm(selectedPitch.id)}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10"
+                  style={{ border: "1px solid rgba(239,68,68,0.2)" }}>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete Pitch
+                </button>
+              </div>
+            </div>
+
+            </div>{/* end scrollable content */}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DELETE CONFIRM ═══ */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4" onClick={() => setDeleteConfirm(null)}>
+          <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "rgba(11,26,59,0.95)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Delete Pitch?</h3>
+            <p className="text-sm text-white/40 mb-6">This permanently removes the pitch, its votes, tags, and files.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:text-white/70 transition-colors">Cancel</button>
+              <button onClick={() => handleDeletePitch(deleteConfirm)} disabled={deletingPitchId === deleteConfirm}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-500 transition-colors disabled:opacity-50">
+                {deletingPitchId === deleteConfirm ? "Deleting..." : "Delete Pitch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+text-xs text-white/50 truncate">{v}</p>
                     </div>
                   ))}
                 </div>
@@ -2168,6 +2243,8 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+
+            </div>{/* end scrollable content */}
           </div>
         </div>
       )}
