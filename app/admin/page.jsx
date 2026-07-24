@@ -150,6 +150,203 @@ function formatTimestamp(seconds) {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+// ─── Full moderation report ──────────────────────────────────────
+// Renders every v2 moderation field: per-channel status, category flags
+// with evidence, guidebook violations, Mux visual scores, transcript,
+// attempt info, and the current admin-visible summary.
+function ModerationReport({ pitch }) {
+  if (!pitch) return null;
+  const summary = pitch.moderation_summary || pitch.moderation_reason;
+  const categories = Array.isArray(pitch.moderation_categories)
+    ? pitch.moderation_categories : [];
+  const reasons = Array.isArray(pitch.moderation_reasons)
+    ? pitch.moderation_reasons : [];
+  const visual = pitch.visual_moderation_result || pitch.mux_moderation_result;
+  const transcriptRes = pitch.transcript_moderation_result;
+  const scores = pitch.moderation_scores || {};
+
+  const chipColor = (state) => {
+    switch (state) {
+      case "approved": return "bg-green-500/10 text-green-300 border border-green-500/25";
+      case "needs_review": return "bg-red-500/10 text-red-300 border border-red-500/25";
+      case "rejected": return "bg-white/[0.05] text-white/50 border border-white/10";
+      case "failed": return "bg-amber-500/10 text-amber-300 border border-amber-500/25";
+      case "processing": case "queued": return "bg-blue-500/10 text-blue-300 border border-blue-500/25";
+      default: return "bg-white/[0.04] text-white/40 border border-white/10";
+    }
+  };
+  const sevColor = (sev) => sev === "high" ? "text-red-300"
+    : sev === "medium" ? "text-amber-300"
+    : "text-white/50";
+
+  return (
+    <div className="mt-3 rounded-xl p-3.5 space-y-3"
+      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[10px] uppercase tracking-widest text-white/40 font-semibold">Moderation report</p>
+        {pitch.moderation_state && (
+          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-semibold ${chipColor(pitch.moderation_state)}`}>
+            state: {pitch.moderation_state}
+          </span>
+        )}
+        {typeof pitch.moderation_attempt_count === "number" && pitch.moderation_attempt_count > 0 && (
+          <span className="text-[10px] text-white/40">attempt #{pitch.moderation_attempt_count}</span>
+        )}
+      </div>
+
+      {summary && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-0.5">Summary</p>
+          <p className="text-sm text-white/80 leading-relaxed">{summary}</p>
+        </div>
+      )}
+
+      {/* Per-channel status */}
+      <div>
+        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Per-channel status</p>
+        <div className="flex flex-wrap gap-1.5">
+          {["text_moderation", "visual_moderation_status", "transcript_moderation_status", "transcript_status", "media_status"].map((k) => {
+            const label = { text_moderation: "text", visual_moderation_status: "visual", transcript_moderation_status: "transcript", transcript_status: "captions", media_status: "media" }[k];
+            const value = k === "text_moderation" ? "run" : pitch[k];
+            if (!value) return null;
+            return (
+              <span key={k} className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-semibold ${chipColor(value)}`}>
+                {label}: {value}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Category flags */}
+      {categories.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Flagged categories</p>
+          <div className="space-y-1.5">
+            {categories.map((c, i) => (
+              <div key={i} className="rounded-lg px-2.5 py-1.5"
+                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {c.channel && <span className="text-[9px] uppercase tracking-wider text-white/35">{c.channel}</span>}
+                  <span className="text-xs font-semibold text-white/90">{c.category}</span>
+                  {c.severity && <span className={`text-[10px] font-semibold uppercase ${sevColor(c.severity)}`}>{c.severity}</span>}
+                  {typeof c.confidence === "number" && (
+                    <span className="text-[10px] text-white/40">conf {c.confidence.toFixed(2)}</span>
+                  )}
+                </div>
+                {c.explanation && <p className="text-xs text-white/60 mt-1">{c.explanation}</p>}
+                {Array.isArray(c.evidence) && c.evidence.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {c.evidence.map((e, j) => (
+                      <li key={j} className="text-[11px] text-white/50 italic border-l-2 border-white/15 pl-2">"{e}"</li>
+                    ))}
+                  </ul>
+                )}
+                {Array.isArray(c.timestamps) && c.timestamps.length > 0 && (
+                  <p className="text-[11px] text-white/40 mt-1">
+                    Video timestamps: {c.timestamps.map((t) => formatTimestamp(t)).join(", ")}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Guidebook violations */}
+      {reasons.length > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Guidebook violations</p>
+          <div className="space-y-1.5">
+            {reasons.map((r, i) => (
+              <div key={i} className="rounded-lg px-2.5 py-1.5"
+                style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                {r.rule && <p className="text-xs font-semibold text-red-300">{r.rule}</p>}
+                {r.explanation && <p className="text-xs text-white/70 mt-0.5">{r.explanation}</p>}
+                {Array.isArray(r.evidence) && r.evidence.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {r.evidence.map((e, j) => (
+                      <li key={j} className="text-[11px] text-white/50 italic border-l-2 border-white/15 pl-2">"{e}"</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mux visual scores */}
+      {(visual || scores.visual) && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Mux Robots visual scores</p>
+          <div className="rounded-lg px-2.5 py-1.5 text-xs text-white/60"
+            style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {scores.visual && (
+              <p>
+                Max scores — sexual: <span className="text-white/90 font-mono">{Number(scores.visual.sexual ?? 0).toFixed(3)}</span>,
+                {" "}violence: <span className="text-white/90 font-mono">{Number(scores.visual.violence ?? 0).toFixed(3)}</span>
+              </p>
+            )}
+            {visual?.flagged_thumbnails?.length > 0 && (
+              <p className="mt-1 text-white/50">
+                Flagged frames at: {visual.flagged_thumbnails.map((t) => formatTimestamp(t.time || 0)).join(", ")}
+              </p>
+            )}
+            {visual?.job_id && (
+              <p className="mt-1 text-[10px] text-white/30">Mux Robots job: {visual.job_id}</p>
+            )}
+            {pitch.mux_moderation_job_id && !visual?.job_id && (
+              <p className="mt-1 text-[10px] text-white/30">Mux Robots job: {pitch.mux_moderation_job_id}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Transcript preview */}
+      {pitch.transcript && (
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-[10px] uppercase tracking-widest text-white/40">Transcript</p>
+            {pitch.transcript_language && (
+              <span className="text-[10px] text-white/30">({pitch.transcript_language})</span>
+            )}
+          </div>
+          <div className="rounded-lg px-2.5 py-1.5 max-h-40 overflow-y-auto text-xs text-white/60 whitespace-pre-wrap"
+            style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {pitch.transcript}
+          </div>
+        </div>
+      )}
+
+      {/* Errors and lifecycle */}
+      {(pitch.moderation_last_error || pitch.transcript_last_error) && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Errors</p>
+          {pitch.moderation_last_error && (
+            <p className="text-xs text-amber-300 font-mono break-all">{pitch.moderation_last_error}</p>
+          )}
+          {pitch.transcript_last_error && (
+            <p className="text-xs text-amber-300 font-mono break-all mt-1">Transcript: {pitch.transcript_last_error}</p>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 text-[10px] text-white/35 pt-1 border-t border-white/5">
+        {pitch.moderation_started_at && (
+          <span>Started {new Date(pitch.moderation_started_at).toLocaleString()}</span>
+        )}
+        {pitch.moderation_completed_at && (
+          <span>Completed {new Date(pitch.moderation_completed_at).toLocaleString()}</span>
+        )}
+        {pitch.moderation_next_attempt_at && !pitch.moderation_completed_at && (
+          <span>Next retry {new Date(pitch.moderation_next_attempt_at).toLocaleString()}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Internal notes editor for the moderation panel.
 // Notes are admin-visible only and stored in `moderation_admin_notes`.
 function ModerationNoteEditor({ pitch, onSave, saving }) {
@@ -1828,6 +2025,8 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
+                {/* Full v2 moderation report */}
+                <ModerationReport pitch={selectedPitch} />
                 {/* Internal note textarea + save */}
                 <ModerationNoteEditor
                   pitch={selectedPitch}
