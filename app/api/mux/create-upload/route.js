@@ -54,11 +54,16 @@ export async function POST(request) {
         passthrough: pitchId,
         playback_policies: ["public"],
         video_quality: "basic",
-        // Auto-generate English subtitles so the moderation pipeline has a
-        // transcript for both video AND audio pitches. Mux runs the same
-        // caption generator on audio-only assets.
-        generated_subtitles: [
-          { language_code: "en", name: "English (auto)" },
+        // Mux direct uploads expect generated subtitles under the first
+        // input entry, not as a top-level asset field. Without this shape
+        // Mux silently creates the asset without captions, leaving video
+        // moderation stuck waiting on a transcript.
+        inputs: [
+          {
+            generated_subtitles: [
+              { language_code: "en", name: "English (auto)" },
+            ],
+          },
         ],
       },
     });
