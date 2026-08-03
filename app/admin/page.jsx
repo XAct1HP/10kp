@@ -335,6 +335,12 @@ function ModerationReport({ pitch }) {
                 </div>
               </div>
             )}
+            {!scores.visual && visual?.summary && (
+              <div className="rounded-lg px-2.5 py-2"
+                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <p className="text-[11px] text-white/65 leading-relaxed">{visual.summary}</p>
+              </div>
+            )}
             {visual?.flagged_thumbnails?.length > 0 && (
               <p className="text-[11px] text-white/50">
                 Flagged frames: <span className="font-mono">{visual.flagged_thumbnails.map((t) => formatTimestamp(t.time || 0)).join(" · ")}</span>
