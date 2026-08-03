@@ -349,27 +349,26 @@ export default function IntakePage() {
       }
       // If text-only, no file to upload — pitch is already created with text_content
 
-      // Kick off content moderation. Fire and forget — the pipeline runs in the
-      // background on the server. For video, the Mux webhook will trigger it
-      // when the asset is ready; this call is still fine because the API route
-      // short-circuits for video pitches.
+      // Kick off content moderation before we show success so text/document
+      // pitches do not get stranded in `not_started` if the client leaves the
+      // page immediately after submitting.
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
-          fetch("/api/intake/moderate", {
+          const moderationRes = await fetch("/api/intake/moderate", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({ pitchId: pitch.id }),
-          }).catch(() => {
-            // Non-fatal — the pitch still lives in the DB as 'pending' and
-            // will get picked up by admins or a retry.
           });
+          if (!moderationRes.ok) {
+            console.warn("Initial moderation handoff failed", { pitchId: pitch.id, status: moderationRes.status });
+          }
         }
       } catch {
-        /* ignore */
+        // Non-fatal — the reconciler can recover stranded rows.
       }
 
       setSubmittedVideoUpload(isMuxUpload);

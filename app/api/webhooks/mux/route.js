@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { getMuxClient, getMuxWebhookSecret } from "../../../../lib/mux";
 import {
-  runModerationInBackground,
-  markMediaStatus,
+  enqueueForModeration,
+  runModeration,
 } from "../../../../lib/moderation/pipeline";
 import { MEDIA_STATUS } from "../../../../lib/moderation/types";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../../../../lib/moderation/webhook-idempotency";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -131,6 +132,19 @@ async function updatePitch(supabaseAdmin, pitchId, update) {
   return data;
 }
 
+async function kickModeration(pitchId, source) {
+  await enqueueForModeration(pitchId, { source });
+  try {
+    await runModeration(pitchId);
+  } catch (error) {
+    console.warn("[mux.webhook] moderation run did not finish inline", {
+      pitchId,
+      source,
+      error: error.message,
+    });
+  }
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────
 export async function POST(request) {
   const rawBody = await request.text();
@@ -221,11 +235,11 @@ export async function POST(request) {
           event, identifiers: { ...identifiers, playbackId: playbackId || updated.mux_playback_id },
           pitch: updated, matchedBy,
         }));
-        // Kick moderation once we have a playback ID (and thus can fetch the
-        // transcript). The pipeline is idempotent so a duplicate trigger from
-        // a re-delivered webhook is harmless.
         if (playbackId || updated.mux_playback_id) {
-          runModerationInBackground(updated.id);
+          // Persist moderation progress before this invocation exits so the
+          // row does not get stranded in `processing` if background work is
+          // cut off by the serverless runtime.
+          await kickModeration(updated.id, "mux_webhook_asset_ready");
         }
         break;
       }
@@ -261,7 +275,7 @@ export async function POST(request) {
         // A caption track finished generating. Re-run moderation so the
         // transcript channel picks it up on the next attempt.
         if (pitch.mux_playback_id) {
-          runModerationInBackground(pitch.id);
+          await kickModeration(pitch.id, "mux_webhook_track_ready");
         }
         await writeWebhookLog(supabaseAdmin, buildWebhookLog({
           status: "track_ready",
