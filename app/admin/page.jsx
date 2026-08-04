@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { buildAccountCsv, joinEmailList, parseEmailList, WINNER_SURVEY_URL } from "../../lib/outreach";
 import MuxPlayer from "@mux/mux-player-react";
+import PageBackground from "../../components/PageBackground";
+import adminBg from "../../public/admin_bg.png";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1102,8 +1104,8 @@ export default function AdminPage() {
   );
 
   return (
-    <div className="relative h-[calc(100vh-5rem)] overflow-hidden bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: "url('/admin_bg.png')" }}>
+    <div className="relative h-[calc(100vh-5rem)] overflow-hidden">
+      <PageBackground src={adminBg} priority quality={68} />
       {/* Overlay */}
       <div className="absolute inset-0" style={{ background: "linear-gradient(160deg, rgba(11,26,59,0.92) 0%, rgba(6,14,33,0.88) 50%, rgba(11,26,59,0.94) 100%)" }} />
 

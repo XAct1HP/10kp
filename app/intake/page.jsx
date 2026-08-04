@@ -941,7 +941,7 @@ export default function IntakePage() {
               className={`pointer-events-none select-none object-cover ${layer.state === "outgoing" ? "elevator-bg-fade-out" : ""}`}
               style={{
                 objectPosition: "center 15%",
-                zIndex: layer.state === "active" ? 1 : 0,
+                zIndex: layer.state === "outgoing" ? 1 : 0,
               }}
             />
           ))}

@@ -4,6 +4,8 @@ import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/AuthContext";
+import PageBackground from "../components/PageBackground";
+import homeHero from "../public/10kp_hero_image.png";
 
 function useCountdown(targetDate) {
   const [timeLeft, setTimeLeft] = useState(null);
@@ -70,10 +72,8 @@ export default function Home() {
     : null;
 
   return (
-    <div
-      className="relative min-h-[calc(100vh-5rem)] flex flex-col bg-cover bg-center"
-      style={{ backgroundImage: "url('/10kp_hero_image.png')" }}
-    >
+    <div className="relative min-h-[calc(100vh-5rem)] flex flex-col overflow-hidden">
+      <PageBackground src={homeHero} priority quality={72} />
       {/* Gradient overlay - stronger on mobile for text readability */}
       <div
         className="absolute inset-0 lg:hidden"

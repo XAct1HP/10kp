@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import MuxPlayer from "@mux/mux-player-react";
+import PageBackground from "../../components/PageBackground";
+import adminBg from "../../public/admin_bg.png";
 
 function GlassCard({ children, className = "" }) {
   return (
@@ -227,10 +229,8 @@ export default function AnnouncementsPage() {
   };
 
   return (
-    <div
-      className="relative min-h-[calc(100vh-5rem)] bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: "url('/admin_bg.png')" }}
-    >
+    <div className="relative min-h-[calc(100vh-5rem)] overflow-hidden">
+      <PageBackground src={adminBg} priority quality={68} />
       <div
         className="absolute inset-0"
         style={{

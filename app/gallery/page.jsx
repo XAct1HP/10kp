@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import MuxPlayer from "@mux/mux-player-react";
+import PageBackground from "../../components/PageBackground";
+import galleryHero from "../../public/gallery_hero.png";
 
 const GALLERY_PAGE_SIZE = 200;
 const CARDS_PER_PAGE = 36; // 6 cols x 6 rows on desktop; wraps naturally on smaller screens
@@ -332,9 +334,7 @@ export default function GalleryPage() {
             ═══════════════════════════════════════ */}
         <div className="relative flex-shrink-0 overflow-hidden"
           style={{ height: "clamp(130px, 18vh, 190px)" }}>
-          {/* Background image */}
-          <div className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: "url('/gallery_hero.png')" }} />
+          <PageBackground src={galleryHero} priority quality={68} />
           {/* Gradient overlay matching landing page */}
           <div className="absolute inset-0"
             style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.25) 40%, rgba(6,8,16,0.85) 85%, rgba(6,8,16,1) 100%)" }} />

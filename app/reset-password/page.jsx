@@ -6,6 +6,8 @@ import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import PageBackground from "../../components/PageBackground";
+import loginBg from "../../public/login-bg.png";
 
 export default function ResetPasswordPage() {
   const { updatePassword } = useAuth();
@@ -118,10 +120,8 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div
-      className="relative min-h-[calc(100vh-5rem)] flex items-center justify-end bg-cover bg-center"
-      style={{ backgroundImage: "url('/login-bg.png')" }}
-    >
+    <div className="relative min-h-[calc(100vh-5rem)] flex items-center justify-end overflow-hidden">
+      <PageBackground src={loginBg} priority quality={68} />
       <div className="relative z-10 w-full max-w-md lg:mr-[8%] px-8 py-12">
         <div className="flex justify-center mb-10">
           <Image
