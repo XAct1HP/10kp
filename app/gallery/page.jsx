@@ -25,6 +25,27 @@ export default function GalleryPage() {
   const [galleryPage, setGalleryPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState([]);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const tagFilterRef = useRef(null);
+
+  // Close tag dropdown on outside click / Escape
+  useEffect(() => {
+    if (!tagFilterOpen) return;
+    const handleClick = (e) => {
+      if (tagFilterRef.current && !tagFilterRef.current.contains(e.target)) {
+        setTagFilterOpen(false);
+      }
+    };
+    const handleKey = (e) => {
+      if (e.key === "Escape") setTagFilterOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [tagFilterOpen]);
 
   const [voting, setVoting] = useState({ maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
   const [voteSubmitting, setVoteSubmitting] = useState({});
@@ -542,7 +563,7 @@ export default function GalleryPage() {
                   border: "1px solid rgba(255,255,255,0.2)",
                 }}
               >
-                <svg className="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-white/70 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
@@ -555,57 +576,103 @@ export default function GalleryPage() {
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="text-white/60 hover:text-white text-lg leading-none px-1"
+                    className="text-white/60 hover:text-white text-lg leading-none px-1 flex-shrink-0"
                     aria-label="Clear search"
                   >
                     &times;
                   </button>
                 )}
-              </div>
-              {availableTags.length > 0 && (
-                <div className="mt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[11px] uppercase tracking-wider text-white/50">
-                      Filter by tag
-                    </span>
-                    {selectedTagIds.length > 0 && (
-                      <button
-                        onClick={() => setSelectedTagIds([])}
-                        className="text-[11px] text-white/50 hover:text-white transition-colors underline underline-offset-2"
+
+                {availableTags.length > 0 && (
+                  <div ref={tagFilterRef} className="relative flex-shrink-0">
+                    <button
+                      onClick={() => setTagFilterOpen((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs font-medium rounded-lg px-2.5 py-1 transition-all duration-150"
+                      style={
+                        selectedTagIds.length > 0
+                          ? {
+                              background: "rgba(242,181,23,0.15)",
+                              border: "1px solid #F2B517",
+                              color: "#F2B517",
+                            }
+                          : {
+                              background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.2)",
+                              color: "rgba(255,255,255,0.8)",
+                            }
+                      }
+                      aria-haspopup="true"
+                      aria-expanded={tagFilterOpen}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 12.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-8.586L3.293 6.707A1 1 0 013 6V4z" />
+                      </svg>
+                      <span>Filter</span>
+                      {selectedTagIds.length > 0 && (
+                        <span
+                          className="inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[16px] h-4 px-1"
+                          style={{ background: "#F2B517", color: "#0B1A3B" }}
+                        >
+                          {selectedTagIds.length}
+                        </span>
+                      )}
+                    </button>
+
+                    {tagFilterOpen && (
+                      <div
+                        className="absolute right-0 top-full mt-2 z-20 rounded-xl p-3 w-64 max-h-80 overflow-y-auto"
+                        style={{
+                          background: "rgba(11,26,59,0.98)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+                          backdropFilter: "blur(12px)",
+                        }}
                       >
-                        Clear
-                      </button>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] uppercase tracking-wider text-white/50">
+                            Filter by tag
+                          </span>
+                          {selectedTagIds.length > 0 && (
+                            <button
+                              onClick={() => setSelectedTagIds([])}
+                              className="text-[11px] text-white/50 hover:text-white transition-colors underline underline-offset-2"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {availableTags.map((tag) => {
+                            const active = selectedTagIds.includes(tag.id);
+                            return (
+                              <button
+                                key={tag.id}
+                                onClick={() => toggleTag(tag.id)}
+                                className="text-xs font-medium rounded-full px-3 py-1 transition-all duration-150"
+                                style={
+                                  active
+                                    ? {
+                                        background: "rgba(242,181,23,0.15)",
+                                        border: "1px solid #F2B517",
+                                        color: "#F2B517",
+                                      }
+                                    : {
+                                        background: "rgba(255,255,255,0.04)",
+                                        border: "1px solid rgba(255,255,255,0.15)",
+                                        color: "rgba(255,255,255,0.7)",
+                                      }
+                                }
+                              >
+                                {tag.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {availableTags.map((tag) => {
-                      const active = selectedTagIds.includes(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          onClick={() => toggleTag(tag.id)}
-                          className="text-xs font-medium rounded-full px-3 py-1 transition-all duration-150"
-                          style={
-                            active
-                              ? {
-                                  background: "rgba(242,181,23,0.15)",
-                                  border: "1px solid #F2B517",
-                                  color: "#F2B517",
-                                }
-                              : {
-                                  background: "rgba(255,255,255,0.04)",
-                                  border: "1px solid rgba(255,255,255,0.15)",
-                                  color: "rgba(255,255,255,0.7)",
-                                }
-                          }
-                        >
-                          {tag.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
               <p className="text-[11px] text-white/50 mt-1.5">
                 Showing {filteredSubmissions.length} of {allSubmissions.length} pitches
               </p>
