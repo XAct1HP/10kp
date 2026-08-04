@@ -5,8 +5,12 @@ const {
   applyAccountFilters,
   buildAccountCsv,
   buildBroadcastText,
+  buildWinnerNotificationText,
+  joinEmailList,
   normalizeAccountScope,
   normalizeConfirmedFilter,
+  parseEmailList,
+  WINNER_SURVEY_URL,
 } = await import("../lib/outreach.js");
 
 const accounts = [
@@ -68,4 +72,24 @@ test("buildBroadcastText appends unsubscribe placeholder", () => {
   const text = buildBroadcastText("Reminder");
   assert.match(text, /Reminder/);
   assert.match(text, /RESEND_UNSUBSCRIBE_URL/);
+});
+
+test("parseEmailList normalizes and deduplicates recipients", () => {
+  const emails = parseEmailList("Foo@umich.edu\nbar@umich.edu, foo@umich.edu");
+  assert.deepEqual(emails, ["foo@umich.edu", "bar@umich.edu"]);
+});
+
+test("joinEmailList appends unique emails", () => {
+  const joined = joinEmailList("foo@umich.edu", ["bar@umich.edu", "foo@umich.edu"]);
+  assert.equal(joined, "foo@umich.edu\nbar@umich.edu");
+});
+
+test("buildWinnerNotificationText includes survey link", () => {
+  const text = buildWinnerNotificationText({
+    prizeLabel: "Weekly Raffle",
+    note: "Please complete this by Friday.",
+  });
+  assert.match(text, /Weekly Raffle/);
+  assert.match(text, new RegExp(WINNER_SURVEY_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(text, /Friday/);
 });

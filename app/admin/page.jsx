@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
-import { buildAccountCsv } from "../../lib/outreach";
+import { buildAccountCsv, joinEmailList, parseEmailList, WINNER_SURVEY_URL } from "../../lib/outreach";
 import MuxPlayer from "@mux/mux-player-react";
 
 async function getToken() {
@@ -463,6 +463,13 @@ export default function AdminPage() {
     message: "Heads up, get your pitch in by 5PM Friday for the upcoming Weekly Raffle!",
   });
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [winnerForm, setWinnerForm] = useState({
+    recipients: "",
+    subject: "You’ve been selected as a 10KP winner",
+    prizeLabel: "10KP winner selection",
+    note: "",
+  });
+  const [winnerSending, setWinnerSending] = useState(false);
   const [broadcastHistory, setBroadcastHistory] = useState([]);
   const [broadcastHistoryLoading, setBroadcastHistoryLoading] = useState(false);
   const [broadcastHistoryEnabled, setBroadcastHistoryEnabled] = useState(true);
@@ -785,6 +792,15 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
     setSuccess("Accounts CSV exported.");
   };
+  const handleAddWinnerEmails = (emails) => {
+    setWinnerForm((prev) => ({
+      ...prev,
+      recipients: joinEmailList(prev.recipients, emails),
+    }));
+  };
+  const handleClearWinnerEmails = () => {
+    setWinnerForm((prev) => ({ ...prev, recipients: "" }));
+  };
   const handleSendBroadcast = async (e) => {
     e.preventDefault();
     setError("");
@@ -806,6 +822,23 @@ export default function AdminPage() {
       setError(e.message);
     } finally {
       setBroadcastSending(false);
+    }
+  };
+  const handleSendWinnerAlert = async (e) => {
+    e.preventDefault();
+    setError("");
+    setWinnerSending(true);
+    try {
+      const data = await apiFetch("/api/admin/accounts/winners", {
+        method: "POST",
+        body: JSON.stringify(winnerForm),
+      });
+      setSuccess(`Winner alert sent to ${data.recipientCount} recipient${data.recipientCount === 1 ? "" : "s"}.`);
+      await fetchBroadcastHistory();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setWinnerSending(false);
     }
   };
   const handleUploadDefThumb = async (type, file) => {
@@ -1043,6 +1076,7 @@ export default function AdminPage() {
   const totalVotes = pitches.reduce((s, p) => s + (p.vote_count || 0), 0);
   const outreachTotalSummary = outreach.summary?.total || { count: 0, submitted: 0, no_pitch: 0, confirmed: 0, unconfirmed: 0, admins: 0 };
   const outreachFilteredSummary = outreach.summary?.filtered || { count: 0, submitted: 0, no_pitch: 0, confirmed: 0, unconfirmed: 0, admins: 0 };
+  const winnerRecipientEmails = parseEmailList(winnerForm.recipients);
   const tabs = [
     { id: "pitches", label: "Pitches", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /> },
     { id: "tags", label: "Tags", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /> },
@@ -1355,7 +1389,7 @@ export default function AdminPage() {
                   </p>
                   <h2 className="text-lg font-bold text-white">Community Outreach</h2>
                   <p className="text-sm text-white/40 mt-2">
-                    Download a filtered account list or send one broadcast to everyone in the current filter set.
+                    Download a filtered account list, send a broad update, or notify selected winners with the payment survey link.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
@@ -1442,6 +1476,9 @@ export default function AdminPage() {
                   </div>
 
                   <form onSubmit={handleSendBroadcast} className="space-y-3 mt-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+                      General broadcast
+                    </p>
                     <input
                       type="text"
                       placeholder="Email subject"
@@ -1469,6 +1506,92 @@ export default function AdminPage() {
                       {broadcastSending ? "Sending..." : "Send broadcast"}
                     </button>
                   </form>
+
+                  <div className="mt-6 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+                      Winner notifications
+                    </p>
+                    <p className="text-sm text-white/40 mt-2">
+                      Send winners the payment survey they need to complete before the university can issue funds.
+                    </p>
+                    <div
+                      className="rounded-xl p-3 mt-3 text-sm"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      <p className="text-white/60">Survey link</p>
+                      <a
+                        href={WINNER_SURVEY_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-maize text-xs break-all hover:underline mt-1 inline-block"
+                      >
+                        {WINNER_SURVEY_URL}
+                      </a>
+                    </div>
+
+                    <form onSubmit={handleSendWinnerAlert} className="space-y-3 mt-4">
+                      <input
+                        type="text"
+                        placeholder="Winner email subject"
+                        value={winnerForm.subject}
+                        onChange={(e) => setWinnerForm((prev) => ({ ...prev, subject: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Prize label, raffle, or award name"
+                        value={winnerForm.prizeLabel}
+                        onChange={(e) => setWinnerForm((prev) => ({ ...prev, prizeLabel: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      />
+                      <textarea
+                        placeholder="Winner emails, one per line or comma-separated"
+                        value={winnerForm.recipients}
+                        onChange={(e) => setWinnerForm((prev) => ({ ...prev, recipients: e.target.value }))}
+                        rows={5}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAddWinnerEmails(outreach.accounts.map((account) => account.email))}
+                          className="px-3 py-2 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors"
+                          style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                        >
+                          Use filtered emails
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearWinnerEmails}
+                          className="px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:text-white/75 transition-colors"
+                          style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                        >
+                          Clear winners
+                        </button>
+                      </div>
+                      <textarea
+                        placeholder="Optional note to include below the survey link"
+                        value={winnerForm.note}
+                        onChange={(e) => setWinnerForm((prev) => ({ ...prev, note: e.target.value }))}
+                        rows={4}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      />
+                      <p className="text-xs text-white/35">
+                        {winnerRecipientEmails.length} winner{winnerRecipientEmails.length === 1 ? "" : "s"} queued. Each winner gets a private email with the survey link.
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={winnerSending || !outreach.resendConfigured || winnerRecipientEmails.length === 0}
+                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
+                      >
+                        {winnerSending ? "Sending..." : "Send winner alert"}
+                      </button>
+                    </form>
+                  </div>
                 </GlassCard>
 
                 <GlassCard noPad className="xl:col-span-3 flex flex-col min-h-[42rem]">
@@ -1495,6 +1618,7 @@ export default function AdminPage() {
                             <th className="text-left px-5 py-2.5 font-semibold">Confirmed</th>
                             <th className="text-left px-5 py-2.5 font-semibold">Pitches</th>
                             <th className="text-left px-5 py-2.5 font-semibold">Last Sign In</th>
+                            <th className="text-left px-5 py-2.5 font-semibold">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.03]">
@@ -1524,6 +1648,16 @@ export default function AdminPage() {
                               <td className="px-5 py-2.5 text-white/30 tabular-nums">
                                 {account.last_sign_in_at ? new Date(account.last_sign_in_at).toLocaleString() : "Never"}
                               </td>
+                              <td className="px-5 py-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddWinnerEmails([account.email])}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/65 hover:text-white transition-colors"
+                                  style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                                >
+                                  Add winner
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -1535,9 +1669,9 @@ export default function AdminPage() {
                     <div className="px-5 py-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <h3 className="text-sm font-semibold text-white">Broadcast History</h3>
+                          <h3 className="text-sm font-semibold text-white">Outreach History</h3>
                           <p className="text-xs text-white/30 mt-1">
-                            Recent outreach sends recorded by this app.
+                            Recent broadcasts and winner notifications recorded by this app.
                           </p>
                         </div>
                         {!broadcastHistoryEnabled && (
@@ -1551,7 +1685,7 @@ export default function AdminPage() {
                       <p className="text-white/30 text-sm px-5 pb-5">Loading history...</p>
                     ) : broadcastHistory.length === 0 ? (
                       <p className="text-white/30 text-sm px-5 pb-5">
-                        {broadcastHistoryEnabled ? "No broadcasts sent yet." : "Broadcasts will appear here after the SQL migration is applied."}
+                        {broadcastHistoryEnabled ? "No outreach sends yet." : "Outreach sends will appear here after the SQL migration is applied."}
                       </p>
                     ) : (
                       <div className="divide-y divide-white/[0.03]">
@@ -1562,7 +1696,7 @@ export default function AdminPage() {
                                 <div className="flex items-center gap-2">
                                   <h4 className="text-sm font-semibold text-white truncate">{item.subject}</h4>
                                   <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-300">
-                                    {item.status || "sent"}
+                                    {item.details?.type === "winner_notification" ? "Winner alert" : item.status || "sent"}
                                   </span>
                                 </div>
                                 <p className="text-xs text-white/40 mt-1">
