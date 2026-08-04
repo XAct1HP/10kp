@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
+import { buildAccountCsv } from "../../lib/outreach";
 import MuxPlayer from "@mux/mux-player-react";
 
 async function getToken() {
@@ -446,6 +447,25 @@ export default function AdminPage() {
   const [votes, setVotes] = useState([]);
   const [votePage, setVotePage] = useState(1);
   const [announcements, setAnnouncements] = useState([]);
+  const [outreach, setOutreach] = useState({
+    accounts: [],
+    summary: null,
+    resendConfigured: false,
+    resendFromEmail: null,
+  });
+  const [outreachLoading, setOutreachLoading] = useState(false);
+  const [outreachLoaded, setOutreachLoaded] = useState(false);
+  const [outreachScope, setOutreachScope] = useState("all");
+  const [outreachConfirmed, setOutreachConfirmed] = useState("all");
+  const [outreachSearch, setOutreachSearch] = useState("");
+  const [broadcastForm, setBroadcastForm] = useState({
+    subject: "",
+    message: "Heads up, get your pitch in by 5PM Friday for the upcoming Weekly Raffle!",
+  });
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastHistory, setBroadcastHistory] = useState([]);
+  const [broadcastHistoryLoading, setBroadcastHistoryLoading] = useState(false);
+  const [broadcastHistoryEnabled, setBroadcastHistoryEnabled] = useState(true);
   const [announcementForm, setAnnouncementForm] = useState({
     id: null,
     title: "",
@@ -547,6 +567,41 @@ export default function AdminPage() {
       setLoadingState((s) => ({ ...s, announcements: false }));
     }
   }, []);
+  const fetchOutreach = useCallback(async () => {
+    setOutreachLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (outreachScope !== "all") params.set("scope", outreachScope);
+      if (outreachConfirmed !== "all") params.set("confirmed", outreachConfirmed);
+      if (outreachSearch.trim()) params.set("search", outreachSearch.trim());
+      const query = params.toString();
+      const data = await apiFetch(`/api/admin/accounts${query ? `?${query}` : ""}`);
+      setOutreach({
+        accounts: data.accounts || [],
+        summary: data.summary || null,
+        resendConfigured: Boolean(data.resendConfigured),
+        resendFromEmail: data.resendFromEmail || null,
+      });
+      setOutreachLoaded(true);
+    } finally {
+      setOutreachLoading(false);
+    }
+  }, [outreachScope, outreachConfirmed, outreachSearch]);
+  const fetchBroadcastHistory = useCallback(async () => {
+    setBroadcastHistoryLoading(true);
+    try {
+      const data = await apiFetch("/api/admin/accounts/broadcast");
+      setBroadcastHistory(data.campaigns || []);
+      setBroadcastHistoryEnabled(data.historyEnabled !== false);
+      setOutreach((prev) => ({
+        ...prev,
+        resendConfigured: Boolean(data.resendConfigured),
+        resendFromEmail: data.resendFromEmail || prev.resendFromEmail || null,
+      }));
+    } finally {
+      setBroadcastHistoryLoading(false);
+    }
+  }, []);
   const fetchDefThumb = useCallback(async () => { try { const d = await apiFetch("/api/admin/default-thumbnails"); setDefaultThumbnails({ audio: d.default_audio_thumbnail || null, text: d.default_text_thumbnail || null }); } catch {} }, []);
   const fetchAnalytics = useCallback(async () => { setAnalyticsLoading(true); try { setAnalytics(await apiFetch("/api/admin/analytics")); } catch {} finally { setAnalyticsLoading(false); } }, []);
   const fetchDigest = useCallback(async () => {
@@ -597,6 +652,19 @@ export default function AdminPage() {
       fetchDigest();
     }
   }, [activeTab, digestLoaded, digestLoading, fetchDigest]);
+  useEffect(() => {
+    if (activeTab === "outreach" && !outreachLoaded && !outreachLoading) {
+      fetchOutreach().catch((e) => setError(e.message));
+      fetchBroadcastHistory().catch((e) => setError(e.message));
+    }
+  }, [activeTab, outreachLoaded, outreachLoading, fetchOutreach, fetchBroadcastHistory]);
+  useEffect(() => {
+    if (activeTab !== "outreach" || !outreachLoaded) return;
+    const timeout = setTimeout(() => {
+      fetchOutreach().catch((e) => setError(e.message));
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [activeTab, outreachLoaded, outreachScope, outreachConfirmed, outreachSearch, fetchOutreach]);
 
   // Extract text from PDF/DOC/DOCX/TXT when a text pitch is opened
   useEffect(() => {
@@ -692,6 +760,53 @@ export default function AdminPage() {
     const h = Object.keys(rows[0]);
     const csv = [h.join(","), ...rows.map((r) => h.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
     const b = new Blob([csv], { type: "text/csv;charset=utf-8;" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `pitches_export_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(u); setSuccess("CSV exported.");
+  };
+  const handleRefreshOutreach = async () => {
+    setError("");
+    try {
+      await fetchOutreach();
+      await fetchBroadcastHistory();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const handleExportAccountsCsv = () => {
+    if (!(outreach.accounts || []).length) {
+      setError("No matching accounts to export.");
+      return;
+    }
+    const csv = buildAccountCsv(outreach.accounts);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `accounts_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setSuccess("Accounts CSV exported.");
+  };
+  const handleSendBroadcast = async (e) => {
+    e.preventDefault();
+    setError("");
+    setBroadcastSending(true);
+    try {
+      const data = await apiFetch("/api/admin/accounts/broadcast", {
+        method: "POST",
+        body: JSON.stringify({
+          subject: broadcastForm.subject,
+          message: broadcastForm.message,
+          scope: outreachScope,
+          confirmed: outreachConfirmed,
+          search: outreachSearch,
+        }),
+      });
+      setSuccess(`Broadcast sent to ${data.recipientCount} account${data.recipientCount === 1 ? "" : "s"}.`);
+      await fetchBroadcastHistory();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBroadcastSending(false);
+    }
   };
   const handleUploadDefThumb = async (type, file) => {
     if (!file) return; setUploadingThumbnail(type); setError("");
@@ -926,10 +1041,13 @@ export default function AdminPage() {
   }
 
   const totalVotes = pitches.reduce((s, p) => s + (p.vote_count || 0), 0);
+  const outreachTotalSummary = outreach.summary?.total || { count: 0, submitted: 0, no_pitch: 0, confirmed: 0, unconfirmed: 0, admins: 0 };
+  const outreachFilteredSummary = outreach.summary?.filtered || { count: 0, submitted: 0, no_pitch: 0, confirmed: 0, unconfirmed: 0, admins: 0 };
   const tabs = [
     { id: "pitches", label: "Pitches", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /> },
     { id: "tags", label: "Tags", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /> },
     { id: "votes", label: "Votes", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+    { id: "outreach", label: "Outreach", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.945a2 2 0 002.22 0L21 8m-16 8h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2z" /> },
     { id: "announcements", label: "Announcements", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882A1 1 0 0111.447 5h1.106a1 1 0 01.894.553l.68 1.36A1 1 0 0015.02 7h1.48a1 1 0 01.832 1.555l-.81 1.216a1 1 0 000 1.11l.81 1.216A1 1 0 0116.5 14h-1.48a1 1 0 00-.894.553l-.68 1.36a1 1 0 01-.894.553h-1.106a1 1 0 01-.894-.553l-.68-1.36A1 1 0 009.98 14H8.5a1 1 0 01-.832-1.555l.81-1.216a1 1 0 000-1.11l-.81-1.216A1 1 0 018.5 7h1.48a1 1 0 00.894-.553l.68-1.36zM12 10h.01M12 12.5v.01" /> },
     { id: "newspaper", label: "Weekly Digest", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 5H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2zM7 9h10M7 13h6M7 17h4" /> },
     { id: "analytics", label: "Analytics", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
@@ -1225,6 +1343,248 @@ export default function AdminPage() {
                 </>
               )}
             </GlassCard>
+          )}
+
+          {/* ═══ OUTREACH ═══ */}
+          {activeTab === "outreach" && (
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 pb-2">
+                <GlassCard className="xl:col-span-2">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-maize font-semibold mb-1">
+                    Account export + broadcast
+                  </p>
+                  <h2 className="text-lg font-bold text-white">Community Outreach</h2>
+                  <p className="text-sm text-white/40 mt-2">
+                    Download a filtered account list or send one broadcast to everyone in the current filter set.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+                    <select
+                      value={outreachScope}
+                      onChange={(e) => setOutreachScope(e.target.value)}
+                      className="px-4 py-2.5 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-maize/40"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      <option value="all">All accounts</option>
+                      <option value="submitted">Submitted a pitch</option>
+                      <option value="no_pitch">No pitch yet</option>
+                    </select>
+                    <select
+                      value={outreachConfirmed}
+                      onChange={(e) => setOutreachConfirmed(e.target.value)}
+                      className="px-4 py-2.5 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-maize/40"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      <option value="all">All email states</option>
+                      <option value="confirmed">Confirmed only</option>
+                      <option value="unconfirmed">Unconfirmed only</option>
+                    </select>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Filter by email..."
+                    value={outreachSearch}
+                    onChange={(e) => setOutreachSearch(e.target.value)}
+                    className="w-full mt-3 px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  />
+
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={handleRefreshOutreach}
+                      disabled={outreachLoading || broadcastHistoryLoading}
+                      className="px-4 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
+                    >
+                      {outreachLoading ? "Refreshing..." : "Refresh list"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportAccountsCsv}
+                      className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:text-white transition-colors"
+                      style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                    >
+                      Export CSV
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mt-5">
+                    {[
+                      { label: "Matching", value: outreachFilteredSummary.count },
+                      { label: "Submitted", value: outreachFilteredSummary.submitted },
+                      { label: "No pitch", value: outreachFilteredSummary.no_pitch },
+                      { label: "Confirmed", value: outreachFilteredSummary.confirmed },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-xl p-3"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      >
+                        <p className="text-[10px] uppercase tracking-wider text-white/30">{item.label}</p>
+                        <p className="text-2xl font-black text-white mt-1">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    className="rounded-xl p-3 mt-5 text-sm"
+                    style={{ background: outreach.resendConfigured ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${outreach.resendConfigured ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)"}` }}
+                  >
+                    <p className={`font-semibold ${outreach.resendConfigured ? "text-green-300" : "text-red-300"}`}>
+                      {outreach.resendConfigured ? "Resend ready" : "Resend not configured"}
+                    </p>
+                    <p className="text-white/45 mt-1">
+                      {outreach.resendConfigured
+                        ? `Sending from ${outreach.resendFromEmail || "your configured Resend sender"}.`
+                        : "Add RESEND_API_KEY and RESEND_FROM_EMAIL before sending broadcasts."}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSendBroadcast} className="space-y-3 mt-5">
+                    <input
+                      type="text"
+                      placeholder="Email subject"
+                      value={broadcastForm.subject}
+                      onChange={(e) => setBroadcastForm((prev) => ({ ...prev, subject: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                    <textarea
+                      placeholder="Write the broadcast email..."
+                      value={broadcastForm.message}
+                      onChange={(e) => setBroadcastForm((prev) => ({ ...prev, message: e.target.value }))}
+                      rows={8}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                    <p className="text-xs text-white/35">
+                      This will target {outreachFilteredSummary.count} matching account{outreachFilteredSummary.count === 1 ? "" : "s"}.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={broadcastSending || !outreach.resendConfigured || outreachFilteredSummary.count === 0}
+                      className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
+                    >
+                      {broadcastSending ? "Sending..." : "Send broadcast"}
+                    </button>
+                  </form>
+                </GlassCard>
+
+                <GlassCard noPad className="xl:col-span-3 flex flex-col min-h-[42rem]">
+                  <div className="px-5 py-4 border-b border-white/[0.04]">
+                    <h2 className="text-lg font-bold text-white">Matching Accounts</h2>
+                    <p className="text-xs text-white/30 mt-1">
+                      {outreachFilteredSummary.count} of {outreachTotalSummary.count} accounts
+                    </p>
+                  </div>
+
+                  {outreachLoading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    </div>
+                  ) : outreach.accounts.length === 0 ? (
+                    <p className="text-white/30 text-sm p-5">No accounts match the current filters.</p>
+                  ) : (
+                    <div className="flex-1 overflow-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-[10px] uppercase tracking-wider text-white/25 border-b border-white/[0.04]">
+                            <th className="text-left px-5 py-2.5 font-semibold">Email</th>
+                            <th className="text-left px-5 py-2.5 font-semibold">Joined</th>
+                            <th className="text-left px-5 py-2.5 font-semibold">Confirmed</th>
+                            <th className="text-left px-5 py-2.5 font-semibold">Pitches</th>
+                            <th className="text-left px-5 py-2.5 font-semibold">Last Sign In</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.03]">
+                          {outreach.accounts.map((account) => (
+                            <tr key={account.id} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="px-5 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white/85">{account.email}</span>
+                                  {account.is_admin && (
+                                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/10 text-white/45">
+                                      Admin
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-2.5 text-white/35 tabular-nums">
+                                {account.created_at ? new Date(account.created_at).toLocaleString() : "—"}
+                              </td>
+                              <td className="px-5 py-2.5">
+                                <span className={`text-xs font-semibold ${account.confirmed ? "text-green-300" : "text-white/40"}`}>
+                                  {account.confirmed ? "Confirmed" : "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-5 py-2.5 text-white/55">
+                                {account.pitch_count}
+                              </td>
+                              <td className="px-5 py-2.5 text-white/30 tabular-nums">
+                                {account.last_sign_in_at ? new Date(account.last_sign_in_at).toLocaleString() : "Never"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="border-t border-white/[0.04]">
+                    <div className="px-5 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-white">Broadcast History</h3>
+                          <p className="text-xs text-white/30 mt-1">
+                            Recent outreach sends recorded by this app.
+                          </p>
+                        </div>
+                        {!broadcastHistoryEnabled && (
+                          <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-amber-500/10 text-amber-300">
+                            Run migration
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {broadcastHistoryLoading ? (
+                      <p className="text-white/30 text-sm px-5 pb-5">Loading history...</p>
+                    ) : broadcastHistory.length === 0 ? (
+                      <p className="text-white/30 text-sm px-5 pb-5">
+                        {broadcastHistoryEnabled ? "No broadcasts sent yet." : "Broadcasts will appear here after the SQL migration is applied."}
+                      </p>
+                    ) : (
+                      <div className="divide-y divide-white/[0.03]">
+                        {broadcastHistory.map((item) => (
+                          <div key={item.id} className="px-5 py-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-sm font-semibold text-white truncate">{item.subject}</h4>
+                                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/10 text-green-300">
+                                    {item.status || "sent"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-white/40 mt-1">
+                                  {item.recipient_count || 0} recipients • scope {item.recipient_scope || "all"} • {item.confirmed_filter || "all"}
+                                </p>
+                                <p className="text-[10px] text-white/25 mt-2">
+                                  {item.created_at ? new Date(item.created_at).toLocaleString() : ""}
+                                  {item.created_by ? ` • ${item.created_by}` : ""}
+                                </p>
+                              </div>
+                              <div className="text-right text-[10px] text-white/25 font-mono flex-shrink-0">
+                                {item.resend_broadcast_id ? item.resend_broadcast_id.slice(0, 8) : "local"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </GlassCard>
+              </div>
+            </div>
           )}
 
           {/* ═══ ANNOUNCEMENTS ═══ */}
