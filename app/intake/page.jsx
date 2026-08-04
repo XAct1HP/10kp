@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import { supabase } from "../../lib/supabase";
 import Image from "next/image";
 import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import pitchNoFloor from "../../public/elevator/pitch_no_floor.png";
+import pitchFloor1 from "../../public/elevator/pitch_floor1.png";
+import pitchFloor2 from "../../public/elevator/pitch_floor2.png";
+import pitchFloor3 from "../../public/elevator/pitch_floor3.png";
+import pitchFloor4 from "../../public/elevator/pitch_floor4.png";
+import pitchFloor5 from "../../public/elevator/pitch_floor5.png";
+import pitchFloor6 from "../../public/elevator/pitch_floor6.png";
+import pitchFloor7 from "../../public/elevator/pitch_floor7.png";
 
 const ACCEPTED_FILE_TYPES = [
   // Text/Document
@@ -38,6 +46,10 @@ const AUDIO_FILE_TYPES = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "
 const IMAGE_FILE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
+const CONTENT_FADE_OUT_MS = 300;
+const CONTENT_FADE_IN_MS = 400;
+const BACKGROUND_FADE_MS = 700;
+const BACKGROUND_PRELOAD_LOOKAHEAD = 2;
 
 const ROLE_OPTIONS = [
   "Current student",
@@ -67,14 +79,14 @@ const UM_SCHOOLS = [
 ];
 
 const FLOOR_IMAGES = [
-  "/elevator/pitch_no_floor.png",
-  "/elevator/pitch_floor1.png",
-  "/elevator/pitch_floor2.png",
-  "/elevator/pitch_floor3.png",
-  "/elevator/pitch_floor4.png",
-  "/elevator/pitch_floor5.png",
-  "/elevator/pitch_floor6.png",
-  "/elevator/pitch_floor7.png",
+  pitchNoFloor,
+  pitchFloor1,
+  pitchFloor2,
+  pitchFloor3,
+  pitchFloor4,
+  pitchFloor5,
+  pitchFloor6,
+  pitchFloor7,
 ];
 
 const FLOOR_LABELS = [
@@ -90,6 +102,8 @@ const FLOOR_LABELS = [
 
 export default function IntakePage() {
   const { user } = useAuth();
+  const timeoutIdsRef = useRef([]);
+  const backgroundLayerKeyRef = useRef(1);
 
   const [name, setName] = useState("");
   const [pitchTitle, setPitchTitle] = useState("");
@@ -115,15 +129,42 @@ export default function IntakePage() {
   const [floor, setFloor] = useState(0);
   const [bgIndex, setBgIndex] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [backgroundLayers, setBackgroundLayers] = useState([
+    { key: 0, index: 0, state: "active" },
+  ]);
 
   const [competitionDescription, setCompetitionDescription] = useState("");
 
   useEffect(() => {
-    FLOOR_IMAGES.forEach((src) => {
+    const preloadIndexes = new Set();
+    for (let offset = 0; offset <= BACKGROUND_PRELOAD_LOOKAHEAD; offset += 1) {
+      const nextIndex = bgIndex + offset;
+      if (nextIndex < FLOOR_IMAGES.length) {
+        preloadIndexes.add(nextIndex);
+      }
+    }
+
+    preloadIndexes.forEach((index) => {
       const img = new window.Image();
-      img.src = src;
+      img.decoding = "async";
+      img.src = FLOOR_IMAGES[index].src;
     });
+  }, [bgIndex]);
+
+  useEffect(() => {
+    return () => {
+      timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      timeoutIdsRef.current = [];
+    };
   }, []);
+
+  const runAfterDelay = (callback, delay) => {
+    const timeoutId = window.setTimeout(() => {
+      timeoutIdsRef.current = timeoutIdsRef.current.filter((id) => id !== timeoutId);
+      callback();
+    }, delay);
+    timeoutIdsRef.current.push(timeoutId);
+  };
 
   useEffect(() => {
     async function fetchTags() {
@@ -154,11 +195,39 @@ export default function IntakePage() {
   const goToFloor = (newFloor) => {
     if (newFloor === floor || transitioning) return;
     setTransitioning(true);
-    setTimeout(() => {
+    const currentBgIndex = bgIndex;
+
+    runAfterDelay(() => {
+      const incomingLayer = {
+        key: backgroundLayerKeyRef.current,
+        index: newFloor,
+        state: "active",
+      };
+      backgroundLayerKeyRef.current += 1;
+
+      const nextLayers = currentBgIndex === newFloor
+        ? [incomingLayer]
+        : [
+            {
+              key: backgroundLayerKeyRef.current,
+              index: currentBgIndex,
+              state: "outgoing",
+            },
+            incomingLayer,
+          ];
+
+      if (currentBgIndex !== newFloor) {
+        backgroundLayerKeyRef.current += 1;
+      }
+
+      setBackgroundLayers(nextLayers);
       setBgIndex(newFloor);
       setFloor(newFloor);
-      setTimeout(() => setTransitioning(false), 400);
-    }, 300);
+      runAfterDelay(() => {
+        setBackgroundLayers([incomingLayer]);
+      }, BACKGROUND_FADE_MS);
+      runAfterDelay(() => setTransitioning(false), CONTENT_FADE_IN_MS);
+    }, CONTENT_FADE_OUT_MS);
     setError("");
   };
 
@@ -857,18 +926,26 @@ export default function IntakePage() {
     <ProtectedRoute>
       <div className="relative min-h-[calc(100vh-5rem)] flex overflow-hidden">
         {/* Background images with crossfade */}
-        {FLOOR_IMAGES.map((src, i) => (
-          <div
-            key={src}
-            className="absolute inset-0 bg-cover transition-opacity duration-700 ease-in-out"
-            style={{
-              backgroundImage: `url('${src}')`,
-              backgroundPosition: "center 15%",
-              opacity: bgIndex === i ? 1 : 0,
-              zIndex: 0,
-            }}
-          />
-        ))}
+        <div className="absolute inset-0">
+          {backgroundLayers.map((layer) => (
+            <Image
+              key={layer.key}
+              src={FLOOR_IMAGES[layer.index]}
+              alt=""
+              fill
+              sizes="100vw"
+              quality={70}
+              placeholder="blur"
+              priority={layer.index === 0}
+              loading={layer.state === "active" ? "eager" : undefined}
+              className={`pointer-events-none select-none object-cover ${layer.state === "outgoing" ? "elevator-bg-fade-out" : ""}`}
+              style={{
+                objectPosition: "center 15%",
+                zIndex: layer.state === "active" ? 1 : 0,
+              }}
+            />
+          ))}
+        </div>
 
         {/* Glass card on the left */}
         <div className="relative z-10 w-full lg:w-[520px] flex flex-col min-h-[calc(100vh-5rem)]">

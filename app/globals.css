@@ -22,3 +22,18 @@ select option {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@keyframes elevator-bg-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.elevator-bg-fade-out {
+  animation: elevator-bg-fade-out 700ms ease-in-out forwards;
+  will-change: opacity;
+}
