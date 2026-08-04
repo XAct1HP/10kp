@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 function useCountdown(targetDate) {
   const [timeLeft, setTimeLeft] = useState(null);
@@ -31,10 +32,17 @@ function useCountdown(targetDate) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [competitionDate, setCompetitionDate] = useState(null);
   const timeLeft = useCountdown(competitionDate);
 
   useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (hashParams.get("type") === "recovery" && hashParams.get("access_token")) {
+      router.replace(`/reset-password${window.location.search}${window.location.hash}`);
+      return;
+    }
+
     async function fetchDate() {
       try {
         const res = await fetch("/api/admin/competition-date");
@@ -45,7 +53,7 @@ export default function Home() {
       }
     }
     fetchDate();
-  }, []);
+  }, [router]);
 
   const pad = (n) => String(n).padStart(2, "0");
 
