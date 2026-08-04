@@ -6,14 +6,6 @@ import { supabase } from "../../lib/supabase";
 import Image from "next/image";
 import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
-import pitchNoFloor from "../../public/elevator/pitch_no_floor.png";
-import pitchFloor1 from "../../public/elevator/pitch_floor1.png";
-import pitchFloor2 from "../../public/elevator/pitch_floor2.png";
-import pitchFloor3 from "../../public/elevator/pitch_floor3.png";
-import pitchFloor4 from "../../public/elevator/pitch_floor4.png";
-import pitchFloor5 from "../../public/elevator/pitch_floor5.png";
-import pitchFloor6 from "../../public/elevator/pitch_floor6.png";
-import pitchFloor7 from "../../public/elevator/pitch_floor7.png";
 
 const ACCEPTED_FILE_TYPES = [
   // Text/Document
@@ -79,14 +71,14 @@ const UM_SCHOOLS = [
 ];
 
 const FLOOR_IMAGES = [
-  pitchNoFloor,
-  pitchFloor1,
-  pitchFloor2,
-  pitchFloor3,
-  pitchFloor4,
-  pitchFloor5,
-  pitchFloor6,
-  pitchFloor7,
+  "/elevator-webp/pitch_no_floor.webp",
+  "/elevator-webp/pitch_floor1.webp",
+  "/elevator-webp/pitch_floor2.webp",
+  "/elevator-webp/pitch_floor3.webp",
+  "/elevator-webp/pitch_floor4.webp",
+  "/elevator-webp/pitch_floor5.webp",
+  "/elevator-webp/pitch_floor6.webp",
+  "/elevator-webp/pitch_floor7.webp",
 ];
 
 const FLOOR_LABELS = [
@@ -102,8 +94,12 @@ const FLOOR_LABELS = [
 
 export default function IntakePage() {
   const { user } = useAuth();
+  const isMountedRef = useRef(true);
   const timeoutIdsRef = useRef([]);
   const backgroundLayerKeyRef = useRef(1);
+  const bgIndexRef = useRef(0);
+  const loadedBackgroundIndexesRef = useRef(new Set([0]));
+  const backgroundPreloadPromisesRef = useRef(new Map());
 
   const [name, setName] = useState("");
   const [pitchTitle, setPitchTitle] = useState("");
@@ -129,30 +125,81 @@ export default function IntakePage() {
   const [floor, setFloor] = useState(0);
   const [bgIndex, setBgIndex] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [preparingFloor, setPreparingFloor] = useState(null);
   const [backgroundLayers, setBackgroundLayers] = useState([
     { key: 0, index: 0, state: "active" },
   ]);
 
   const [competitionDescription, setCompetitionDescription] = useState("");
 
+  const preloadBackground = (index) => {
+    if (index < 0 || index >= FLOOR_IMAGES.length) {
+      return Promise.resolve();
+    }
+    if (loadedBackgroundIndexesRef.current.has(index)) {
+      return Promise.resolve();
+    }
+    const existingPromise = backgroundPreloadPromisesRef.current.get(index);
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    const src = FLOOR_IMAGES[index];
+    const preloadPromise = new Promise((resolve) => {
+      const img = new window.Image();
+      img.decoding = "async";
+
+      const markReady = () => {
+        loadedBackgroundIndexesRef.current.add(index);
+        backgroundPreloadPromisesRef.current.delete(index);
+        resolve();
+      };
+
+      const decodeIfPossible = () => {
+        if (typeof img.decode === "function") {
+          img.decode().catch(() => {}).finally(markReady);
+          return;
+        }
+        markReady();
+      };
+
+      img.onload = decodeIfPossible;
+      img.onerror = () => {
+        backgroundPreloadPromisesRef.current.delete(index);
+        resolve();
+      };
+      img.src = src;
+
+      if (img.complete && img.naturalWidth > 0) {
+        decodeIfPossible();
+      }
+    });
+
+    backgroundPreloadPromisesRef.current.set(index, preloadPromise);
+    return preloadPromise;
+  };
+
   useEffect(() => {
-    const preloadIndexes = new Set();
-    for (let offset = 0; offset <= BACKGROUND_PRELOAD_LOOKAHEAD; offset += 1) {
+    bgIndexRef.current = bgIndex;
+    const preloadIndexes = new Set([bgIndex]);
+    for (let offset = 1; offset <= BACKGROUND_PRELOAD_LOOKAHEAD; offset += 1) {
       const nextIndex = bgIndex + offset;
       if (nextIndex < FLOOR_IMAGES.length) {
         preloadIndexes.add(nextIndex);
       }
     }
+    if (bgIndex > 0) {
+      preloadIndexes.add(bgIndex - 1);
+    }
 
     preloadIndexes.forEach((index) => {
-      const img = new window.Image();
-      img.decoding = "async";
-      img.src = FLOOR_IMAGES[index].src;
+      void preloadBackground(index);
     });
   }, [bgIndex]);
 
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
       timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
       timeoutIdsRef.current = [];
     };
@@ -192,10 +239,15 @@ export default function IntakePage() {
     fetchDescription();
   }, []);
 
-  const goToFloor = (newFloor) => {
-    if (newFloor === floor || transitioning) return;
+  const goToFloor = async (newFloor) => {
+    if (newFloor === floor || transitioning || preparingFloor !== null) return;
+    setPreparingFloor(newFloor);
+    await preloadBackground(newFloor);
+    if (!isMountedRef.current) return;
+
+    setPreparingFloor(null);
     setTransitioning(true);
-    const currentBgIndex = bgIndex;
+    const currentBgIndex = bgIndexRef.current;
 
     runAfterDelay(() => {
       const incomingLayer = {
@@ -928,19 +980,12 @@ export default function IntakePage() {
         {/* Background images with crossfade */}
         <div className="absolute inset-0">
           {backgroundLayers.map((layer) => (
-            <Image
+            <div
               key={layer.key}
-              src={FLOOR_IMAGES[layer.index]}
-              alt=""
-              fill
-              sizes="100vw"
-              quality={70}
-              placeholder="blur"
-              priority={layer.index === 0}
-              loading={layer.state === "active" ? "eager" : undefined}
-              className={`pointer-events-none select-none object-cover ${layer.state === "outgoing" ? "elevator-bg-fade-out" : ""}`}
+              className={`absolute inset-0 pointer-events-none select-none bg-cover ${layer.state === "outgoing" ? "elevator-bg-fade-out" : ""}`}
               style={{
-                objectPosition: "center 15%",
+                backgroundImage: `url('${FLOOR_IMAGES[layer.index]}')`,
+                backgroundPosition: "center 15%",
                 zIndex: layer.state === "outgoing" ? 1 : 0,
               }}
             />
