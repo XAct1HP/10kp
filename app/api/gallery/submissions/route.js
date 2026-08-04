@@ -15,7 +15,7 @@ export async function GET(request) {
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
     const pageSize = Math.min(
       Math.max(parseInt(searchParams.get("pageSize") || "8", 10), 1),
-      24
+      500
     );
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;

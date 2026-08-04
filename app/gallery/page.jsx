@@ -22,6 +22,7 @@ export default function GalleryPage() {
   const [error, setError] = useState("");
   const [galleryPage, setGalleryPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState([]);
 
   const [voting, setVoting] = useState({ maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
   const [voteSubmitting, setVoteSubmitting] = useState({});
@@ -55,17 +56,39 @@ export default function GalleryPage() {
     }
   }, [user]);
 
-  // ── Fetch submissions ──
+  // ── Fetch submissions (loops through all pages so tag filter sees every pitch) ──
   const fetchSubmissions = async () => {
     try {
-      const params = new URLSearchParams({ page: "1", pageSize: String(GALLERY_PAGE_SIZE) });
-      if (voterProfile.email) params.set("voterEmail", voterProfile.email);
-      const res = await fetch(`/api/gallery/submissions?${params}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load");
-      setAllSubmissions(data.submissions || []);
-      setVoting(data.voting || { maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
-      if (data.defaults) setDefaultThumbnails(data.defaults);
+      const collected = [];
+      let page = 1;
+      let voting = null;
+      let defaults = null;
+      // Safety cap: 50 pages × GALLERY_PAGE_SIZE = 10k pitches, plenty of headroom.
+      const MAX_PAGES = 50;
+
+      while (page <= MAX_PAGES) {
+        const params = new URLSearchParams({
+          page: String(page),
+          pageSize: String(GALLERY_PAGE_SIZE),
+        });
+        if (voterProfile.email) params.set("voterEmail", voterProfile.email);
+        const res = await fetch(`/api/gallery/submissions?${params}`, { cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load");
+
+        collected.push(...(data.submissions || []));
+        if (page === 1) {
+          voting = data.voting;
+          defaults = data.defaults;
+        }
+
+        if (!data.pagination?.hasMore) break;
+        page += 1;
+      }
+
+      setAllSubmissions(collected);
+      setVoting(voting || { maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
+      if (defaults) setDefaultThumbnails(defaults);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -118,11 +141,38 @@ export default function GalleryPage() {
     if (updated) setSelectedPitch(updated);
   }, [allSubmissions]);
 
+  // ── Unique tag pool derived from loaded submissions ──
+  const availableTags = useMemo(() => {
+    const seen = new Map();
+    for (const pitch of allSubmissions) {
+      for (const tag of pitch.tags || []) {
+        if (tag?.id && !seen.has(tag.id)) {
+          seen.set(tag.id, { id: tag.id, name: tag.name || "" });
+        }
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [allSubmissions]);
+
   const filteredSubmissions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return allSubmissions;
+    const tagSet = new Set(selectedTagIds);
+    const hasQuery = query.length > 0;
+    const hasTagFilter = tagSet.size > 0;
+    if (!hasQuery && !hasTagFilter) return allSubmissions;
 
     return allSubmissions.filter((pitch) => {
+      const pitchTagIds = (pitch.tags || []).map((t) => t?.id).filter(Boolean);
+
+      // Tag filter: OR — pitch matches if it has ANY of the selected tags
+      if (hasTagFilter && !pitchTagIds.some((id) => tagSet.has(id))) {
+        return false;
+      }
+
+      if (!hasQuery) return true;
+
       const title = (pitch.title || "").toLowerCase();
       const name = (pitch.name || "").toLowerCase();
       const description = (pitch.description || "").toLowerCase();
@@ -141,11 +191,17 @@ export default function GalleryPage() {
         tags.includes(query)
       );
     });
-  }, [allSubmissions, searchQuery]);
+  }, [allSubmissions, searchQuery, selectedTagIds]);
+
+  const toggleTag = (tagId) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
 
   useEffect(() => {
     setGalleryPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, selectedTagIds]);
 
   // ── Top 3 by votes (constant, independent of search) ──
   const topPitches = useMemo(
@@ -346,7 +402,13 @@ export default function GalleryPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="text-5xl mb-3 opacity-25">🔍</div>
-              <p className="text-white/30 text-sm">No pitches match "{searchQuery}".</p>
+              <p className="text-white/30 text-sm">
+                {searchQuery && selectedTagIds.length > 0
+                  ? `No pitches match "${searchQuery}" with the selected tags.`
+                  : searchQuery
+                  ? `No pitches match "${searchQuery}".`
+                  : "No pitches match the selected tags."}
+              </p>
             </div>
           </div>
         )}
@@ -500,6 +562,50 @@ export default function GalleryPage() {
                   </button>
                 )}
               </div>
+              {availableTags.length > 0 && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[11px] uppercase tracking-wider text-white/50">
+                      Filter by tag
+                    </span>
+                    {selectedTagIds.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTagIds([])}
+                        className="text-[11px] text-white/50 hover:text-white transition-colors underline underline-offset-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableTags.map((tag) => {
+                      const active = selectedTagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => toggleTag(tag.id)}
+                          className="text-xs font-medium rounded-full px-3 py-1 transition-all duration-150"
+                          style={
+                            active
+                              ? {
+                                  background: "rgba(242,181,23,0.15)",
+                                  border: "1px solid #F2B517",
+                                  color: "#F2B517",
+                                }
+                              : {
+                                  background: "rgba(255,255,255,0.04)",
+                                  border: "1px solid rgba(255,255,255,0.15)",
+                                  color: "rgba(255,255,255,0.7)",
+                                }
+                          }
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <p className="text-[11px] text-white/50 mt-1.5">
                 Showing {filteredSubmissions.length} of {allSubmissions.length} pitches
               </p>
