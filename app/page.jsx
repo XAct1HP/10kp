@@ -3,6 +3,7 @@
 import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "../lib/AuthContext";
 
 function useCountdown(targetDate) {
   const [timeLeft, setTimeLeft] = useState(null);
@@ -33,6 +34,8 @@ function useCountdown(targetDate) {
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
+  const submitHref = user ? "/intake" : "/signup";
   const [competitionDate, setCompetitionDate] = useState(null);
   const timeLeft = useCountdown(competitionDate);
 
@@ -146,23 +149,23 @@ export default function Home() {
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
             style={{ fontSize: "clamp(2rem, 9vw, 3.25rem)" }}
           >
-            Embracing{" "}
-            <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
+            Every Great Idea{" "}
+            <span style={{ color: "#F2B517" }}>Deserves Its First Pitch</span>
           </h1>
 
           <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed mb-6">
-            Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
+            From every corner of the Michigan community, ideas become impact. Text it. Say it. Film it. Pitch it.
           </p>
 
           {/* Side-by-side CTAs */}
           <div className="flex gap-2.5">
             <Link
-              href="/intake"
+              href={submitHref}
               className="relative flex-1 flex items-center justify-center gap-1.5 py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 overflow-hidden text-black active:scale-[0.98] group"
               style={{ background: "#F2B517" }}
             >
               <span className="relative z-10 flex items-center gap-1.5">
-                Submit Pitch
+                Submit Your Pitch
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
@@ -195,17 +198,17 @@ export default function Home() {
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
           >
-            Embracing{" "}
-            <span style={{ color: "#F2B517" }}>the Digital Pitch</span>
+            Every Great Idea{" "}
+            <span style={{ color: "#F2B517" }}>Deserves Its First Pitch</span>
           </h1>
 
           <p className="text-white/50 text-lg max-w-lg mb-8 leading-relaxed">
-            Where bold ideas meet the stage. Submit your pitch, compete for $10K, and launch something real.
+            From every corner of the Michigan community, ideas become impact. Text it. Say it. Film it. Pitch it.
           </p>
 
           <div className="flex flex-wrap gap-4">
             <Link
-              href="/intake"
+              href={submitHref}
               className="relative inline-flex items-center gap-2 px-8 py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
               style={{ background: "#F2B517" }}
             >

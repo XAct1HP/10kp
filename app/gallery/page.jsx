@@ -308,9 +308,7 @@ export default function GalleryPage() {
                   <span className="text-xs sm:text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
                   <span className="hidden sm:inline text-[11px] text-white/30">votes left</span>
                 </div>
-              ) : (
-                <p className="text-[11px] text-white/20 hidden sm:block">Click a pitch to vote</p>
-              )}
+              ) : null}
             </div>
             </div>
           </div>
@@ -478,11 +476,11 @@ export default function GalleryPage() {
               <div
                 className="flex items-center gap-2 rounded-xl px-3 py-2"
                 style={{
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.2)",
                 }}
               >
-                <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
@@ -490,19 +488,19 @@ export default function GalleryPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by title, submitter, description, or tag"
-                  className="w-full bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none"
+                  className="w-full bg-transparent text-sm text-white placeholder:text-white/60 focus:outline-none"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="text-white/30 hover:text-white/60 text-lg leading-none px-1"
+                    className="text-white/60 hover:text-white text-lg leading-none px-1"
                     aria-label="Clear search"
                   >
                     &times;
                   </button>
                 )}
               </div>
-              <p className="text-[11px] text-white/25 mt-1.5">
+              <p className="text-[11px] text-white/50 mt-1.5">
                 Showing {filteredSubmissions.length} of {allSubmissions.length} pitches
               </p>
             </div>

@@ -87,20 +87,12 @@ export default function Navbar() {
                 </button>
               </>
             ) : (
-              <>
-                <Link
-                  href="/signup"
-                  className="px-4 py-2 text-sm font-medium text-black bg-maize rounded-md hover:bg-yellow-400 transition-colors"
-                >
-                  Sign Up
-                </Link>
-                <Link
-                  href="/login"
-                  className="px-4 py-2 text-sm font-medium text-black bg-maize rounded-md hover:bg-yellow-400 transition-colors"
-                >
-                  Log In
-                </Link>
-              </>
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-medium text-black bg-maize rounded-md hover:bg-yellow-400 transition-colors"
+              >
+                Sign In
+              </Link>
             )}
           </div>
 
@@ -179,22 +171,13 @@ export default function Navbar() {
                 </button>
               </>
             ) : (
-              <>
-                <Link
-                  href="/signup"
-                  onClick={closeMenu}
-                  className="block px-3 py-2 text-sm font-medium text-black bg-maize hover:bg-yellow-400 rounded-md transition-colors text-center"
-                >
-                  Sign Up
-                </Link>
-                <Link
-                  href="/login"
-                  onClick={closeMenu}
-                  className="block px-3 py-2 text-sm font-medium text-black bg-maize hover:bg-yellow-400 rounded-md transition-colors text-center"
-                >
-                  Log In
-                </Link>
-              </>
+              <Link
+                href="/login"
+                onClick={closeMenu}
+                className="block px-3 py-2 text-sm font-medium text-black bg-maize hover:bg-yellow-400 rounded-md transition-colors text-center"
+              >
+                Sign In
+              </Link>
             )}
           </div>
         </div>

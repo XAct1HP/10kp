@@ -414,7 +414,7 @@ export default function IntakePage() {
         priority
       />
       <h1 className="text-3xl font-bold text-white tracking-tight mb-4">
-        Your Elevator Pitch Starts Here
+        The Only Way is Up
       </h1>
       {competitionDescription ? (
         <p className="text-white/60 text-sm leading-relaxed mb-10 max-w-md mx-auto whitespace-pre-wrap">
@@ -422,7 +422,7 @@ export default function IntakePage() {
         </p>
       ) : (
         <p className="text-white/60 text-sm leading-relaxed mb-10 max-w-md mx-auto">
-          Submit your pitch and compete for the $10,000 prize. You will ride the elevator 7 floors — each floor gets you one step closer to the top.
+          Step into the elevator and ride through 7 floors as you build and submit your pitch. Compete for exciting prizes and see if your idea rises to the top.
         </p>
       )}
       <button
@@ -431,7 +431,7 @@ export default function IntakePage() {
         style={{ background: "#F2B517" }}
       >
         <span className="relative z-10 flex items-center gap-2">
-          Begin Your Elevator Pitch
+          Start Your Pitch
           <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
           </svg>

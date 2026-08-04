@@ -231,13 +231,15 @@ export default function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="px-3 tracking-wider" style={{ color: "rgba(255,255,255,0.35)", background: "transparent" }}>New here?</span>
-            </div>
+          <div className="flex items-center gap-4 my-8">
+            <div className="flex-1" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
+            <span
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "rgba(255,255,255,0.35)" }}
+            >
+              New here?
+            </span>
+            <div className="flex-1" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} />
           </div>
 
           {/* Sign up link */}

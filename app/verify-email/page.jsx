@@ -33,9 +33,11 @@ export default function VerifyEmailPage() {
         <h1 className="text-3xl font-bold text-white tracking-tight mb-3">
           Check your inbox
         </h1>
+        <p className="text-white/50 text-sm leading-relaxed mb-4">
+          To complete your registration, please confirm your email address by clicking the verification link we sent to your inbox.
+        </p>
         <p className="text-white/50 text-sm leading-relaxed mb-10">
-          We sent a verification link to your <span className="text-white/70 font-medium">@umich.edu</span> email.
-          Click the link to verify your account, then come back and log in.
+          If you don&apos;t see the email within a few minutes, please check your junk or spam folder.
         </p>
 
         {/* Go to Log In button */}
