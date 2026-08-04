@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
@@ -15,6 +15,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+  const [resetSucceeded, setResetSucceeded] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setResetSucceeded(params.get("reset") === "success");
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -85,6 +91,21 @@ export default function LoginPage() {
               <span>{error}</span>
             </div>
           )}
+          {resetSucceeded && (
+            <div
+              className="mb-6 flex items-start gap-3 p-4 text-sm rounded-xl"
+              style={{
+                color: "#86efac",
+                background: "rgba(34, 197, 94, 0.12)",
+                border: "1px solid rgba(34, 197, 94, 0.25)",
+              }}
+            >
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Password updated. Log in with your new password.</span>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -122,9 +143,14 @@ export default function LoginPage() {
 
             {/* Password field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-white/80 mb-2">
-                Password
-              </label>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label htmlFor="password" className="block text-sm font-semibold text-white/80">
+                  Password
+                </label>
+                <Link href="/forgot-password" className="text-xs font-medium text-white/45 hover:text-maize transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
               <div
                 className="relative rounded-xl transition-all duration-200"
                 style={{
