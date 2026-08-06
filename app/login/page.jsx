@@ -67,7 +67,7 @@ export default function LoginPage() {
         }}
       />
       {/* ───── Form (no card) ───── */}
-      <div className="relative z-10 w-full max-w-md lg:mr-[8%] px-8 py-12">
+      <div className="relative z-10 w-full max-w-md lg:mr-[2%] px-8 py-12">
           {/* Logo */}
           <div className="flex justify-center mb-10">
             <Image
