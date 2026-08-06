@@ -51,6 +51,21 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-[calc(100vh-5rem)] flex items-center justify-end overflow-hidden">
       <PageBackground src={loginBg} priority quality={68} />
+      {/* Blue gradient overlay from the right for form legibility */}
+      <div
+        className="absolute inset-0 pointer-events-none lg:hidden"
+        style={{
+          background:
+            "linear-gradient(to bottom, rgba(6,14,33,0.55) 0%, rgba(11,26,59,0.85) 60%, rgba(11,26,59,0.95) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 pointer-events-none hidden lg:block"
+        style={{
+          background:
+            "linear-gradient(to left, rgba(11,26,59,0.95) 0%, rgba(11,26,59,0.85) 25%, rgba(11,26,59,0.55) 45%, rgba(11,26,59,0.15) 65%, rgba(11,26,59,0) 80%)",
+        }}
+      />
       {/* ───── Form (no card) ───── */}
       <div className="relative z-10 w-full max-w-md lg:mr-[8%] px-8 py-12">
           {/* Logo */}
