@@ -73,7 +73,7 @@ export default function Home() {
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)] flex flex-col overflow-hidden">
-      <PageBackground src={homeHero} priority quality={72} />
+      <PageBackground src={homeHero} priority quality={72} objectPosition="top" />
       {/* Gradient overlay - stronger on mobile for text readability */}
       <div
         className="absolute inset-0 lg:hidden"
