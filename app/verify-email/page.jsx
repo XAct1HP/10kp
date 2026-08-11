@@ -1,62 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import PageBackground from "../../components/PageBackground";
-import loginBg from "../../public/login-bg.png";
+import AuthShell, { AuthHeader } from "../../components/AuthShell";
 
 export default function VerifyEmailPage() {
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] flex items-center justify-end overflow-hidden">
-      <PageBackground src={loginBg} priority quality={68} />
-      <div className="relative z-10 w-full max-w-md lg:mr-[8%] px-8 py-12 text-center">
-        {/* Logo */}
-        <div className="flex justify-center mb-10">
-          <Image
-            src="/10kp_tspnt.png"
-            alt="10KP Logo"
-            width={270}
-            height={90}
-            className="w-auto h-[5.25rem] drop-shadow-lg"
-            priority
-          />
-        </div>
+    <AuthShell>
+      <AuthHeader
+        title="Check your inbox"
+        subtitle="Confirm your email address by clicking the verification link we just sent."
+      />
 
-        {/* Mail icon */}
-        <div className="mb-6">
-          <svg className="w-16 h-16 mx-auto" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      {/* Mail icon */}
+      <div className="mb-6 flex justify-center">
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center"
+          style={{
+            background: "rgba(242,181,23,0.12)",
+            border: "1px solid rgba(242,181,23,0.3)",
+          }}
+        >
+          <svg className="w-7 h-7" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
-
-        {/* Header */}
-        <h1 className="text-3xl font-bold text-white tracking-tight mb-3">
-          Check your inbox
-        </h1>
-        <p className="text-white/50 text-sm leading-relaxed mb-4">
-          To complete your registration, please confirm your email address by clicking the verification link we sent to your inbox.
-        </p>
-        <p className="text-white/50 text-sm leading-relaxed mb-10">
-          If you don&apos;t see the email within a few minutes, please check your junk or spam folder.
-        </p>
-
-        {/* Go to Log In button */}
-        <Link
-          href="/login"
-          className="relative inline-flex items-center justify-center w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden
-            text-black hover:shadow-lg hover:-translate-y-0.5
-            active:translate-y-0 active:shadow-md group"
-          style={{ background: "#F2B517" }}
-        >
-          <span className="relative z-10 flex items-center justify-center gap-2">
-            Go to Log In
-            <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </span>
-          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-        </Link>
       </div>
-    </div>
+
+      <p className="text-white/55 text-sm leading-relaxed mb-8 text-center">
+        If you don&apos;t see the email within a few minutes, check your junk or
+        spam folder.
+      </p>
+
+      {/* Go to Log In button */}
+      <Link
+        href="/login"
+        className="relative flex items-center justify-center w-full py-3 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden
+          text-black hover:shadow-lg hover:-translate-y-0.5
+          active:translate-y-0 active:shadow-md group"
+        style={{ background: "#F2B517" }}
+      >
+        <span className="relative z-10 flex items-center justify-center gap-2">
+          Go to Log In
+          <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </span>
+        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      </Link>
+    </AuthShell>
   );
 }
