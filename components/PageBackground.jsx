@@ -9,9 +9,15 @@ export default function PageBackground({
   objectPosition = "center",
   className = "",
   imageClassName = "",
+  fixed = false, // when true, background stays pinned to viewport as page scrolls
 }) {
+  const positionClass = fixed ? "fixed inset-0" : "absolute inset-0";
   return (
-    <div className={`absolute inset-0 ${className}`} aria-hidden={alt ? undefined : true}>
+    <div
+      className={`${positionClass} ${className}`}
+      style={fixed ? { zIndex: 0 } : undefined}
+      aria-hidden={alt ? undefined : true}
+    >
       <Image
         src={src}
         alt={alt}

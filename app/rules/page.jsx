@@ -66,12 +66,14 @@ function NumberedItem({ n, label, children }) {
 
 export default function RulesPage() {
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] overflow-hidden">
-      <PageBackground src={rulesBg} priority quality={72} />
-      {/* Readability overlay */}
+    <div className="relative min-h-[calc(100vh-5rem)]">
+      {/* Fixed background image + overlay — stays pinned to the viewport
+          so the content scrolls over it (parallax feel, no scrollbar). */}
+      <PageBackground src={rulesBg} priority quality={72} fixed />
       <div
-        className="absolute inset-0"
+        className="fixed inset-0 pointer-events-none"
         style={{
+          zIndex: 0,
           background:
             "linear-gradient(to bottom, rgba(11,26,59,0.55) 0%, rgba(11,26,59,0.75) 60%, rgba(11,26,59,0.9) 100%)",
         }}
