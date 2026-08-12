@@ -108,9 +108,9 @@ export default function Navbar() {
             onClick={() => setMenuOpen((prev) => !prev)}
             className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 active:scale-95"
             style={{
-              background: menuOpen ? "rgba(242,181,23,0.15)" : "rgba(255,255,255,0.08)",
-              border: menuOpen ? "1px solid rgba(242,181,23,0.4)" : "1px solid rgba(255,255,255,0.18)",
-              color: menuOpen ? "#F2B517" : "#ffffff",
+              background: menuOpen ? "rgba(255,203,5,0.15)" : "rgba(255,255,255,0.08)",
+              border: menuOpen ? "1px solid rgba(255,203,5,0.4)" : "1px solid rgba(255,255,255,0.18)",
+              color: menuOpen ? "#FFCB05" : "#ffffff",
               backdropFilter: "blur(8px)",
               WebkitBackdropFilter: "blur(8px)",
               boxShadow: "0 2px 8px rgba(0,0,0,0.15)",

@@ -97,7 +97,7 @@ export default function Home() {
           <div>
             <p
               className="text-[10px] uppercase tracking-[0.28em] font-semibold mb-4"
-              style={{ color: "#F2B517" }}
+              style={{ color: "#FFCB05" }}
             >
               Competition starts in
             </p>
@@ -113,7 +113,7 @@ export default function Home() {
                       className="font-mono font-bold text-white leading-none tabular-nums"
                       style={{
                         fontSize: "clamp(1.75rem, 8vw, 2.75rem)",
-                        textShadow: "0 0 30px rgba(242,181,23,0.2), 0 4px 16px rgba(0,0,0,0.5)",
+                        textShadow: "0 0 30px rgba(255,203,5,0.2), 0 4px 16px rgba(0,0,0,0.5)",
                       }}
                     >
                       {pad(value)}
@@ -124,8 +124,8 @@ export default function Home() {
                   </div>
                   {i < countdownUnits.length - 1 && (
                     <div className="flex flex-col items-center gap-1.5 mb-4">
-                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#F2B517", opacity: 0.7 }} />
-                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#F2B517", opacity: 0.7 }} />
+                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#FFCB05", opacity: 0.7 }} />
+                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#FFCB05", opacity: 0.7 }} />
                     </div>
                   )}
                 </Fragment>
@@ -136,7 +136,7 @@ export default function Home() {
 
         {timeLeft?.past && (
           <div className="flex items-center gap-3">
-            <svg className="w-6 h-6 flex-shrink-0" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-6 h-6 flex-shrink-0" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             <span className="text-white font-bold text-base">Competition day is here!</span>
@@ -150,7 +150,7 @@ export default function Home() {
             style={{ fontSize: "clamp(2rem, 9vw, 3.25rem)" }}
           >
             Every Great Idea{" "}
-            <span style={{ color: "#F2B517" }}>Deserves Its First Pitch</span>
+            <span style={{ color: "#FFCB05" }}>Deserves Its First Pitch</span>
           </h1>
 
           <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed mb-6">
@@ -162,7 +162,7 @@ export default function Home() {
             <Link
               href={submitHref}
               className="relative flex-1 flex items-center justify-center gap-1.5 py-3 text-[13px] font-semibold rounded-lg transition-all duration-200 overflow-hidden text-black active:scale-[0.98] group"
-              style={{ background: "#F2B517" }}
+              style={{ background: "#FFCB05" }}
             >
               <span className="relative z-10 flex items-center gap-1.5">
                 Submit Your Pitch
@@ -199,7 +199,7 @@ export default function Home() {
             style={{ fontSize: "clamp(2.5rem, 5vw, 4.5rem)" }}
           >
             Every Great Idea{" "}
-            <span style={{ color: "#F2B517" }}>Deserves Its First Pitch</span>
+            <span style={{ color: "#FFCB05" }}>Deserves Its First Pitch</span>
           </h1>
 
           <p className="text-white/50 text-lg max-w-lg mb-8 leading-relaxed">
@@ -210,7 +210,7 @@ export default function Home() {
             <Link
               href={submitHref}
               className="relative inline-flex items-center gap-2 px-8 py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
-              style={{ background: "#F2B517" }}
+              style={{ background: "#FFCB05" }}
             >
               <span className="relative z-10 flex items-center gap-2">
                 Submit Your Pitch
@@ -229,8 +229,8 @@ export default function Home() {
                 color: "rgba(255,255,255,0.85)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#F2B517";
-                e.currentTarget.style.color = "#F2B517";
+                e.currentTarget.style.borderColor = "#FFCB05";
+                e.currentTarget.style.color = "#FFCB05";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
@@ -250,7 +250,7 @@ export default function Home() {
             <div className="text-right">
               <p
                 className="text-sm uppercase tracking-[0.25em] mb-5 font-semibold"
-                style={{ color: "#F2B517" }}
+                style={{ color: "#FFCB05" }}
               >
                 Competition starts in
               </p>
@@ -263,7 +263,7 @@ export default function Home() {
                         style={{
                           fontSize: "clamp(3rem, 8vw, 6.5rem)",
                           color: "#FFFFFF",
-                          textShadow: "0 0 40px rgba(242,181,23,0.15), 0 4px 20px rgba(0,0,0,0.4)",
+                          textShadow: "0 0 40px rgba(255,203,5,0.15), 0 4px 20px rgba(0,0,0,0.4)",
                         }}
                       >
                         {pad(value)}
@@ -277,16 +277,16 @@ export default function Home() {
                     </div>
                     {i < 3 && (
                       <div className="flex flex-col items-center gap-3 mb-5">
-                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517", opacity: 0.7 }} />
-                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#F2B517", opacity: 0.7 }} />
+                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#FFCB05", opacity: 0.7 }} />
+                        <div className="rounded-full" style={{ width: "8px", height: "8px", background: "#FFCB05", opacity: 0.7 }} />
                       </div>
                     )}
                   </div>
                 ))}
               </div>
               <div className="mt-6 flex items-center gap-3 justify-end">
-                <div style={{ width: "20px", height: "3px", background: "rgba(242,181,23,0.3)", borderRadius: "2px" }} />
-                <div style={{ width: "60px", height: "3px", background: "#F2B517", borderRadius: "2px" }} />
+                <div style={{ width: "20px", height: "3px", background: "rgba(255,203,5,0.3)", borderRadius: "2px" }} />
+                <div style={{ width: "60px", height: "3px", background: "#FFCB05", borderRadius: "2px" }} />
               </div>
             </div>
           )}
@@ -295,12 +295,12 @@ export default function Home() {
             <div
               className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl"
               style={{
-                background: "rgba(242, 181, 23, 0.12)",
-                border: "1px solid rgba(242, 181, 23, 0.25)",
+                background: "rgba(255, 203, 5, 0.12)",
+                border: "1px solid rgba(255, 203, 5, 0.25)",
                 backdropFilter: "blur(12px)",
               }}
             >
-              <svg className="w-8 h-8" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-8 h-8" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               <span className="text-white font-bold text-lg tracking-wide">Competition day is here!</span>

@@ -19,7 +19,7 @@ function SectionCard({ title, children }) {
       <div className="flex items-center gap-3 mb-5">
         <div
           className="h-6 w-1 rounded-full"
-          style={{ background: "#F2B517" }}
+          style={{ background: "#FFCB05" }}
         />
         <h2 className="text-white text-xl sm:text-2xl font-semibold tracking-tight">
           {title}
@@ -37,7 +37,7 @@ function Item({ label, children }) {
     <div className="flex gap-3">
       <span
         className="mt-2 h-1.5 w-1.5 rounded-full flex-shrink-0"
-        style={{ background: "#F2B517" }}
+        style={{ background: "#FFCB05" }}
       />
       <p>
         <span className="font-semibold text-white">{label}:</span>{" "}
@@ -52,7 +52,7 @@ function NumberedItem({ n, label, children }) {
     <div className="flex gap-3">
       <span
         className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-black"
-        style={{ background: "#F2B517" }}
+        style={{ background: "#FFCB05" }}
       >
         {n}
       </span>
@@ -84,7 +84,7 @@ export default function RulesPage() {
         <header className="mb-10 sm:mb-14">
           <p
             className="text-xs sm:text-sm uppercase tracking-[0.28em] font-semibold mb-3"
-            style={{ color: "#F2B517" }}
+            style={{ color: "#FFCB05" }}
           >
             10,000 Pitches — 2026
           </p>
@@ -93,7 +93,7 @@ export default function RulesPage() {
             style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)" }}
           >
             Awards, Rules{" "}
-            <span style={{ color: "#F2B517" }}>and Guidelines</span>
+            <span style={{ color: "#FFCB05" }}>and Guidelines</span>
           </h1>
           <p className="mt-5 text-white/75 text-base sm:text-lg max-w-2xl leading-relaxed">
             The 10,000 Pitches (10KP) competition, co-hosted by the Center for
@@ -160,7 +160,7 @@ export default function RulesPage() {
               <Link
                 href="/gallery"
                 className="underline underline-offset-4 transition-colors"
-                style={{ color: "#F2B517" }}
+                style={{ color: "#FFCB05" }}
               >
                 open gallery
               </Link>{" "}
@@ -185,7 +185,7 @@ export default function RulesPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-4 transition-colors"
-                style={{ color: "#F2B517" }}
+                style={{ color: "#FFCB05" }}
               >
                 Maizey
               </a>
@@ -199,14 +199,14 @@ export default function RulesPage() {
               <span
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
                 style={{
-                  background: "rgba(242,181,23,0.15)",
-                  color: "#F2B517",
-                  border: "1px solid rgba(242,181,23,0.35)",
+                  background: "rgba(255,203,5,0.15)",
+                  color: "#FFCB05",
+                  border: "1px solid rgba(255,203,5,0.35)",
                 }}
               >
                 <span
                   className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: "#F2B517" }}
+                  style={{ background: "#FFCB05" }}
                 />
                 Coming Soon
               </span>
@@ -222,7 +222,7 @@ export default function RulesPage() {
           <Link
             href="/intake"
             className="inline-flex items-center justify-center gap-2 px-7 py-3.5 text-sm font-semibold rounded-xl transition-all duration-200 text-black hover:shadow-lg hover:-translate-y-0.5"
-            style={{ background: "#F2B517" }}
+            style={{ background: "#FFCB05" }}
           >
             Submit Your Pitch
             <svg

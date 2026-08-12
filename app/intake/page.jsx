@@ -549,7 +549,7 @@ export default function IntakePage() {
       <button
         onClick={nextFloor}
         className="relative inline-flex items-center justify-center px-8 py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
-        style={{ background: "#F2B517" }}
+        style={{ background: "#FFCB05" }}
       >
         <span className="relative z-10 flex items-center gap-2">
           Start Your Pitch
@@ -595,18 +595,18 @@ export default function IntakePage() {
                 key={option}
                 className="flex items-center gap-3 cursor-pointer px-4 py-3 rounded-xl transition-all duration-200"
                 style={{
-                  border: role === option ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
-                  background: role === option ? "rgba(242,181,23,0.08)" : "rgba(255,255,255,0.03)",
+                  border: role === option ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+                  background: role === option ? "rgba(255,203,5,0.08)" : "rgba(255,255,255,0.03)",
                 }}
               >
                 <div
                   className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
                   style={{
-                    borderColor: role === option ? "#F2B517" : "rgba(255,255,255,0.3)",
+                    borderColor: role === option ? "#FFCB05" : "rgba(255,255,255,0.3)",
                   }}
                 >
                   {role === option && (
-                    <div className="w-2 h-2 rounded-full" style={{ background: "#F2B517" }} />
+                    <div className="w-2 h-2 rounded-full" style={{ background: "#FFCB05" }} />
                   )}
                 </div>
                 <input
@@ -636,14 +636,14 @@ export default function IntakePage() {
             key={school}
             className="flex items-center gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-all duration-200"
             style={{
-              background: schools.includes(school) ? "rgba(242,181,23,0.08)" : "transparent",
+              background: schools.includes(school) ? "rgba(255,203,5,0.08)" : "transparent",
             }}
           >
             <div
               className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0"
               style={{
-                borderColor: schools.includes(school) ? "#F2B517" : "rgba(255,255,255,0.25)",
-                background: schools.includes(school) ? "#F2B517" : "transparent",
+                borderColor: schools.includes(school) ? "#FFCB05" : "rgba(255,255,255,0.25)",
+                background: schools.includes(school) ? "#FFCB05" : "transparent",
               }}
             >
               {schools.includes(school) && (
@@ -713,9 +713,9 @@ export default function IntakePage() {
               onClick={() => toggleTag(tag.id)}
               className="px-4 py-2 text-sm rounded-full transition-all duration-200"
               style={{
-                border: selectedTags.includes(tag.id) ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.15)",
-                background: selectedTags.includes(tag.id) ? "rgba(242,181,23,0.15)" : "transparent",
-                color: selectedTags.includes(tag.id) ? "#F2B517" : "rgba(255,255,255,0.6)",
+                border: selectedTags.includes(tag.id) ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
+                background: selectedTags.includes(tag.id) ? "rgba(255,203,5,0.15)" : "transparent",
+                color: selectedTags.includes(tag.id) ? "#FFCB05" : "rgba(255,255,255,0.6)",
               }}
             >
               {tag.name}
@@ -740,9 +740,9 @@ export default function IntakePage() {
           onClick={() => { setPitchMode("file"); setTextContent(""); }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
           style={{
-            border: pitchMode === "file" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
-            background: pitchMode === "file" ? "rgba(242,181,23,0.1)" : "transparent",
-            color: pitchMode === "file" ? "#F2B517" : "rgba(255,255,255,0.5)",
+            border: pitchMode === "file" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+            background: pitchMode === "file" ? "rgba(255,203,5,0.1)" : "transparent",
+            color: pitchMode === "file" ? "#FFCB05" : "rgba(255,255,255,0.5)",
           }}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -755,9 +755,9 @@ export default function IntakePage() {
           onClick={() => { setPitchMode("text"); setFile(null); }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
           style={{
-            border: pitchMode === "text" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
-            background: pitchMode === "text" ? "rgba(242,181,23,0.1)" : "transparent",
-            color: pitchMode === "text" ? "#F2B517" : "rgba(255,255,255,0.5)",
+            border: pitchMode === "text" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+            background: pitchMode === "text" ? "rgba(255,203,5,0.1)" : "transparent",
+            color: pitchMode === "text" ? "#FFCB05" : "rgba(255,255,255,0.5)",
           }}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -777,12 +777,12 @@ export default function IntakePage() {
             className="flex flex-col items-center justify-center w-full py-10 rounded-xl cursor-pointer transition-all duration-200 group"
             style={{
               border: "2px dashed rgba(255,255,255,0.15)",
-              background: file ? "rgba(242,181,23,0.05)" : "rgba(255,255,255,0.03)",
+              background: file ? "rgba(255,203,5,0.05)" : "rgba(255,255,255,0.03)",
             }}
           >
             {file ? (
               <>
-                <svg className="w-10 h-10 mb-3" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-10 h-10 mb-3" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="text-sm text-white/80 font-medium">{file.name}</span>
@@ -919,7 +919,7 @@ export default function IntakePage() {
         onClick={handleSubmit}
         disabled={submitting}
         className="relative inline-flex items-center justify-center w-full py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 active:translate-y-0 group"
-        style={{ background: "#F2B517" }}
+        style={{ background: "#FFCB05" }}
       >
         <span className="relative z-10 flex items-center justify-center gap-2">
           {submitting ? (
@@ -946,7 +946,7 @@ export default function IntakePage() {
 
   const renderSuccess = () => (
     <div className="text-center">
-      <svg className="w-20 h-20 mx-auto mb-6" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-20 h-20 mx-auto mb-6" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
       <h2 className="text-3xl font-bold text-white mb-3">You have Reached the Top!</h2>
@@ -961,7 +961,7 @@ export default function IntakePage() {
       <Link
         href="/gallery"
         className="relative inline-flex items-center justify-center px-8 py-4 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
-        style={{ background: "#F2B517" }}
+        style={{ background: "#FFCB05" }}
       >
         <span className="relative z-10 flex items-center gap-2">
           View the Gallery
@@ -1011,7 +1011,7 @@ export default function IntakePage() {
                       key={f}
                       className="h-1 flex-1 rounded-full transition-all duration-500"
                       style={{
-                        background: f <= floor ? "#F2B517" : "rgba(255,255,255,0.12)",
+                        background: f <= floor ? "#FFCB05" : "rgba(255,255,255,0.12)",
                       }}
                     />
                   ))}
@@ -1065,7 +1065,7 @@ export default function IntakePage() {
                   <button
                     onClick={nextFloor}
                     className="flex-1 flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold rounded-xl transition-all duration-200 text-black hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 group"
-                    style={{ background: "#F2B517" }}
+                    style={{ background: "#FFCB05" }}
                   >
                     Next Floor
                     <svg className="w-4 h-4 transition-transform group-hover:translate-y-[-2px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">

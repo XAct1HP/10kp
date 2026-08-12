@@ -51,7 +51,7 @@ function StatCard({ label, value, icon }) {
   return (
     <GlassCard className="flex items-center gap-3 !p-4">
       <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: "rgba(242,181,23,0.12)" }}>
+        style={{ background: "rgba(255,203,5,0.12)" }}>
         <span className="text-base">{icon}</span>
       </div>
       <div>
@@ -1115,7 +1115,7 @@ export default function AdminPage() {
         {/* Brand */}
         <div className="px-5 pt-6 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(242,181,23,0.15)" }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,203,5,0.15)" }}>
               <svg className="w-4 h-4 text-maize" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1133,7 +1133,7 @@ export default function AdminPage() {
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active ? "text-maize" : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"}`}
-                style={active ? { background: "rgba(242,181,23,0.1)" } : {}}>
+                style={active ? { background: "rgba(255,203,5,0.1)" } : {}}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">{tab.icon}</svg>
                 {tab.label}
               </button>
@@ -1324,7 +1324,7 @@ export default function AdminPage() {
                 <>
                   <div className="flex flex-wrap gap-2 mb-6">
                     {tags.length === 0 ? <p className="text-white/30 text-sm">No tags created yet.</p> : tags.map((tag) => (
-                      <span key={tag.id} className="inline-flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-full text-sm font-medium" style={{ background: "rgba(242,181,23,0.1)", color: "#F2B517" }}>
+                      <span key={tag.id} className="inline-flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-full text-sm font-medium" style={{ background: "rgba(255,203,5,0.1)", color: "#FFCB05" }}>
                         {tag.name}
                         <button onClick={() => handleDeleteTag(tag.id)} className="w-5 h-5 rounded-full flex items-center justify-center text-maize/40 hover:text-red-400 hover:bg-red-500/15 transition-colors text-xs">&times;</button>
                       </span>
@@ -2132,11 +2132,11 @@ export default function AdminPage() {
                               <button key={t.id} onClick={() => setChartTab(t.id)}
                                 className="px-3.5 py-2 rounded-t-lg text-xs font-semibold whitespace-nowrap transition-all relative flex-shrink-0"
                                 style={{
-                                  color: active ? "#F2B517" : "rgba(255,255,255,0.4)",
-                                  background: active ? "rgba(242,181,23,0.08)" : "transparent",
+                                  color: active ? "#FFCB05" : "rgba(255,255,255,0.4)",
+                                  background: active ? "rgba(255,203,5,0.08)" : "transparent",
                                 }}>
                                 {t.label}
-                                {active && <span className="absolute left-2 right-2 bottom-0 h-0.5 rounded-full" style={{ background: "#F2B517" }} />}
+                                {active && <span className="absolute left-2 right-2 bottom-0 h-0.5 rounded-full" style={{ background: "#FFCB05" }} />}
                               </button>
                             );
                           })}
@@ -2151,7 +2151,7 @@ export default function AdminPage() {
                           {chartTab === "timeline" && (
                             <div className="flex gap-4">
                               <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(99,102,241,0.5)" }} />Submissions</span>
-                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(242,181,23,0.6)" }} />Votes</span>
+                              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(255,203,5,0.6)" }} />Votes</span>
                             </div>
                           )}
                           {chartTab === "types" && (
@@ -2226,7 +2226,7 @@ export default function AdminPage() {
                                                 {d.date.slice(5)}: {d.submissions}s, {d.votes}v
                                               </div>
                                             </div>
-                                            <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(242,181,23,0.6)" }} />
+                                            <div className="w-full rounded-t-sm" style={{ height: `${voteH}%`, minHeight: d.votes > 0 ? "2px" : 0, background: "rgba(255,203,5,0.6)" }} />
                                             <div className="w-full" style={{ height: `${subH}%`, minHeight: d.submissions > 0 ? "2px" : 0, background: "rgba(99,102,241,0.5)" }} />
                                           </div>
                                         );
@@ -2309,7 +2309,7 @@ export default function AdminPage() {
                                   <div key={i} className="flex items-center gap-3 min-w-0">
                                     <span className="text-[12px] text-white/60 truncate w-40 flex-shrink-0">{t.name}</span>
                                     <div className="flex-1 h-4 rounded-md overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-                                      <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((t.count / maxT) * 100, 8)}%`, background: "rgba(242,181,23,0.5)" }} />
+                                      <div className="h-full rounded-md transition-all" style={{ width: `${Math.max((t.count / maxT) * 100, 8)}%`, background: "rgba(255,203,5,0.5)" }} />
                                     </div>
                                     <span className="text-[11px] text-white/40 tabular-nums w-6 text-right">{t.count}</span>
                                   </div>
@@ -2547,7 +2547,7 @@ export default function AdminPage() {
               <div className="flex-1 flex flex-col min-w-0">
                 {selectedPitch.file_type === "video" && selectedPitch.mux_playback_id && (
                   <div className="rounded-xl overflow-hidden flex-shrink-0 mb-4" style={{ maxHeight: "45vh" }}>
-                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517" style={{ width: "100%", maxHeight: "45vh" }} />
+                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05" style={{ width: "100%", maxHeight: "45vh" }} />
                   </div>
                 )}
                 {selectedPitch.file_type === "video" && !selectedPitch.mux_playback_id && (
@@ -2566,7 +2566,7 @@ export default function AdminPage() {
                     {selectedPitch.thumbnail_path && (
                       <img src={selectedPitch.thumbnail_path} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                     )}
-                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517" audio style={{ width: "100%" }} />
+                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05" audio style={{ width: "100%" }} />
                   </div>
                 )}
                 {/* Audio — legacy Supabase-hosted */}
@@ -2645,7 +2645,7 @@ export default function AdminPage() {
                     <div className="flex flex-wrap gap-1">
                       {selectedPitch.tags.map((tag) => (
                         <span key={tag.id} className="px-2 py-0.5 text-[11px] rounded-md font-medium"
-                          style={{ background: "rgba(242,181,23,0.1)", color: "rgba(242,181,23,0.7)" }}>{tag.name}</span>
+                          style={{ background: "rgba(255,203,5,0.1)", color: "rgba(255,203,5,0.7)" }}>{tag.name}</span>
                       ))}
                     </div>
                   </div>

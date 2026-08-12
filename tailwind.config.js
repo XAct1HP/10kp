@@ -8,7 +8,7 @@ module.exports = {
     extend: {
       colors: {
         navy: '#0B1A3B',
-        maize: '#F2B517',
+        maize: '#FFCB05',
       },
     },
   },

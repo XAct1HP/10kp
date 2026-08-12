@@ -11,7 +11,7 @@ const CARDS_PER_PAGE = 36; // 6 cols x 6 rows on desktop; wraps naturally on sma
 const TOP_COUNT = 3;
 
 const RANK_BADGES = [
-  { label: "1ST PLACE", short: "1ST", gradient: "linear-gradient(135deg, #F2B517 0%, #FFD876 50%, #F2B517 100%)", shadow: "0 0 28px rgba(242,181,23,0.6)", textColor: "#0B1A3B", ring: "rgba(242,181,23,0.4)" },
+  { label: "1ST PLACE", short: "1ST", gradient: "linear-gradient(135deg, #FFCB05 0%, #FFD876 50%, #FFCB05 100%)", shadow: "0 0 28px rgba(255,203,5,0.6)", textColor: "#0B1A3B", ring: "rgba(255,203,5,0.4)" },
   { label: "2ND PLACE", short: "2ND", gradient: "linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 50%, #A8A8A8 100%)", shadow: "0 0 20px rgba(192,192,192,0.35)", textColor: "#1a1a2e", ring: "rgba(192,192,192,0.3)" },
   { label: "3RD PLACE", short: "3RD", gradient: "linear-gradient(135deg, #CD7F32 0%, #E8A84C 50%, #CD7F32 100%)", shadow: "0 0 18px rgba(205,127,50,0.35)", textColor: "#1a1a2e", ring: "rgba(205,127,50,0.3)" },
 ];
@@ -348,7 +348,7 @@ export default function GalleryPage() {
 
         {/* Navbar separator — maize gradient line */}
         <div className="h-px w-full flex-shrink-0"
-          style={{ background: "linear-gradient(90deg, transparent, rgba(242,181,23,0.25) 30%, rgba(242,181,23,0.4) 50%, rgba(242,181,23,0.25) 70%, transparent)" }} />
+          style={{ background: "linear-gradient(90deg, transparent, rgba(255,203,5,0.25) 30%, rgba(255,203,5,0.4) 50%, rgba(255,203,5,0.25) 70%, transparent)" }} />
 
         {/* ═══════════════════════════════════════
              HERO — background image, landing-page style
@@ -361,28 +361,28 @@ export default function GalleryPage() {
             style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.25) 40%, rgba(6,8,16,0.85) 85%, rgba(6,8,16,1) 100%)" }} />
           {/* Ambient maize glow */}
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[900px] h-[200px] pointer-events-none"
-            style={{ background: "radial-gradient(ellipse, rgba(242,181,23,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
+            style={{ background: "radial-gradient(ellipse, rgba(255,203,5,0.06) 0%, transparent 70%)", animation: "heroFloat 6s ease-in-out infinite" }} />
 
           {/* Hero content */}
           <div className="absolute inset-0 flex items-start justify-between gap-3 px-4 sm:px-10 lg:px-14 pt-5 sm:pt-6">
             {/* Left: label + title stacked */}
             <div className="min-w-0 flex-1">
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
-                style={{ color: "#F2B517" }}>
+                style={{ color: "#FFCB05" }}>
                 10KP Competition
               </p>
               <h1 className="font-black text-white tracking-tight leading-[1.05]"
                 style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>
-                The <span style={{ color: "#F2B517" }}>Pitch</span> Gallery
+                The <span style={{ color: "#FFCB05" }}>Pitch</span> Gallery
               </h1>
             </div>
             {/* Right: votes */}
             <div className="flex-shrink-0 pt-0.5">
               {voterProfile.email ? (
                 <div className="flex items-center gap-1.5 sm:gap-2.5 rounded-full px-2.5 sm:px-4 py-1 sm:py-1.5"
-                  style={{ background: "rgba(242,181,23,0.08)", border: "1px solid rgba(242,181,23,0.15)", backdropFilter: "blur(12px)" }}>
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-                  <span className="text-xs sm:text-sm font-black" style={{ color: "#F2B517" }}>{voting.remainingVotes}</span>
+                  style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.15)", backdropFilter: "blur(12px)" }}>
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="#FFCB05" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                  <span className="text-xs sm:text-sm font-black" style={{ color: "#FFCB05" }}>{voting.remainingVotes}</span>
                   <span className="hidden sm:inline text-[11px] text-white/30">votes left</span>
                 </div>
               ) : null}
@@ -394,7 +394,7 @@ export default function GalleryPage() {
         {loading && (
           <div className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
-              <svg className="animate-spin h-8 w-8 text-[#F2B517]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              <svg className="animate-spin h-8 w-8 text-[#FFCB05]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               <span className="text-sm text-white/20">Loading pitches...</span>
             </div>
           </div>
@@ -475,7 +475,7 @@ export default function GalleryPage() {
                     onClick={() => setSelectedPitch(pitch)}
                     onMouseEnter={() => setHoveredPitchId(pitch.id)}
                     onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
-                    className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? "ring-2 ring-[#F2B517]" : ""}`}
+                    className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? "ring-2 ring-[#FFCB05]" : ""}`}
                     style={{
                       aspectRatio: aspect,
                       boxShadow: `${badge.shadow}, 0 8px 32px rgba(0,0,0,0.4)`,
@@ -506,11 +506,11 @@ export default function GalleryPage() {
 
                     {/* Vote badge */}
                     <div className={`absolute ${cornerPos} ${cornerRight} flex items-center gap-1 rounded-full ${votePad}`}
-                      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(242,181,23,0.2)" }}>
-                      <svg className={voteIcon} fill="#F2B517" viewBox="0 0 24 24">
+                      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,203,5,0.2)" }}>
+                      <svg className={voteIcon} fill="#FFCB05" viewBox="0 0 24 24">
                         <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                       </svg>
-                      <span className={`${voteText} font-black`} style={{ color: "#F2B517" }}>{pitch.vote_count || 0}</span>
+                      <span className={`${voteText} font-black`} style={{ color: "#FFCB05" }}>{pitch.vote_count || 0}</span>
                     </div>
 
                     {/* Info */}
@@ -520,7 +520,7 @@ export default function GalleryPage() {
                     </div>
 
                     {pitch.user_has_voted && (
-                      <div className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 right-1.5 w-5 h-5" : "bottom-3 right-3 w-7 h-7"} rounded-full flex items-center justify-center`} style={{ background: "#F2B517" }}>
+                      <div className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 right-1.5 w-5 h-5" : "bottom-3 right-3 w-7 h-7"} rounded-full flex items-center justify-center`} style={{ background: "#FFCB05" }}>
                         <svg className={sizeVariant === "compact" ? "w-3 h-3" : "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                       </div>
                     )}
@@ -591,9 +591,9 @@ export default function GalleryPage() {
                       style={
                         selectedTagIds.length > 0
                           ? {
-                              background: "rgba(242,181,23,0.15)",
-                              border: "1px solid #F2B517",
-                              color: "#F2B517",
+                              background: "rgba(255,203,5,0.15)",
+                              border: "1px solid #FFCB05",
+                              color: "#FFCB05",
                             }
                           : {
                               background: "rgba(255,255,255,0.05)",
@@ -611,7 +611,7 @@ export default function GalleryPage() {
                       {selectedTagIds.length > 0 && (
                         <span
                           className="inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[16px] h-4 px-1"
-                          style={{ background: "#F2B517", color: "#0B1A3B" }}
+                          style={{ background: "#FFCB05", color: "#0B1A3B" }}
                         >
                           {selectedTagIds.length}
                         </span>
@@ -652,9 +652,9 @@ export default function GalleryPage() {
                                 style={
                                   active
                                     ? {
-                                        background: "rgba(242,181,23,0.15)",
-                                        border: "1px solid #F2B517",
-                                        color: "#F2B517",
+                                        background: "rgba(255,203,5,0.15)",
+                                        border: "1px solid #FFCB05",
+                                        color: "#FFCB05",
                                       }
                                     : {
                                         background: "rgba(255,255,255,0.04)",
@@ -692,7 +692,7 @@ export default function GalleryPage() {
                       onClick={() => setSelectedPitch(pitch)}
                       onMouseEnter={() => setHoveredPitchId(pitch.id)}
                       onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
-                      className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? "ring-2 ring-[#F2B517] ring-inset" : ""}`}
+                      className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? "ring-2 ring-[#FFCB05] ring-inset" : ""}`}
                       style={{
                         aspectRatio: "16/9",
                         animation: "fadeInUp 0.3s ease-out both",
@@ -714,7 +714,7 @@ export default function GalleryPage() {
                       {/* Vote — maize star */}
                       <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full px-2 py-0.5"
                         style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}>
-                        <svg className="w-3.5 h-3.5" fill="#F2B517" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill="#FFCB05" viewBox="0 0 24 24">
                           <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                         </svg>
                         <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
@@ -722,7 +722,7 @@ export default function GalleryPage() {
 
                       {/* Voted */}
                       {pitch.user_has_voted && (
-                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#F2B517" }}>
+                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#FFCB05" }}>
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                         </div>
                       )}
@@ -744,7 +744,7 @@ export default function GalleryPage() {
                       disabled={totalGalleryPages <= 1}
                       className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all disabled:cursor-not-allowed"
                       style={{
-                        background: p === galleryPage ? "#F2B517" : "transparent",
+                        background: p === galleryPage ? "#FFCB05" : "transparent",
                         color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
                       }}>
                       {p}
@@ -790,7 +790,7 @@ export default function GalleryPage() {
               <div className="flex-1 min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : (getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") ? "#0a0f1e" : "#000" }}>
                 <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
                 {selectedPitch.mux_playback_id ? (
-                  <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#F2B517"
+                  <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05"
                     style={{ width: "100%", aspectRatio: "16/9" }} />
                 ) : getPitchType(selectedPitch) === "audio" ? (
                   <div className="w-full h-full flex flex-col max-h-[45vh] md:max-h-[80vh]">
@@ -893,7 +893,7 @@ export default function GalleryPage() {
                   <div className="flex flex-wrap gap-1.5 mb-4 flex-shrink-0">
                     {selectedPitch.tags.map((tag) => (
                       <span key={tag.id} className="px-2.5 py-0.5 text-[10px] rounded-full font-medium"
-                        style={{ background: "rgba(242,181,23,0.08)", color: "rgba(242,181,23,0.6)", border: "1px solid rgba(242,181,23,0.1)" }}>{tag.name}</span>
+                        style={{ background: "rgba(255,203,5,0.08)", color: "rgba(255,203,5,0.6)", border: "1px solid rgba(255,203,5,0.1)" }}>{tag.name}</span>
                     ))}
                   </div>
                 )}
@@ -901,7 +901,7 @@ export default function GalleryPage() {
                 {/* Vote area */}
                 <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <div className="flex items-center gap-2">
-                    <svg className="w-6 h-6" fill="#F2B517" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6" fill="#FFCB05" viewBox="0 0 24 24">
                       <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                     </svg>
                     <span className="text-2xl font-black text-white tabular-nums">{selectedPitch.vote_count || 0}</span>
@@ -910,9 +910,9 @@ export default function GalleryPage() {
                     disabled={voteSubmitting[selectedPitch.id]}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
                     style={{
-                      background: selectedPitch.user_has_voted ? "rgba(242,181,23,0.12)" : "#F2B517",
-                      color: selectedPitch.user_has_voted ? "#F2B517" : "#0B1A3B",
-                      border: selectedPitch.user_has_voted ? "1px solid rgba(242,181,23,0.25)" : "1px solid transparent",
+                      background: selectedPitch.user_has_voted ? "rgba(255,203,5,0.12)" : "#FFCB05",
+                      color: selectedPitch.user_has_voted ? "#FFCB05" : "#0B1A3B",
+                      border: selectedPitch.user_has_voted ? "1px solid rgba(255,203,5,0.25)" : "1px solid transparent",
                     }}>
                     {voteSubmitting[selectedPitch.id] ? (
                       <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -947,29 +947,29 @@ export default function GalleryPage() {
             style={{ background: "rgba(0,0,0,0.75)" }}
             onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}>
             <div className="w-full max-w-md rounded-2xl p-6"
-              style={{ background: "linear-gradient(135deg, rgba(11,26,59,0.97), rgba(13,21,48,0.97))", backdropFilter: "blur(24px)", border: "1px solid rgba(242,181,23,0.15)", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
+              style={{ background: "linear-gradient(135deg, rgba(11,26,59,0.97), rgba(13,21,48,0.97))", backdropFilter: "blur(24px)", border: "1px solid rgba(255,203,5,0.15)", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
               onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-2 mb-1">
-                <svg className="w-5 h-5" fill="#F2B517" viewBox="0 0 24 24"><path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" /></svg>
+                <svg className="w-5 h-5" fill="#FFCB05" viewBox="0 0 24 24"><path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" /></svg>
                 <h3 className="text-lg font-bold text-white">Cast Your Vote</h3>
               </div>
               <p className="text-sm text-white/35 mb-5">Enter your name and email to start voting.</p>
               <form onSubmit={handleSaveVoterProfile} className="space-y-3">
                 <input type="text" placeholder="Your name" value={voterForm.name}
                   onChange={(e) => setVoterForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#FFCB05]/40"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                   required />
                 <input type="email" placeholder="you@umich.edu" value={voterForm.email}
                   onChange={(e) => setVoterForm((p) => ({ ...p, email: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F2B517]/40"
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#FFCB05]/40"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                   required />
                 <div className="flex justify-end gap-3 pt-2">
                   <button type="button" onClick={() => { setShowVoterModal(false); setPendingPitchId(null); }}
                     className="px-4 py-2.5 text-sm font-medium text-white/35 hover:text-white/60 transition-colors">Cancel</button>
                   <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-bold text-[#0B1A3B] transition-colors"
-                    style={{ background: "#F2B517" }}>
+                    style={{ background: "#FFCB05" }}>
                     Continue to Vote
                   </button>
                 </div>

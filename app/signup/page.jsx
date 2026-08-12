@@ -86,13 +86,13 @@ export default function SignUpPage() {
           <div
             className="relative rounded-xl transition-all duration-200"
             style={{
-              border: focusedField === "email" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
-              boxShadow: focusedField === "email" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
+              border: focusedField === "email" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+              boxShadow: focusedField === "email" ? "0 0 0 3px rgba(255,203,5,0.2)" : "none",
               background: "rgba(255,255,255,0.05)",
             }}
           >
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "email" ? "#F2B517" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "email" ? "#FFCB05" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
@@ -118,13 +118,13 @@ export default function SignUpPage() {
           <div
             className="relative rounded-xl transition-all duration-200"
             style={{
-              border: focusedField === "password" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
-              boxShadow: focusedField === "password" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
+              border: focusedField === "password" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+              boxShadow: focusedField === "password" ? "0 0 0 3px rgba(255,203,5,0.2)" : "none",
               background: "rgba(255,255,255,0.05)",
             }}
           >
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "password" ? "#F2B517" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "password" ? "#FFCB05" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
@@ -170,13 +170,13 @@ export default function SignUpPage() {
           <div
             className="relative rounded-xl transition-all duration-200"
             style={{
-              border: focusedField === "confirm" ? "2px solid #F2B517" : "2px solid rgba(255,255,255,0.12)",
-              boxShadow: focusedField === "confirm" ? "0 0 0 3px rgba(242,181,23,0.2)" : "none",
+              border: focusedField === "confirm" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+              boxShadow: focusedField === "confirm" ? "0 0 0 3px rgba(255,203,5,0.2)" : "none",
               background: "rgba(255,255,255,0.05)",
             }}
           >
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "confirm" ? "#F2B517" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 transition-colors" style={{ color: focusedField === "confirm" ? "#FFCB05" : "rgba(255,255,255,0.35)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
@@ -222,7 +222,7 @@ export default function SignUpPage() {
             text-black hover:shadow-lg hover:-translate-y-0.5
             disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none
             active:translate-y-0 active:shadow-md group"
-          style={{ background: "#F2B517" }}
+          style={{ background: "#FFCB05" }}
         >
           <span className="relative z-10 flex items-center justify-center gap-2">
             {loading ? (
@@ -268,8 +268,8 @@ export default function SignUpPage() {
           background: "transparent",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "#F2B517";
-          e.currentTarget.style.color = "#F2B517";
+          e.currentTarget.style.borderColor = "#FFCB05";
+          e.currentTarget.style.color = "#FFCB05";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";

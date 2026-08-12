@@ -16,11 +16,11 @@ export default function VerifyEmailPage() {
         <div
           className="w-14 h-14 rounded-full flex items-center justify-center"
           style={{
-            background: "rgba(242,181,23,0.12)",
-            border: "1px solid rgba(242,181,23,0.3)",
+            background: "rgba(255,203,5,0.12)",
+            border: "1px solid rgba(255,203,5,0.3)",
           }}
         >
-          <svg className="w-7 h-7" style={{ color: "#F2B517" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-7 h-7" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
@@ -37,7 +37,7 @@ export default function VerifyEmailPage() {
         className="relative flex items-center justify-center w-full py-3 text-sm font-semibold rounded-xl transition-all duration-200 overflow-hidden
           text-black hover:shadow-lg hover:-translate-y-0.5
           active:translate-y-0 active:shadow-md group"
-        style={{ background: "#F2B517" }}
+        style={{ background: "#FFCB05" }}
       >
         <span className="relative z-10 flex items-center justify-center gap-2">
           Go to Log In

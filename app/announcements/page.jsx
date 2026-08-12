@@ -378,7 +378,7 @@ export default function AnnouncementsPage() {
             {getPitchType(selectedPitch) === "video" && selectedPitch.mux_playback_id && (
               <MuxPlayer
                 playbackId={selectedPitch.mux_playback_id}
-                accentColor="#F2B517"
+                accentColor="#FFCB05"
                 style={{ width: "100%", borderRadius: "0.75rem", overflow: "hidden" }}
               />
             )}
