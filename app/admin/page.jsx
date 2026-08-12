@@ -2118,6 +2118,9 @@ export default function AdminPage() {
               apiUpload={apiUpload}
               onError={(m) => setError(m)}
               onSuccess={(m) => setSuccess(m)}
+              defaultThumbnails={defaultThumbnails}
+              uploadingThumbnail={uploadingThumbnail}
+              onUploadDefaultThumbnail={handleUploadDefThumb}
             />
           )}
         </div>
