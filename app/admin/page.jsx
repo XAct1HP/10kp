@@ -8,6 +8,9 @@ import { buildAccountCsv, joinEmailList, parseEmailList, WINNER_SURVEY_URL } fro
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
 import adminBg from "../../public/admin_bg.png";
+import SponsorsPanel from "../../components/admin/SponsorsPanel";
+import AwardsPanel from "../../components/admin/AwardsPanel";
+import EventsPanel from "../../components/admin/EventsPanel";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1085,6 +1088,9 @@ export default function AdminPage() {
     { id: "votes", label: "Votes", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
     { id: "outreach", label: "Outreach", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /> },
     { id: "announcements", label: "Announcements", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /> },
+    { id: "awards", label: "Awards", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.963a1 1 0 00.95.69h4.167c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.963c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.175 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.963a1 1 0 00-.364-1.118L2.05 9.39c-.783-.57-.38-1.81.588-1.81h4.166a1 1 0 00.951-.69l1.286-3.963z" /> },
+    { id: "events", label: "Events", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
+    { id: "sponsors", label: "Sponsors", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /> },
     { id: "newspaper", label: "Weekly Digest", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 5H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2zM7 9h10M7 13h6M7 17h4" /> },
     { id: "analytics", label: "Analytics", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
     { id: "settings", label: "Settings", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /> },
@@ -1993,6 +1999,31 @@ export default function AdminPage() {
           )}
 
           {/* ═══ WEEKLY DIGEST ═══ */}
+          {activeTab === "awards" && (
+            <AwardsPanel
+              apiFetch={apiFetch}
+              onError={(m) => setError(m)}
+              onSuccess={(m) => setSuccess(m)}
+            />
+          )}
+
+          {activeTab === "events" && (
+            <EventsPanel
+              apiFetch={apiFetch}
+              onError={(m) => setError(m)}
+              onSuccess={(m) => setSuccess(m)}
+            />
+          )}
+
+          {activeTab === "sponsors" && (
+            <SponsorsPanel
+              apiFetch={apiFetch}
+              apiUpload={apiUpload}
+              onError={(m) => setError(m)}
+              onSuccess={(m) => setSuccess(m)}
+            />
+          )}
+
           {activeTab === "newspaper" && (
             <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               {digestLoading ? (

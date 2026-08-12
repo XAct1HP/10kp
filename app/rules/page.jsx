@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import PageBackground from "../../components/PageBackground";
 import rulesBg from "../../public/rules_bg.png";
@@ -47,6 +48,92 @@ function Item({ label, children }) {
   );
 }
 
+function AwardCard({ award }) {
+  return (
+    <div
+      className="rounded-xl p-4 sm:p-5"
+      style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-white font-semibold text-base sm:text-lg tracking-tight">
+            {award.name}
+          </h3>
+          {award.prize && (
+            <p className="mt-0.5 text-sm font-semibold" style={{ color: "#FFCB05" }}>
+              {award.prize}
+            </p>
+          )}
+        </div>
+      </div>
+      {award.description && (
+        <p className="mt-2 text-sm text-white/70 leading-relaxed">
+          {award.description}
+        </p>
+      )}
+      {award.sponsors?.length > 0 && (
+        <div
+          className="mt-4 pt-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-2">
+            Sponsored by
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            {award.sponsors.map((s) => (
+              <SponsorBadge key={s.id} sponsor={s} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SponsorBadge({ sponsor }) {
+  const content = (
+    <div
+      className="inline-flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg"
+      style={{
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      {sponsor.logo_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={sponsor.logo_url}
+          alt={sponsor.name}
+          className="w-6 h-6 object-contain"
+        />
+      ) : (
+        <span
+          className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold text-black"
+          style={{ background: "#FFCB05" }}
+        >
+          {sponsor.name.charAt(0)}
+        </span>
+      )}
+      <span className="text-xs font-medium text-white/85">{sponsor.name}</span>
+    </div>
+  );
+  return sponsor.website ? (
+    <a
+      href={sponsor.website}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-block transition-transform hover:-translate-y-0.5"
+    >
+      {content}
+    </a>
+  ) : (
+    content
+  );
+}
+
 function NumberedItem({ n, label, children }) {
   return (
     <div className="flex gap-3">
@@ -65,6 +152,23 @@ function NumberedItem({ n, label, children }) {
 }
 
 export default function RulesPage() {
+  const [awards, setAwards] = useState(null); // null = loading, [] = loaded empty
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/awards");
+        if (!res.ok) throw new Error("Failed to load awards");
+        const data = await res.json();
+        if (!cancelled) setAwards(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setAwards([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="relative min-h-[calc(100vh-5rem)]">
       {/* Fixed background image + overlay — stays pinned to the viewport
@@ -195,25 +299,35 @@ export default function RulesPage() {
           </SectionCard>
 
           <SectionCard title="Awards">
-            <div className="flex items-center gap-3">
-              <span
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
-                style={{
-                  background: "rgba(255,203,5,0.15)",
-                  color: "#FFCB05",
-                  border: "1px solid rgba(255,203,5,0.35)",
-                }}
-              >
+            {awards === null ? (
+              <p className="text-sm text-white/50">Loading awards...</p>
+            ) : awards.length === 0 ? (
+              <div className="flex items-center gap-3">
                 <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: "#FFCB05" }}
-                />
-                Coming Soon
-              </span>
-              <span className="text-white/70 text-sm">
-                Prize details will be announced shortly.
-              </span>
-            </div>
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
+                  style={{
+                    background: "rgba(255,203,5,0.15)",
+                    color: "#FFCB05",
+                    border: "1px solid rgba(255,203,5,0.35)",
+                  }}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: "#FFCB05" }}
+                  />
+                  Coming Soon
+                </span>
+                <span className="text-white/70 text-sm">
+                  Prize details will be announced shortly.
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {awards.map((award) => (
+                  <AwardCard key={award.id} award={award} />
+                ))}
+              </div>
+            )}
           </SectionCard>
         </div>
 
