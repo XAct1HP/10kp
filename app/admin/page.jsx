@@ -8,9 +8,8 @@ import { buildAccountCsv, joinEmailList, parseEmailList, WINNER_SURVEY_URL } fro
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
 import adminBg from "../../public/admin_bg.png";
-import SponsorsPanel from "../../components/admin/SponsorsPanel";
-import AwardsPanel from "../../components/admin/AwardsPanel";
-import EventsPanel from "../../components/admin/EventsPanel";
+import SettingsPanel from "../../components/admin/SettingsPanel";
+import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPanel";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1088,9 +1087,6 @@ export default function AdminPage() {
     { id: "votes", label: "Votes", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
     { id: "outreach", label: "Outreach", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /> },
     { id: "announcements", label: "Announcements", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /> },
-    { id: "awards", label: "Awards", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.963a1 1 0 00.95.69h4.167c.969 0 1.371 1.24.588 1.81l-3.37 2.448a1 1 0 00-.364 1.118l1.287 3.963c.3.921-.755 1.688-1.54 1.118l-3.37-2.448a1 1 0 00-1.175 0l-3.37 2.448c-.784.57-1.838-.197-1.539-1.118l1.287-3.963a1 1 0 00-.364-1.118L2.05 9.39c-.783-.57-.38-1.81.588-1.81h4.166a1 1 0 00.951-.69l1.286-3.963z" /> },
-    { id: "events", label: "Events", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-    { id: "sponsors", label: "Sponsors", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /> },
     { id: "newspaper", label: "Weekly Digest", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 5H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2zM7 9h10M7 13h6M7 17h4" /> },
     { id: "analytics", label: "Analytics", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
     { id: "settings", label: "Settings", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /> },
@@ -1729,301 +1725,16 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ═══ ANNOUNCEMENTS ═══ */}
+                    {/* ═══ ANNOUNCEMENTS ═══ */}
           {activeTab === "announcements" && (
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-              <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 pb-2">
-              <GlassCard className="xl:col-span-2">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-maize font-semibold mb-1">
-                  Make Announcements
-                </p>
-                <h2 className="text-lg font-bold text-white mb-4">
-                  Make Announcements
-                </h2>
-
-                <div className="space-y-4 mb-5">
-                  <div>
-                    <p className="text-xs font-semibold text-white/60 mb-2">Winners</p>
-                    <div className="grid grid-cols-1 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startAnnouncementTemplate("winner-weekly-raffle")}
-                        className="text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
-                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                      >
-                        Add Weekly Raffle Winner
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => startAnnouncementTemplate("winner-pitch")}
-                        className="text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
-                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                      >
-                        Add Pitch Competition Winner
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => startAnnouncementTemplate("winner-monthly-grand")}
-                        className="text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
-                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                      >
-                        Add Monthly Grand Prize Winner
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-white/60 mb-2">General Updates</p>
-                    <button
-                      type="button"
-                      onClick={() => setAnnouncementTemplate("general")}
-                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-white/75 hover:text-white transition-colors"
-                      style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                    >
-                      Custom Announcement
-                    </button>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSaveAnnouncement} className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Announcement title"
-                    value={announcementForm.title}
-                    onChange={(e) =>
-                      setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  />
-                  {announcementTemplate !== "general" && (
-                    <>
-                      <input
-                        type="text"
-                        placeholder="Winner / person name"
-                        value={templateFields.winnerName}
-                        onChange={(e) =>
-                          setTemplateFields((prev) => ({ ...prev, winnerName: e.target.value }))
-                        }
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Pitch / competition title"
-                        value={templateFields.pitchTitle}
-                        onChange={(e) =>
-                          setTemplateFields((prev) => ({ ...prev, pitchTitle: e.target.value }))
-                        }
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Prize / category label"
-                        value={templateFields.prizeLabel}
-                        onChange={(e) =>
-                          setTemplateFields((prev) => ({ ...prev, prizeLabel: e.target.value }))
-                        }
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Competition name"
-                        value={templateFields.competitionName}
-                        onChange={(e) =>
-                          setTemplateFields((prev) => ({ ...prev, competitionName: e.target.value }))
-                        }
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      />
-                      <input
-                        type="datetime-local"
-                        value={templateFields.dateValue}
-                        onChange={(e) =>
-                          setTemplateFields((prev) => ({ ...prev, dateValue: e.target.value }))
-                        }
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      />
-                      <textarea
-                        placeholder="Template-specific details"
-                        value={templateFields.details}
-                        onChange={(e) =>
-                          setTemplateFields((prev) => ({ ...prev, details: e.target.value }))
-                        }
-                        rows={3}
-                        className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      />
-                    </>
-                  )}
-                  <textarea
-                    placeholder="Write announcement details..."
-                    value={announcementForm.content}
-                    onChange={(e) =>
-                      setAnnouncementForm((prev) => ({ ...prev, content: e.target.value }))
-                    }
-                    rows={6}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40 resize-y"
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  />
-                  <label className="flex items-center gap-2 text-sm text-white/60">
-                    <input
-                      type="checkbox"
-                      checked={announcementForm.is_published}
-                      onChange={(e) =>
-                        setAnnouncementForm((prev) => ({
-                          ...prev,
-                          is_published: e.target.checked,
-                        }))
-                      }
-                    />
-                    Publish to announcement page
-                  </label>
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="submit"
-                      disabled={announcementSubmitting}
-                      className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
-                    >
-                      {announcementSubmitting
-                        ? "Saving..."
-                        : announcementForm.id
-                        ? "Update"
-                        : "Create"}
-                    </button>
-                    {announcementForm.id && (
-                      <button
-                        type="button"
-                        onClick={resetAnnouncementForm}
-                        className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/45 hover:text-white/70 transition-colors"
-                        style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                      >
-                        Cancel Edit
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </GlassCard>
-
-              <GlassCard noPad className="xl:col-span-3">
-                <div className="px-5 py-4 border-b border-white/[0.04]">
-                  <h2 className="text-lg font-bold text-white">Posted Announcements</h2>
-                  <p className="text-xs text-white/30 mt-1">
-                    {announcements.length} total
-                  </p>
-                </div>
-                {loadingState.announcements ? (
-                  <p className="text-white/30 text-sm p-5">Loading...</p>
-                ) : announcements.length === 0 ? (
-                  <p className="text-white/30 text-sm p-5">No announcements yet.</p>
-                ) : (
-                  <div className="divide-y divide-white/[0.03]">
-                    {announcements.map((item) => (
-                      <div key={item.id} className="px-5 py-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-semibold text-white truncate">
-                                {item.title}
-                              </h3>
-                              <span
-                                className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                                  item.is_published
-                                    ? "bg-green-500/10 text-green-400"
-                                    : "bg-white/10 text-white/40"
-                                }`}
-                              >
-                                {item.is_published ? "Published" : "Draft"}
-                              </span>
-                            </div>
-                            <p className="text-xs text-white/45 mt-1 whitespace-pre-wrap">
-                              {item.content}
-                            </p>
-                            <p className="text-[10px] text-white/25 mt-2">
-                              Updated{" "}
-                              {new Date(item.updated_at || item.created_at).toLocaleString()}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => handleEditAnnouncement(item)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/65 hover:text-white transition-colors"
-                              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAnnouncement(item.id)}
-                              disabled={announcementDeletingId === item.id}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-300 hover:text-red-200 transition-colors disabled:opacity-50"
-                              style={{ border: "1px solid rgba(239,68,68,0.25)" }}
-                            >
-                              {announcementDeletingId === item.id ? "Deleting..." : "Delete"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </GlassCard>
-              </div>
-            </div>
+            <AnnouncementsAdminPanel
+              apiFetch={apiFetch}
+              onError={(m) => setError(m)}
+              onSuccess={(m) => setSuccess(m)}
+            />
           )}
 
           {/* ═══ WEEKLY DIGEST ═══ */}
-          {activeTab === "awards" && (
-            <AwardsPanel
-              apiFetch={apiFetch}
-              onError={(m) => setError(m)}
-              onSuccess={(m) => setSuccess(m)}
-            />
-          )}
-
-          {activeTab === "events" && (
-            <EventsPanel
-              apiFetch={apiFetch}
-              onError={(m) => setError(m)}
-              onSuccess={(m) => setSuccess(m)}
-            />
-          )}
-
-          {activeTab === "sponsors" && (
-            <SponsorsPanel
-              apiFetch={apiFetch}
-              apiUpload={apiUpload}
-              onError={(m) => setError(m)}
-              onSuccess={(m) => setSuccess(m)}
-            />
-          )}
-
           {activeTab === "newspaper" && (
             <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               {digestLoading ? (
@@ -2400,64 +2111,14 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ═══ SETTINGS ═══ */}
+                    {/* ═══ SETTINGS ═══ */}
           {activeTab === "settings" && (
-            <div className="space-y-4 flex-shrink-0">
-              <GlassCard>
-                <h2 className="text-lg font-bold text-white mb-4">Competition Date</h2>
-                {loadingState.date ? <p className="text-white/30 text-sm">Loading...</p> : (
-                  <>
-                    {competitionDate && !editingDate && (
-                      <p className="text-sm text-white/50 mb-4">Scheduled for <span className="text-maize font-medium">{new Date(competitionDate).toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" })}</span></p>
-                    )}
-                    {editingDate ? (
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <input type="datetime-local" value={dateInput} onChange={(e) => setDateInput(e.target.value)}
-                          className="px-4 py-2.5 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-maize/40"
-                          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} />
-                        <button onClick={handleSaveDate} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors">Save</button>
-                        <button onClick={() => setEditingDate(false)} className="px-5 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:text-white/70 transition-colors">Cancel</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setEditingDate(true)} className="px-5 py-2.5 rounded-xl text-sm font-medium text-white/50 hover:text-white/70 transition-colors" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>{competitionDate ? "Edit Date" : "Set Date"}</button>
-                    )}
-                  </>
-                )}
-              </GlassCard>
-              <GlassCard>
-                <h2 className="text-lg font-bold text-white mb-1">Default Thumbnails</h2>
-                <p className="text-sm text-white/35 mb-5">Fallback images for audio and text pitches.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {[{ type: "audio", label: "Audio Pitch" }, { type: "text", label: "Text Pitch" }].map(({ type, label }) => (
-                    <div key={type}>
-                      <p className="text-sm font-semibold text-white/60 mb-2">{label}</p>
-                      {defaultThumbnails[type] ? (
-                        <div className="relative group rounded-xl overflow-hidden">
-                          <img src={defaultThumbnails[type]} alt={label} className="w-full aspect-video object-cover" />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <label className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/20 hover:bg-white/30 cursor-pointer transition-colors">
-                              Replace<input type="file" accept="image/*" className="sr-only" onChange={(e) => handleUploadDefThumb(type, e.target.files[0])} />
-                            </label>
-                          </div>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-full aspect-video rounded-xl cursor-pointer transition-colors hover:bg-white/[0.03]" style={{ border: "2px dashed rgba(255,255,255,0.08)" }}>
-                          {uploadingThumbnail === type ? (
-                            <svg className="animate-spin h-5 w-5 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                          ) : (
-                            <>
-                              <svg className="w-7 h-7 text-white/15 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                              <span className="text-xs text-white/25">Upload image</span>
-                            </>
-                          )}
-                          <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleUploadDefThumb(type, e.target.files[0])} />
-                        </label>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            </div>
+            <SettingsPanel
+              apiFetch={apiFetch}
+              apiUpload={apiUpload}
+              onError={(m) => setError(m)}
+              onSuccess={(m) => setSuccess(m)}
+            />
           )}
         </div>
       </main>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import RecordWinnersModal from "./RecordWinnersModal";
 
 function GlassCard({ children, className = "" }) {
   return (
@@ -51,7 +50,6 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [recordingFor, setRecordingFor] = useState(null); // award currently in "Record Winners" modal
 
   const load = async () => {
     setLoading(true);
@@ -428,15 +426,8 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
 
               <div className="flex gap-2 mt-4">
                 <button
-                  onClick={() => setRecordingFor(award)}
-                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-black transition-transform hover:-translate-y-0.5"
-                  style={{ background: "#FFCB05" }}
-                >
-                  Record Winners
-                </button>
-                <button
                   onClick={() => startEdit(award)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 hover:text-white transition-colors"
+                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 hover:text-white transition-colors"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
                 >
                   Edit
@@ -455,16 +446,6 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
         </div>
       )}
 
-      {recordingFor && (
-        <RecordWinnersModal
-          award={recordingFor}
-          apiFetch={apiFetch}
-          onClose={() => setRecordingFor(null)}
-          onError={onError}
-          onSuccess={onSuccess}
-          onCreated={() => { /* no-op — AnnouncementsPanel will show it */ }}
-        />
-      )}
     </div>
   );
 }

@@ -39,7 +39,34 @@ export default function Home() {
   const { user } = useAuth();
   const submitHref = user ? "/intake" : "/signup";
   const [competitionDate, setCompetitionDate] = useState(null);
-  const timeLeft = useCountdown(competitionDate);
+  const [submissionDeadline, setSubmissionDeadline] = useState(null);
+
+  // Determine which countdown target and label to show based on the
+  // current phase:
+  //   • pre-start:  competition hasn't started yet   -> "Competition starts in"
+  //   • pre-close:  started but before deadline      -> "Time left to submit"
+  //   • closed:     past the deadline                -> submissions closed
+  //   • no dates:   nothing configured               -> countdown hidden
+  const now = Date.now();
+  const startTs = competitionDate ? new Date(competitionDate).getTime() : null;
+  const closeTs = submissionDeadline ? new Date(submissionDeadline).getTime() : null;
+
+  let phase = "none";
+  let countdownTarget = null;
+  let countdownLabel = "";
+  if (startTs && now < startTs) {
+    phase = "pre-start";
+    countdownTarget = competitionDate;
+    countdownLabel = "Competition starts in";
+  } else if (closeTs && now < closeTs) {
+    phase = "pre-close";
+    countdownTarget = submissionDeadline;
+    countdownLabel = "Time left to submit";
+  } else if ((startTs && now >= startTs) || (closeTs && now >= closeTs)) {
+    phase = "closed";
+  }
+
+  const timeLeft = useCountdown(countdownTarget);
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -48,16 +75,17 @@ export default function Home() {
       return;
     }
 
-    async function fetchDate() {
+    async function fetchDates() {
       try {
         const res = await fetch("/api/admin/competition-date");
         const data = await res.json();
         if (data.competition_date) setCompetitionDate(data.competition_date);
+        if (data.submission_deadline) setSubmissionDeadline(data.submission_deadline);
       } catch {
         // ignore
       }
     }
-    fetchDate();
+    fetchDates();
   }, [router]);
 
   const pad = (n) => String(n).padStart(2, "0");
@@ -99,7 +127,7 @@ export default function Home() {
               className="text-[10px] uppercase tracking-[0.28em] font-semibold mb-4"
               style={{ color: "#FFCB05" }}
             >
-              Competition starts in
+              {countdownLabel}
             </p>
             {/* 7-column grid: 4 numbers + 3 centered separators */}
             <div
@@ -134,12 +162,12 @@ export default function Home() {
           </div>
         )}
 
-        {timeLeft?.past && (
+        {phase === "closed" && (
           <div className="flex items-center gap-3">
             <svg className="w-6 h-6 flex-shrink-0" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-white font-bold text-base">Competition day is here!</span>
+            <span className="text-white font-bold text-base">Submissions are now closed</span>
           </div>
         )}
 
@@ -252,7 +280,7 @@ export default function Home() {
                 className="text-sm uppercase tracking-[0.25em] mb-5 font-semibold"
                 style={{ color: "#FFCB05" }}
               >
-                Competition starts in
+                {countdownLabel}
               </p>
               <div className="flex items-center justify-end gap-5">
                 {countdownUnits.map(({ label, value }, i) => (
@@ -291,7 +319,7 @@ export default function Home() {
             </div>
           )}
 
-          {competitionDate && timeLeft?.past && (
+          {phase === "closed" && (
             <div
               className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl"
               style={{
@@ -301,9 +329,9 @@ export default function Home() {
               }}
             >
               <svg className="w-8 h-8" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-white font-bold text-lg tracking-wide">Competition day is here!</span>
+              <span className="text-white font-bold text-lg tracking-wide">Submissions are now closed</span>
             </div>
           )}
         </div>

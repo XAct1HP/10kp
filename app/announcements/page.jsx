@@ -2,83 +2,130 @@
 
 import { useEffect, useMemo, useState } from "react";
 import MuxPlayer from "@mux/mux-player-react";
-import Link from "next/link";
 import PageBackground from "../../components/PageBackground";
-import adminBg from "../../public/admin_bg.png";
+// The blue cork board background image the user is providing.
+// Drop the file at /public/bulletin_bg.png and it'll load automatically.
+import bulletinBg from "../../public/bulletin_bg.png";
 
-// ─── Shared UI ────────────────────────────────────────────────────
-function GlassCard({ children, className = "" }) {
+// ─── Push pin (SVG) ─────────────────────────────────────────────
+// Simple top-down thumbtack. Wrapped in a fixed-size container so it
+// sits neatly above each note.
+function PushPin({ color = "#FFCB05", size = 32 }) {
+  // A tiny ID suffix per color keeps <defs> unique when multiple pins
+  // render on the page.
+  const id = color.replace("#", "");
+  return (
+    <svg
+      viewBox="0 0 40 40"
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      aria-hidden="true"
+      style={{ filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.35))" }}
+    >
+      <defs>
+        <radialGradient id={`pin-grad-${id}`} cx="34%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
+          <stop offset="35%" stopColor={color} />
+          <stop offset="100%" stopColor="rgba(0,0,0,0.45)" />
+        </radialGradient>
+      </defs>
+      {/* Faint shadow ellipse under the pin */}
+      <ellipse cx="20" cy="34" rx="9" ry="1.6" fill="rgba(0,0,0,0.28)" />
+      {/* Pin body */}
+      <circle cx="20" cy="18" r="13" fill={`url(#pin-grad-${id})`} />
+      {/* Highlight */}
+      <ellipse cx="15" cy="12" rx="4" ry="2.2" fill="rgba(255,255,255,0.65)" />
+    </svg>
+  );
+}
+
+// ─── Note wrapper (paper card) ──────────────────────────────────
+// Applies subtle rotation and paper styling. Different colors per type.
+const NOTE_STYLES = {
+  award: {
+    paper: "#FFF4C4",   // pale maize
+    pin: "#FFCB05",
+    accent: "#8A6E00",
+  },
+  event: {
+    paper: "#DCEBFF",   // pale blue
+    pin: "#3B82F6",
+    accent: "#1E3A8A",
+  },
+  general: {
+    paper: "#FEFCF3",   // cream
+    pin: "#F5F5F5",
+    accent: "#334155",
+  },
+};
+
+function Note({ type = "general", children, rotate = 0, className = "" }) {
+  const style = NOTE_STYLES[type] || NOTE_STYLES.general;
   return (
     <div
-      className={`rounded-2xl p-5 ${className}`}
+      className={`relative rounded-sm ${className}`}
       style={{
-        background: "rgba(11,26,59,0.55)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+        transform: `rotate(${rotate}deg)`,
+        transformOrigin: "top center",
+        transition: "transform 0.2s ease",
       }}
     >
-      {children}
+      {/* Pin (sits on top center) */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 -top-3 z-10"
+      >
+        <PushPin color={style.pin} />
+      </div>
+
+      {/* Paper */}
+      <div
+        className="px-5 pt-8 pb-5"
+        style={{
+          background: style.paper,
+          borderRadius: "3px",
+          boxShadow:
+            "0 1px 2px rgba(0,0,0,0.15), 0 6px 20px rgba(0,0,0,0.25), inset 0 0 40px rgba(0,0,0,0.03)",
+          color: "#1a1a1a",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
-function getPitchType(pitch) {
-  if (!pitch) return "unknown";
-  if (pitch.file_type === "video" || pitch.mux_playback_id) return "video";
-  if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return "audio";
-  return "text";
-}
-
-function getPitchThumbnail(pitch) {
-  if (!pitch) return null;
-  if (pitch.thumbnail_path) return pitch.thumbnail_path;
-  if (pitch.mux_playback_id) {
-    return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=640&fit_mode=smartcrop`;
-  }
-  return null;
-}
-
+// ─── Sponsor row (dark text for paper backgrounds) ─────────────
 function SponsorRow({ sponsors }) {
   if (!sponsors?.length) return null;
   return (
-    <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <p className="text-[10px] uppercase tracking-[0.22em] text-white/40 mb-2">
+    <div className="pt-3 mt-3" style={{ borderTop: "1px dashed rgba(0,0,0,0.15)" }}>
+      <p className="text-[9px] uppercase tracking-[0.22em] font-bold mb-2" style={{ color: "#666" }}>
         Sponsored by
       </p>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         {sponsors.map((s) => {
           const inner = (
             <div
-              className="inline-flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
+              className="inline-flex items-center gap-1.5 pl-1 pr-2 py-1 rounded"
+              style={{ background: "rgba(0,0,0,0.05)", border: "1px solid rgba(0,0,0,0.08)" }}
             >
               {s.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.logo_url} alt={s.name} className="w-5 h-5 object-contain" />
+                <img src={s.logo_url} alt={s.name} className="w-4 h-4 object-contain" />
               ) : (
                 <span
-                  className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-black"
-                  style={{ background: "#FFCB05" }}
+                  className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold text-white"
+                  style={{ background: "#0B1A3B" }}
                 >
                   {s.name.charAt(0)}
                 </span>
               )}
-              <span className="text-[11px] font-medium text-white/85">{s.name}</span>
+              <span className="text-[10px] font-medium" style={{ color: "#333" }}>{s.name}</span>
             </div>
           );
           return s.website ? (
-            <a
-              key={s.id}
-              href={s.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block transition-transform hover:-translate-y-0.5"
-            >
+            <a key={s.id} href={s.website} target="_blank" rel="noopener noreferrer" className="inline-block transition-transform hover:-translate-y-0.5">
               {inner}
             </a>
           ) : (
@@ -90,82 +137,96 @@ function SponsorRow({ sponsors }) {
   );
 }
 
-function WinnerCard({ pitch, onOpen }) {
+// ─── Pitch helpers ──────────────────────────────────────────────
+function getPitchType(pitch) {
+  if (!pitch) return "unknown";
+  if (pitch.file_type === "video" || pitch.mux_playback_id) return "video";
+  if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return "audio";
+  return "text";
+}
+function getPitchThumbnail(pitch) {
+  if (!pitch) return null;
+  if (pitch.thumbnail_path) return pitch.thumbnail_path;
+  if (pitch.mux_playback_id) {
+    return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=480&fit_mode=smartcrop`;
+  }
+  return null;
+}
+
+// Polaroid-style winner card that sits on a note.
+function WinnerPolaroid({ pitch, onOpen }) {
   const thumb = getPitchThumbnail(pitch);
   return (
     <button
       type="button"
       onClick={() => onOpen(pitch)}
-      className="text-left rounded-xl overflow-hidden transition-transform hover:-translate-y-0.5 group"
+      className="text-left transition-transform hover:-translate-y-0.5 active:translate-y-0"
       style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: "#fff",
+        padding: "6px 6px 10px",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
       }}
     >
-      <div className="aspect-video w-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.35)" }}>
+      <div className="aspect-video w-full overflow-hidden flex items-center justify-center" style={{ background: "#eee" }}>
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt={pitch.title} className="w-full h-full object-cover" />
         ) : (
-          <span className="text-xs text-white/40 uppercase tracking-wider">{getPitchType(pitch)}</span>
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider">{getPitchType(pitch)}</span>
         )}
       </div>
-      <div className="p-3">
-        <p className="text-sm font-semibold text-white truncate group-hover:text-maize transition-colors">
-          {pitch.title}
-        </p>
-        <p className="text-xs text-white/55 truncate mt-0.5">
-          {pitch.name}
-          {pitch.role ? ` • ${pitch.role}` : ""}
-        </p>
-      </div>
+      <p className="mt-2 text-[11px] font-bold truncate" style={{ color: "#1a1a1a" }}>{pitch.name}</p>
+      <p className="text-[10px] truncate italic" style={{ color: "#555" }}>{pitch.title}</p>
     </button>
   );
 }
 
-function AwardAnnouncementCard({ announcement, onOpenPitch }) {
+// ─── Cards ──────────────────────────────────────────────────────
+function GeneralNote({ announcement, rotate }) {
+  return (
+    <Note type="general" rotate={rotate}>
+      <p className="text-[10px] uppercase tracking-[0.22em] font-bold mb-2" style={{ color: "#666" }}>
+        📢 Announcement
+      </p>
+      <h3 className="text-base font-bold" style={{ color: "#1a1a1a" }}>{announcement.title}</h3>
+      <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style={{ color: "#333" }}>
+        {announcement.content}
+      </p>
+      <p className="text-[9px] mt-3 text-right italic" style={{ color: "#888" }}>
+        {new Date(announcement.updated_at || announcement.created_at).toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+      </p>
+    </Note>
+  );
+}
+
+function AwardNote({ announcement, rotate, onOpenPitch }) {
   const { award } = announcement;
   return (
-    <article
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: "rgba(255,203,5,0.05)",
-        border: "1px solid rgba(255,203,5,0.2)",
-      }}
-    >
-      <div
-        className="px-4 py-3 flex items-center gap-2 flex-wrap"
-        style={{ background: "rgba(255,203,5,0.1)", borderBottom: "1px solid rgba(255,203,5,0.15)" }}
-      >
-        <span className="text-[10px] uppercase tracking-[0.22em] font-bold" style={{ color: "#FFCB05" }}>
-          🏆 Winners
-        </span>
-        {award?.name && (
-          <span className="text-xs font-semibold text-white/85">{award.name}</span>
-        )}
-        {award?.prize && (
-          <span className="text-[11px] text-white/55">• {award.prize}</span>
-        )}
-      </div>
-      <div className="p-4 space-y-4">
-        <div>
-          <h3 className="text-base font-bold text-white">{announcement.title}</h3>
-          {announcement.content && (
-            <p className="text-sm text-white/75 whitespace-pre-wrap mt-1.5 leading-relaxed">
-              {announcement.content}
-            </p>
-          )}
+    <Note type="award" rotate={rotate}>
+      <p className="text-[10px] uppercase tracking-[0.22em] font-bold mb-2" style={{ color: "#8A6E00" }}>
+        🏆 {award?.name ? `${award.name} — Winners` : "Winners"}
+      </p>
+      <h3 className="text-base font-bold" style={{ color: "#1a1a1a" }}>{announcement.title}</h3>
+      {award?.prize && (
+        <p className="text-xs font-semibold mt-1" style={{ color: "#8A6E00" }}>{award.prize}</p>
+      )}
+      {announcement.content && (
+        <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style={{ color: "#333" }}>
+          {announcement.content}
+        </p>
+      )}
+      {announcement.winners?.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          {announcement.winners.map((w) => (
+            <WinnerPolaroid key={w.id} pitch={w} onOpen={onOpenPitch} />
+          ))}
         </div>
-        {announcement.winners?.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {announcement.winners.map((w) => (
-              <WinnerCard key={w.id} pitch={w} onOpen={onOpenPitch} />
-            ))}
-          </div>
-        )}
-        <SponsorRow sponsors={award?.sponsors} />
-      </div>
-    </article>
+      )}
+      <SponsorRow sponsors={award?.sponsors} />
+      <p className="text-[9px] mt-3 text-right italic" style={{ color: "#888" }}>
+        {new Date(announcement.updated_at || announcement.created_at).toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+      </p>
+    </Note>
   );
 }
 
@@ -174,7 +235,6 @@ function formatEventDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
-
 function formatEventTimeRange(startIso, endIso) {
   if (!startIso) return "";
   const start = new Date(startIso);
@@ -185,133 +245,104 @@ function formatEventTimeRange(startIso, endIso) {
   return `${startStr} – ${endStr}`;
 }
 
-function EventAnnouncementCard({ announcement }) {
+function EventNote({ announcement, rotate }) {
   const mapSrc = announcement.event_address
     ? `https://www.google.com/maps?q=${encodeURIComponent(announcement.event_address)}&output=embed`
     : null;
   const directionsUrl = announcement.event_address
     ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(announcement.event_address)}`
     : null;
-  const startsAt = announcement.event_starts_at;
-  const isPast = startsAt && new Date(startsAt).getTime() < Date.now() - 60 * 60 * 1000;
 
   return (
-    <article
-      className="rounded-2xl overflow-hidden"
-      style={{
-        background: "rgba(59,130,246,0.05)",
-        border: "1px solid rgba(59,130,246,0.2)",
-      }}
-    >
-      <div
-        className="px-4 py-3 flex items-center gap-2 flex-wrap"
-        style={{ background: "rgba(59,130,246,0.1)", borderBottom: "1px solid rgba(59,130,246,0.15)" }}
-      >
-        <span className="text-[10px] uppercase tracking-[0.22em] font-bold text-blue-300">
-          📅 Event
-        </span>
-        {startsAt && (
-          <span className="text-xs font-semibold text-white/85">
-            {formatEventDate(startsAt)} · {formatEventTimeRange(startsAt, announcement.event_ends_at)}
-          </span>
-        )}
-        {isPast && (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded text-white/50" style={{ background: "rgba(255,255,255,0.08)" }}>
-            Past
-          </span>
-        )}
-      </div>
-
-      <div className="p-4 space-y-3">
-        <div>
-          <h3 className="text-base font-bold text-white">{announcement.title}</h3>
-          {(announcement.event_location_name || announcement.event_address) && (
-            <p className="text-xs text-white/60 mt-1">
-              📍 {announcement.event_location_name || announcement.event_address}
-              {announcement.event_location_name && announcement.event_address && (
-                <span className="text-white/40"> · {announcement.event_address}</span>
-              )}
-            </p>
+    <Note type="event" rotate={rotate}>
+      <p className="text-[10px] uppercase tracking-[0.22em] font-bold mb-2" style={{ color: "#1E3A8A" }}>
+        📅 Upcoming Event
+      </p>
+      <h3 className="text-base font-bold" style={{ color: "#1a1a1a" }}>{announcement.title}</h3>
+      <p className="text-xs font-semibold mt-1" style={{ color: "#1E3A8A" }}>
+        {formatEventDate(announcement.event_starts_at)} · {formatEventTimeRange(announcement.event_starts_at, announcement.event_ends_at)}
+      </p>
+      {(announcement.event_location_name || announcement.event_address) && (
+        <p className="text-xs mt-1" style={{ color: "#444" }}>
+          📍 {announcement.event_location_name || announcement.event_address}
+          {announcement.event_location_name && announcement.event_address && (
+            <span style={{ color: "#777" }}> · {announcement.event_address}</span>
           )}
+        </p>
+      )}
+      {announcement.content && (
+        <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed" style={{ color: "#333" }}>
+          {announcement.content}
+        </p>
+      )}
+      {mapSrc && (
+        <div
+          className="w-full aspect-video overflow-hidden mt-3"
+          style={{ background: "#eee", border: "1px solid rgba(0,0,0,0.08)" }}
+        >
+          <iframe
+            title={`Map: ${announcement.title}`}
+            src={mapSrc}
+            className="w-full h-full"
+            style={{ border: 0 }}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            allowFullScreen
+          />
         </div>
-
-        {announcement.content && (
-          <p className="text-sm text-white/75 whitespace-pre-wrap leading-relaxed">
-            {announcement.content}
-          </p>
-        )}
-
-        {mapSrc && (
-          <div
-            className="w-full aspect-video rounded-lg overflow-hidden"
-            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
+      )}
+      <div className="flex flex-wrap gap-2 mt-3">
+        {announcement.event_registration_url && (
+          <a
+            href={announcement.event_registration_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold"
+            style={{ background: "#FFCB05", color: "#1a1a1a" }}
           >
-            <iframe
-              title={`Map: ${announcement.title}`}
-              src={mapSrc}
-              className="w-full h-full"
-              style={{ border: 0 }}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
-            />
-          </div>
+            Register →
+          </a>
         )}
-
-        <div className="flex flex-wrap gap-2">
-          {announcement.event_registration_url && (
-            <a
-              href={announcement.event_registration_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-black transition-transform hover:-translate-y-0.5"
-              style={{ background: "#FFCB05" }}
-            >
-              Register
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </a>
-          )}
-          {directionsUrl && (
-            <a
-              href={directionsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white/85 hover:text-white transition-colors"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}
-            >
-              Get directions
-            </a>
-          )}
-        </div>
-
-        <SponsorRow sponsors={announcement.sponsors} />
+        {directionsUrl && (
+          <a
+            href={directionsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold"
+            style={{ background: "rgba(0,0,0,0.08)", color: "#333", border: "1px solid rgba(0,0,0,0.15)" }}
+          >
+            Directions
+          </a>
+        )}
       </div>
-    </article>
+      <SponsorRow sponsors={announcement.sponsors} />
+    </Note>
   );
 }
 
-function GeneralAnnouncementCard({ announcement }) {
+// ─── Column header (like a bulletin banner) ─────────────────────
+function ColumnHeader({ title, subtitle }) {
   return (
-    <article
-      className="rounded-xl p-4"
-      style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
-      }}
-    >
-      <div className="flex items-start gap-2">
-        <span className="text-lg leading-none mt-0.5">📢</span>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-white">{announcement.title}</h3>
-          <p className="text-xs text-white/65 whitespace-pre-wrap mt-1 leading-relaxed">
-            {announcement.content}
-          </p>
-        </div>
+    <div className="mb-3 text-center">
+      <div
+        className="inline-block px-5 py-2 rounded"
+        style={{
+          background: "rgba(11,26,59,0.85)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
+        }}
+      >
+        <p className="text-xs uppercase tracking-[0.28em] font-bold" style={{ color: "#FFCB05" }}>{title}</p>
       </div>
-    </article>
+      {subtitle && <p className="text-[10px] text-white/50 mt-1.5">{subtitle}</p>}
+    </div>
   );
+}
+
+// Alternate small rotations for visual variety.
+function noteRotate(index) {
+  const angles = [-1.5, 1, -0.5, 1.75, -1, 0.5, -1.25, 1.5];
+  return angles[index % angles.length];
 }
 
 // ─── Page ────────────────────────────────────────────────────────
@@ -342,34 +373,32 @@ export default function AnnouncementsPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Group announcements by day for a timeline feel.
-  const timelineGroups = useMemo(() => {
-    const groups = new Map();
-    announcements.forEach((item) => {
-      const key = new Date(item.updated_at || item.created_at).toLocaleDateString(undefined, {
-        month: "long",
-        day: "numeric",
-      });
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(item);
-    });
-    return Array.from(groups.entries()).map(([day, items]) => ({ day, items }));
+  // Column 1: general + award announcements, newest first.
+  const leftColumn = useMemo(() => {
+    return announcements
+      .filter((a) => a.announcement_type === "award" || (a.announcement_type || "general") === "general")
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+      );
   }, [announcements]);
 
-  // Hall of Fame: most recent winners across all award-type announcements.
-  const hallOfFame = useMemo(() => {
-    const winners = [];
-    announcements
-      .filter((a) => a.announcement_type === "award")
-      .forEach((a) => {
-        (a.winners || []).forEach((w) => {
-          winners.push({ pitch: w, award: a.award, announcedAt: a.updated_at || a.created_at });
-        });
-      });
-    return winners.slice(0, 8);
+  // Column 2: upcoming events only (event_starts_at > now), soonest first.
+  const rightColumn = useMemo(() => {
+    const now = Date.now();
+    return announcements
+      .filter(
+        (a) =>
+          a.announcement_type === "event" &&
+          a.event_starts_at &&
+          new Date(a.event_starts_at).getTime() > now
+      )
+      .slice()
+      .sort((a, b) => new Date(a.event_starts_at) - new Date(b.event_starts_at));
   }, [announcements]);
 
-  // Extract long-form text for selected text pitches in the modal.
+  // Pitch modal — text extraction for text-type pitches.
   useEffect(() => {
     setExtractedText("");
     setExtractingText(false);
@@ -389,134 +418,69 @@ export default function AnnouncementsPage() {
   }, [selectedPitch?.id, selectedPitch?.file_path, selectedPitch?.file_name]);
 
   return (
-    <div className="relative min-h-[calc(100vh-5rem)] overflow-hidden">
-      <PageBackground src={adminBg} priority quality={68} />
+    <div className="relative h-[calc(100vh-5rem)] overflow-hidden">
+      {/* Fixed cork board background */}
+      <PageBackground src={bulletinBg} priority quality={72} fixed />
+      {/* Very subtle darken overlay so the bright header banners stay legible */}
       <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(160deg, rgba(11,26,59,0.92) 0%, rgba(6,14,33,0.88) 50%, rgba(11,26,59,0.94) 100%)",
-        }}
+        className="fixed inset-0 pointer-events-none"
+        style={{ zIndex: 0, background: "rgba(6,14,33,0.15)" }}
       />
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 py-8 space-y-4">
-        <GlassCard>
-          <div className="flex items-baseline justify-between gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold text-white tracking-tight">Announcements</h1>
-            <p className="text-sm text-white/50">
-              Reminders, winners, and events from the 10KP team.
-            </p>
-          </div>
-        </GlassCard>
-
-        {error && (
-          <div
-            className="rounded-xl p-3 text-sm"
-            style={{
-              background: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.25)",
-              color: "#fca5a5",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          </div>
-        ) : announcements.length === 0 ? (
-          <GlassCard>
-            <p className="text-sm text-white/45">No announcements posted yet.</p>
-          </GlassCard>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Main timeline */}
-            <div className="lg:col-span-2 space-y-5">
-              {timelineGroups.map((group) => (
-                <GlassCard key={group.day}>
-                  <p className="text-sm font-semibold text-maize mb-3">{group.day}</p>
-                  <div className="space-y-3">
-                    {group.items.map((item) => {
-                      if (item.announcement_type === "award") {
-                        return (
-                          <AwardAnnouncementCard
-                            key={item.id}
-                            announcement={item}
-                            onOpenPitch={setSelectedPitch}
-                          />
-                        );
-                      }
-                      if (item.announcement_type === "event") {
-                        return <EventAnnouncementCard key={item.id} announcement={item} />;
-                      }
-                      return <GeneralAnnouncementCard key={item.id} announcement={item} />;
-                    })}
-                  </div>
-                </GlassCard>
-              ))}
-            </div>
-
-            {/* Sidebar */}
-            <GlassCard>
-              <h2 className="text-base font-semibold text-white">🏆 Recent Winners</h2>
-              <p className="text-xs text-white/40 mt-0.5 mb-3">Hall of Fame</p>
-              {hallOfFame.length === 0 ? (
-                <p className="text-sm text-white/40">No winners announced yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {hallOfFame.map(({ pitch, award }) => {
-                    const thumb = getPitchThumbnail(pitch);
-                    return (
-                      <button
-                        key={`${award?.id || "x"}-${pitch.id}`}
-                        type="button"
-                        onClick={() => setSelectedPitch(pitch)}
-                        className="w-full text-left rounded-xl overflow-hidden transition-transform hover:-translate-y-0.5"
-                        style={{
-                          background: "rgba(255,255,255,0.04)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                        }}
-                      >
-                        {thumb && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={thumb}
-                            alt={pitch.title}
-                            className="w-full aspect-video object-cover"
-                          />
-                        )}
-                        <div className="p-3">
-                          <p className="text-sm font-semibold text-white truncate">🥇 {pitch.name}</p>
-                          <p className="text-xs text-maize mt-0.5 font-medium truncate">{pitch.title}</p>
-                          {award?.name && (
-                            <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">
-                              {award.name}
-                            </p>
-                          )}
-                        </div>
-                      </button>
+      {/* Two-column bulletin */}
+      <div className="relative z-10 h-full flex flex-col">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6 px-4 sm:px-6 lg:px-10 py-6">
+          {/* LEFT — general + awards */}
+          <section className="flex flex-col min-h-0">
+            <ColumnHeader title="Announcements & Winners" subtitle="News, reminders, and award announcements" />
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+              <div className="space-y-8 pt-4 pb-8 px-3 sm:px-6 max-w-xl mx-auto">
+                {loading ? (
+                  <p className="text-white/60 text-sm text-center py-10">Loading the board...</p>
+                ) : error ? (
+                  <p className="text-red-300 text-sm text-center py-10">{error}</p>
+                ) : leftColumn.length === 0 ? (
+                  <Note type="general" rotate={-1}>
+                    <p className="text-sm" style={{ color: "#555" }}>No announcements posted yet.</p>
+                  </Note>
+                ) : (
+                  leftColumn.map((a, i) => {
+                    const t = a.announcement_type === "award" ? "award" : "general";
+                    const rot = noteRotate(i);
+                    return t === "award" ? (
+                      <AwardNote key={a.id} announcement={a} rotate={rot} onOpenPitch={setSelectedPitch} />
+                    ) : (
+                      <GeneralNote key={a.id} announcement={a} rotate={rot} />
                     );
-                  })}
-                </div>
-              )}
-              <Link
-                href="/gallery"
-                className="mt-4 flex items-center justify-center w-full py-2 text-xs font-semibold rounded-lg text-black transition-transform hover:-translate-y-0.5"
-                style={{ background: "#FFCB05" }}
-              >
-                Browse Gallery
-              </Link>
-            </GlassCard>
-          </div>
-        )}
+                  })
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* RIGHT — upcoming events */}
+          <section className="flex flex-col min-h-0">
+            <ColumnHeader title="Upcoming Events" subtitle="Workshops and events — vanish once they start" />
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+              <div className="space-y-8 pt-4 pb-8 px-3 sm:px-6 max-w-xl mx-auto">
+                {loading ? (
+                  <p className="text-white/60 text-sm text-center py-10">Loading events...</p>
+                ) : rightColumn.length === 0 ? (
+                  <Note type="event" rotate={1}>
+                    <p className="text-sm" style={{ color: "#555" }}>No upcoming events. Check back soon!</p>
+                  </Note>
+                ) : (
+                  rightColumn.map((a, i) => (
+                    <EventNote key={a.id} announcement={a} rotate={noteRotate(i + 3)} />
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
-      {/* Pitch preview modal */}
+      {/* Pitch preview modal (for tapping winner polaroids) */}
       {selectedPitch && (
         <div
           className="fixed inset-0 z-[80] bg-black/80 flex items-center justify-center p-3 sm:p-4"

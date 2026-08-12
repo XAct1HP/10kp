@@ -8,7 +8,7 @@ export async function GET() {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("competition_settings")
-      .select("competition_date, competition_description")
+      .select("competition_date, submission_deadline, competition_description")
       .limit(1)
       .single();
 
@@ -18,6 +18,7 @@ export async function GET() {
 
     return NextResponse.json({
       competition_date: data?.competition_date || null,
+      submission_deadline: data?.submission_deadline || null,
       competition_description: data?.competition_description || null,
     });
   } catch (err) {
@@ -38,6 +39,9 @@ export async function POST(request) {
 
     if (body.competition_date !== undefined) {
       updates.competition_date = body.competition_date;
+    }
+    if (body.submission_deadline !== undefined) {
+      updates.submission_deadline = body.submission_deadline;
     }
     if (body.competition_description !== undefined) {
       updates.competition_description = body.competition_description;
