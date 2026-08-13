@@ -59,6 +59,7 @@ export default function GalleryPage() {
   const [voterForm, setVoterForm] = useState({ name: "", email: "" });
 
   const [defaultThumbnails, setDefaultThumbnails] = useState({ audioThumbnail: null, textThumbnail: null });
+  const [podiumVisible, setPodiumVisible] = useState(true);
 
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
@@ -86,6 +87,7 @@ export default function GalleryPage() {
       let page = 1;
       let voting = null;
       let defaults = null;
+      let display = null;
       // Safety cap: 50 pages × GALLERY_PAGE_SIZE = 10k pitches, plenty of headroom.
       const MAX_PAGES = 50;
 
@@ -103,6 +105,7 @@ export default function GalleryPage() {
         if (page === 1) {
           voting = data.voting;
           defaults = data.defaults;
+          display = data.display;
         }
 
         if (!data.pagination?.hasMore) break;
@@ -112,6 +115,10 @@ export default function GalleryPage() {
       setAllSubmissions(collected);
       setVoting(voting || { maxVotesPerUser: 5, userVoteCount: 0, remainingVotes: 5 });
       if (defaults) setDefaultThumbnails(defaults);
+      // Admin can toggle the Top 3 podium on/off from the Pitches tab.
+      // Missing/undefined defaults to visible so this endpoint stays
+      // backwards compatible before the migration lands.
+      setPodiumVisible(display?.podiumVisible !== false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -440,8 +447,11 @@ export default function GalleryPage() {
         {!loading && !error && filteredSubmissions.length > 0 && (
           <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-8 lg:px-10 pt-4">
 
-            {/* ── TOP 3 PODIUM (only when we actually have a top 3) ── */}
-            {topPitches.length >= 3 && (() => {
+            {/* ── TOP 3 PODIUM — admin-controlled via the Pitches tab
+                    toggle (competition_settings.podium_visible). Renders
+                    nothing if the podium is off, or if there are no
+                    pitches to rank yet. ── */}
+            {podiumVisible && topPitches.length > 0 && (() => {
               const renderPodiumCard = (pitch, actualRank, displayIdx, sizeVariant) => {
                 const badge = RANK_BADGES[actualRank];
                 const isFirst = actualRank === 0;

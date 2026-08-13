@@ -11,6 +11,7 @@ import adminBg from "../../public/admin_bg.png";
 import SettingsPanel from "../../components/admin/SettingsPanel";
 import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPanel";
 import SeedPitchesPanel from "../../components/admin/SeedPitchesPanel";
+import PodiumTogglePanel from "../../components/admin/PodiumTogglePanel";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1329,6 +1330,15 @@ export default function AdminPage() {
                   </div>
                 </GlassCard>
               )}
+
+              {/* Gallery podium toggle */}
+              <div className="flex-shrink-0">
+                <PodiumTogglePanel
+                  apiFetch={apiFetch}
+                  onError={setError}
+                  onSuccess={setSuccess}
+                />
+              </div>
 
               {/* Seed pitches (past-year winners) */}
               <div className="flex-shrink-0">

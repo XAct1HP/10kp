@@ -22,15 +22,16 @@ export async function GET(request) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Read seed visibility toggle once up front so we can add the filter
+    // Read display toggles once up front so we can add filters
     // conditionally. Undefined column (pre-migration) is treated as true.
     const { data: settingsRow } = await supabaseAdmin
       .from("competition_settings")
-      .select("seeds_visible")
+      .select("seeds_visible, podium_visible")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     const seedsVisible = settingsRow?.seeds_visible !== false;
+    const podiumVisible = settingsRow?.podium_visible !== false;
 
     let query = supabaseAdmin
       .from("pitches")
@@ -147,6 +148,9 @@ export async function GET(request) {
         defaults: {
           audioThumbnail: defaultAudioThumbnail,
           textThumbnail: defaultTextThumbnail,
+        },
+        display: {
+          podiumVisible,
         },
         pagination: {
           page,
