@@ -240,6 +240,15 @@ export default function SettingsPanel({
         </div>
       </GlassCard>
 
+      {/* Administrators */}
+      <div>
+        <AdminUsersPanel
+          apiFetch={apiFetch}
+          onError={onError}
+          onSuccess={onSuccess}
+        />
+      </div>
+
       {/* Sponsors */}
       <div>
         <SponsorsPanel
@@ -253,15 +262,6 @@ export default function SettingsPanel({
       {/* Awards */}
       <div>
         <AwardsPanel
-          apiFetch={apiFetch}
-          onError={onError}
-          onSuccess={onSuccess}
-        />
-      </div>
-
-      {/* Administrators */}
-      <div>
-        <AdminUsersPanel
           apiFetch={apiFetch}
           onError={onError}
           onSuccess={onSuccess}

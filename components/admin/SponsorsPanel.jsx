@@ -24,18 +24,54 @@ const inputStyle = {
   border: "1px solid rgba(255,255,255,0.12)",
 };
 
+// Small icon-only action button so the list cards stay logo-focused.
+function IconButton({ onClick, disabled, label, danger, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="w-7 h-7 rounded-md flex items-center justify-center transition-colors disabled:opacity-40"
+      style={{
+        color: danger ? "rgba(252,165,165,0.85)" : "rgba(255,255,255,0.55)",
+        background: danger ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.05)",
+        border: `1px solid ${danger ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)"}`,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+    </svg>
+  );
+}
+
 /**
  * SponsorsPanel — CRUD for sponsoring departments/orgs.
  *
- * Props:
- *   apiFetch: (url, opts?) => Promise — authenticated JSON fetch (admin page's helper)
- *   apiUpload: (url, FormData) => Promise — authenticated multipart upload helper
- *   onError, onSuccess: (msg: string) => void — bubble notifications up
+ * Wrapped in a single GlassCard so it visually matches Competition
+ * Dates / Default Thumbnails / Administrators. Item tiles are
+ * fixed-height so they line up with the Awards tiles below.
  */
 export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess }) {
   const [sponsors, setSponsors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(null); // sponsor being edited or null
+  const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", website: "", sort_order: 0, logo_path: null, logo_url: null });
   const [submitting, setSubmitting] = useState(false);
@@ -140,9 +176,9 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 gap-4 overflow-y-auto no-scrollbar pr-1">
+    <GlassCard>
       {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <h2 className="text-lg font-bold text-white">Sponsors</h2>
           <p className="text-xs text-white/40 mt-0.5">
@@ -152,17 +188,20 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
         {!showForm && (
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-black transition-transform hover:-translate-y-0.5"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-black transition-transform hover:-translate-y-0.5 flex-shrink-0"
             style={{ background: "#FFCB05" }}
           >
-            + Add Sponsor
+            + Add sponsor
           </button>
         )}
       </div>
 
       {/* Add / Edit form */}
       {showForm && (
-        <GlassCard>
+        <div
+          className="rounded-xl p-4 mb-4"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-sm font-bold text-white">
@@ -279,72 +318,66 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
               </button>
             </div>
           </form>
-        </GlassCard>
+        </div>
       )}
 
       {/* List */}
       {loading ? (
-        <GlassCard>
-          <div className="py-8 text-center text-sm text-white/40">Loading sponsors...</div>
-        </GlassCard>
+        <p className="text-white/40 text-sm">Loading sponsors...</p>
       ) : sponsors.length === 0 ? (
-        <GlassCard>
-          <div className="py-8 text-center">
-            <p className="text-sm text-white/50">No sponsors yet.</p>
-            <p className="text-xs text-white/30 mt-1">Add one above to attach it to awards and events.</p>
-          </div>
-        </GlassCard>
+        <div
+          className="rounded-xl py-8 px-4 text-center"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-sm text-white/50">No sponsors yet.</p>
+          <p className="text-xs text-white/30 mt-1">Add one above to attach it to awards and events.</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
           {sponsors.map((sponsor) => (
-            <GlassCard key={sponsor.id} className="!p-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-                  style={{ background: "rgba(255,255,255,0.06)" }}
-                >
-                  {sponsor.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={sponsor.logo_url} alt={sponsor.name} className="max-w-full max-h-full object-contain p-1.5" />
-                  ) : (
-                    <span className="text-[10px] text-white/30 uppercase">No logo</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{sponsor.name}</p>
-                  {sponsor.website && (
-                    <a
-                      href={sponsor.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-white/40 hover:text-maize truncate block"
-                    >
-                      {sponsor.website.replace(/^https?:\/\//, "")}
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => startEdit(sponsor)}
-                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 hover:text-white transition-colors"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-                >
-                  Edit
-                </button>
-                <button
+            <div
+              key={sponsor.id}
+              className="relative rounded-xl p-3 flex flex-col h-44"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {/* Actions — small icons top-right */}
+              <div className="absolute top-2 right-2 flex gap-1">
+                <IconButton onClick={() => startEdit(sponsor)} label="Edit sponsor">
+                  <PencilIcon />
+                </IconButton>
+                <IconButton
                   onClick={() => handleDelete(sponsor)}
                   disabled={deletingId === sponsor.id}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-300 hover:text-red-200 transition-colors disabled:opacity-40"
-                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
+                  label="Delete sponsor"
+                  danger
                 >
-                  {deletingId === sponsor.id ? "..." : "Delete"}
-                </button>
+                  <TrashIcon />
+                </IconButton>
               </div>
-            </GlassCard>
+
+              {/* Logo — dominant */}
+              <div className="flex-1 min-h-0 flex items-center justify-center px-2 pt-2 pb-1">
+                {sponsor.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={sponsor.logo_url}
+                    alt={sponsor.name}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-[11px] text-white/25 uppercase tracking-wider">No logo</span>
+                )}
+              </div>
+
+              {/* Small caption */}
+              <p className="text-[11px] text-white/60 text-center truncate mt-1">{sponsor.name}</p>
+            </div>
           ))}
         </div>
       )}
-    </div>
+    </GlassCard>
   );
 }

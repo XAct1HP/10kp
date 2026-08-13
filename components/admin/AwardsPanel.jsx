@@ -24,15 +24,48 @@ const inputStyle = {
   border: "1px solid rgba(255,255,255,0.12)",
 };
 
+function IconButton({ onClick, disabled, label, danger, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="w-7 h-7 rounded-md flex items-center justify-center transition-colors disabled:opacity-40"
+      style={{
+        color: danger ? "rgba(252,165,165,0.85)" : "rgba(255,255,255,0.55)",
+        background: danger ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.05)",
+        border: `1px solid ${danger ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)"}`,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+    </svg>
+  );
+}
+
 /**
  * AwardsPanel — CRUD for award definitions.
  *
- * Each award may attach one or more sponsors (from the Sponsors panel).
- * Awards created here populate the Awards section on the public Rules page.
- *
- * Props:
- *   apiFetch: (url, opts?) => Promise — admin page's authenticated JSON fetch
- *   onError, onSuccess: (msg: string) => void
+ * Wrapped in a single GlassCard so it visually matches Competition
+ * Dates / Default Thumbnails / Administrators / Sponsors. Item tiles
+ * share the same fixed dimensions as sponsor tiles.
  */
 export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
   const [awards, setAwards] = useState([]);
@@ -166,9 +199,9 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 gap-4 overflow-y-auto no-scrollbar pr-1">
+    <GlassCard>
       {/* Header */}
-      <div className="flex items-center justify-between flex-shrink-0">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <h2 className="text-lg font-bold text-white">Awards</h2>
           <p className="text-xs text-white/40 mt-0.5">
@@ -178,17 +211,20 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
         {!showForm && (
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-black transition-transform hover:-translate-y-0.5"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-black transition-transform hover:-translate-y-0.5 flex-shrink-0"
             style={{ background: "#FFCB05" }}
           >
-            + Add Award
+            + Add award
           </button>
         )}
       </div>
 
       {/* Add / Edit form */}
       {showForm && (
-        <GlassCard>
+        <div
+          className="rounded-xl p-4 mb-4"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-sm font-bold text-white">
@@ -268,7 +304,7 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
                 </label>
                 {sponsors.length === 0 ? (
                   <p className="text-xs text-white/40 italic p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
-                    No sponsors yet. Add sponsors in the Sponsors tab first, then edit this award to attach them.
+                    No sponsors yet. Add sponsors in the Sponsors section first, then edit this award to attach them.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -364,88 +400,104 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
               </button>
             </div>
           </form>
-        </GlassCard>
+        </div>
       )}
 
       {/* List */}
       {loading ? (
-        <GlassCard>
-          <div className="py-8 text-center text-sm text-white/40">Loading awards...</div>
-        </GlassCard>
+        <p className="text-white/40 text-sm">Loading awards...</p>
       ) : awards.length === 0 ? (
-        <GlassCard>
-          <div className="py-8 text-center">
-            <p className="text-sm text-white/50">No awards yet.</p>
-            <p className="text-xs text-white/30 mt-1">Create one above to have it appear on the Rules page.</p>
-          </div>
-        </GlassCard>
+        <div
+          className="rounded-xl py-8 px-4 text-center"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)" }}
+        >
+          <p className="text-sm text-white/50">No awards yet.</p>
+          <p className="text-xs text-white/30 mt-1">Create one above to have it appear on the Rules page.</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
           {awards.map((award) => (
-            <GlassCard key={award.id} className="!p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-base font-bold text-white truncate">{award.name}</h3>
-                    {!award.is_active && (
-                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded text-white/50" style={{ background: "rgba(255,255,255,0.08)" }}>
-                        Inactive
-                      </span>
-                    )}
-                  </div>
-                  {award.prize && (
-                    <p className="text-xs font-semibold text-maize mb-1">{award.prize}</p>
-                  )}
-                  {award.description && (
-                    <p className="text-xs text-white/60 leading-relaxed line-clamp-2">{award.description}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Sponsors */}
-              {award.sponsors?.length > 0 && (
-                <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 mb-2">Sponsored by</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {award.sponsors.map((s) => (
-                      <div
-                        key={s.id}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-white/70"
-                        style={{ background: "rgba(255,255,255,0.04)" }}
-                      >
-                        {s.logo_url && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.logo_url} alt="" className="w-4 h-4 object-contain" />
-                        )}
-                        {s.name}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => startEdit(award)}
-                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 hover:text-white transition-colors"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-                >
-                  Edit
-                </button>
-                <button
+            <div
+              key={award.id}
+              className="relative rounded-xl p-3 flex flex-col h-44"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {/* Actions — small icons top-right */}
+              <div className="absolute top-2 right-2 flex gap-1">
+                <IconButton onClick={() => startEdit(award)} label="Edit award">
+                  <PencilIcon />
+                </IconButton>
+                <IconButton
                   onClick={() => handleDelete(award)}
                   disabled={deletingId === award.id}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-300 hover:text-red-200 transition-colors disabled:opacity-40"
-                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
+                  label="Delete award"
+                  danger
                 >
-                  {deletingId === award.id ? "..." : "Delete"}
-                </button>
+                  <TrashIcon />
+                </IconButton>
               </div>
-            </GlassCard>
+
+              {/* Content — leaves room for actions in the top-right */}
+              <div className="flex-1 min-h-0 flex flex-col pr-16">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-bold text-white truncate">{award.name}</h3>
+                  {!award.is_active && (
+                    <span
+                      className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded text-white/50 flex-shrink-0"
+                      style={{ background: "rgba(255,255,255,0.08)" }}
+                    >
+                      Off
+                    </span>
+                  )}
+                </div>
+                {award.prize && (
+                  <p className="text-[11px] font-semibold text-maize mb-1 truncate">{award.prize}</p>
+                )}
+                {award.description && (
+                  <p className="text-[11px] text-white/50 leading-relaxed line-clamp-3">{award.description}</p>
+                )}
+              </div>
+
+              {/* Sponsor logos footer */}
+              {award.sponsors?.length > 0 && (
+                <div
+                  className="flex items-center gap-1.5 mt-2 pt-2"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                >
+                  {award.sponsors.slice(0, 4).map((s) =>
+                    s.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={s.id}
+                        src={s.logo_url}
+                        alt={s.name}
+                        title={s.name}
+                        className="w-5 h-5 object-contain rounded"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                      />
+                    ) : (
+                      <span
+                        key={s.id}
+                        title={s.name}
+                        className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-black"
+                        style={{ background: "#FFCB05" }}
+                      >
+                        {s.name.charAt(0)}
+                      </span>
+                    )
+                  )}
+                  {award.sponsors.length > 4 && (
+                    <span className="text-[10px] text-white/40">+{award.sponsors.length - 4}</span>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
-
-    </div>
+    </GlassCard>
   );
 }
