@@ -1250,9 +1250,12 @@ export default function AdminPage() {
                   <p className="text-white/30 text-sm">{pitches.length === 0 ? "No pitches submitted yet." : "No pitches match your filters."}</p>
                 </div>
               ) : (
-                <GlassCard noPad className="flex-shrink-0 flex flex-col">
-                  <div className="divide-y divide-white/[0.04]">
-                    {paginatedPitches.map((pitch) => {
+                <GlassCard
+                  noPad
+                  className="flex-shrink-0 flex flex-col overflow-hidden h-[calc(100vh-14rem)] min-h-[24rem]"
+                >
+                  <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar divide-y divide-white/[0.04]">
+                    {filteredPitches.map((pitch) => {
                       const tc = typeColor(pitch);
                       const isFlagged = pitch.moderation_status === "flagged";
                       const isRejected = pitch.moderation_status === "rejected";
@@ -1311,11 +1314,19 @@ export default function AdminPage() {
                       );
                     })}
                   </div>
-                  {pitchTotalPages > 1 && (
-                    <div className="px-5 pb-3 flex-shrink-0">
-                      <Paginator page={pitchPage} total={pitchTotalPages} onPrev={() => setPitchPage((p) => p - 1)} onNext={() => setPitchPage((p) => p + 1)} />
-                    </div>
-                  )}
+                  <div
+                    className="px-5 py-2 flex-shrink-0 text-[11px] text-white/30 flex items-center justify-between"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+                  >
+                    <span>
+                      Showing all {filteredPitches.length}
+                      {filteredPitches.length !== pitches.length && (
+                        <span className="text-white/20"> of {pitches.length}</span>
+                      )}{" "}
+                      pitches
+                    </span>
+                    <span className="text-white/20">Scroll for more</span>
+                  </div>
                 </GlassCard>
               )}
 
