@@ -48,7 +48,15 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <AuthHeader title="Welcome back" subtitle="Sign in to your 10KP account" />
+      <AuthHeader
+        title="Welcome Back"
+        subtitle={
+          <>
+            Sign in to your 10K Pitches account. You must use your{" "}
+            <span className="text-white/75 font-medium">@umich.edu</span> email.
+          </>
+        }
+      />
 
       {/* Error */}
       {error && (

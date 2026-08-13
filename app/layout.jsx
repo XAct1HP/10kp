@@ -3,8 +3,8 @@ import Navbar from "../components/Navbar";
 import { AuthProvider } from "../lib/AuthContext";
 
 export const metadata = {
-  title: "10KP",
-  description: "10KP Pitch Submission Platform",
+  title: "10K Pitches",
+  description: "10K Pitches — Pitch Submission Platform",
 };
 
 export const viewport = {

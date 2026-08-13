@@ -369,7 +369,7 @@ export default function GalleryPage() {
             <div className="min-w-0 flex-1">
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold mb-1.5"
                 style={{ color: "#FFCB05" }}>
-                10KP Competition
+                10K Pitches Competition
               </p>
               <h1 className="font-black text-white tracking-tight leading-[1.05]"
                 style={{ fontSize: "clamp(1.8rem, 3.5vw, 3rem)" }}>

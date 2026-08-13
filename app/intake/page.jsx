@@ -49,6 +49,12 @@ const ROLE_OPTIONS = [
   "Alumni",
 ];
 
+const STUDENT_LEVEL_OPTIONS = [
+  "Undergraduate",
+  "Graduate",
+  "PhD",
+];
+
 const UM_SCHOOLS = [
   "Architecture & Urban Planning",
   "Art & Design",
@@ -67,6 +73,7 @@ const UM_SCHOOLS = [
   "Pharmacy",
   "Public Health",
   "Public Policy",
+  "Rackham Graduate School",
   "Social Work",
 ];
 
@@ -107,6 +114,7 @@ export default function IntakePage() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
   const [role, setRole] = useState("");
+  const [studentLevel, setStudentLevel] = useState("");
   const [schools, setSchools] = useState([]);
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
@@ -299,6 +307,7 @@ export default function IntakePage() {
       case 1:
         if (!name.trim()) return "Please enter your name.";
         if (!role) return "Please select your role.";
+        if (role === "Current student" && !studentLevel) return "Please select your student level.";
         return null;
       case 3:
         if (!pitchTitle.trim()) return "Please enter a pitch title.";
@@ -396,6 +405,7 @@ export default function IntakePage() {
           user_id: user.id,
           name: name.trim(),
           role,
+          student_level: role === "Current student" ? studentLevel : null,
           schools,
           title: pitchTitle.trim(),
           description: description.trim(),
@@ -535,7 +545,7 @@ export default function IntakePage() {
         priority
       />
       <h1 className="text-3xl font-bold text-white tracking-tight mb-4">
-        The Only Way is Up
+        The Only Way Is Up
       </h1>
       {competitionDescription ? (
         <p className="text-white/60 text-sm leading-relaxed mb-10 max-w-md mx-auto whitespace-pre-wrap">
@@ -614,7 +624,10 @@ export default function IntakePage() {
                   name="role"
                   value={option}
                   checked={role === option}
-                  onChange={(e) => setRole(e.target.value)}
+                  onChange={(e) => {
+                    setRole(e.target.value);
+                    if (e.target.value !== "Current student") setStudentLevel("");
+                  }}
                   className="sr-only"
                 />
                 <span className="text-sm text-white/80">{option}</span>
@@ -622,6 +635,35 @@ export default function IntakePage() {
             ))}
           </div>
         </div>
+        {role === "Current student" && (
+          <div>
+            <label className="block text-sm font-semibold text-white/80 mb-3">
+              Student Level <span className="text-maize">*</span>
+            </label>
+            <div className="flex gap-2">
+              {STUDENT_LEVEL_OPTIONS.map((option) => (
+                <label
+                  key={option}
+                  className="flex-1 flex items-center justify-center gap-2 cursor-pointer px-3 py-2.5 rounded-xl transition-all duration-200"
+                  style={{
+                    border: studentLevel === option ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+                    background: studentLevel === option ? "rgba(255,203,5,0.08)" : "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="studentLevel"
+                    value={option}
+                    checked={studentLevel === option}
+                    onChange={(e) => setStudentLevel(e.target.value)}
+                    className="sr-only"
+                  />
+                  <span className="text-sm text-white/80">{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -893,6 +935,7 @@ export default function IntakePage() {
           {[
             { label: "Name", value: name },
             { label: "Role", value: role },
+            ...(role === "Current student" && studentLevel ? [{ label: "Student Level", value: studentLevel }] : []),
             { label: "School(s)", value: schools.length > 0 ? schools.join(", ") : "None selected" },
             { label: "Pitch Title", value: pitchTitle },
             { label: "Description", value: description },
@@ -949,7 +992,7 @@ export default function IntakePage() {
       <svg className="w-20 h-20 mx-auto mb-6" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      <h2 className="text-3xl font-bold text-white mb-3">You have Reached the Top!</h2>
+      <h2 className="text-3xl font-bold text-white mb-3">You Have Reached the Top!</h2>
       <p className="text-white/60 text-sm mb-2">
         Your pitch was submitted and is awaiting administrative review.
       </p>

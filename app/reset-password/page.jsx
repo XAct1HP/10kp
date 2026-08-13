@@ -120,8 +120,8 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell>
       <AuthHeader
-        title="Choose a new password"
-        subtitle="Reset the password for your 10KP account and sign back in."
+        title="Choose a New Password"
+        subtitle="Reset the password for your 10K Pitches account and sign back in."
       />
 
       {error && (

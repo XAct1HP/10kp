@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell>
       <AuthHeader
-        title="Reset your password"
+        title="Reset Your Password"
         subtitle="Enter your account email and we'll send you a reset link."
       />
 
@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <h2 className="text-base font-semibold text-white">Check your inbox</h2>
+              <h2 className="text-base font-semibold text-white">Check Your Inbox</h2>
               <p className="text-sm text-white/60 mt-1 leading-relaxed">
                 If that email has an account, we just sent a password reset link.
               </p>

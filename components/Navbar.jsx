@@ -53,7 +53,7 @@ export default function Navbar() {
               href="/gallery"
               className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
             >
-              Gallery
+              View Gallery / Vote
             </Link>
             <Link
               href="/announcements"
@@ -65,7 +65,7 @@ export default function Navbar() {
               href="/rules"
               className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
             >
-              Rules
+              Rules / Awards
             </Link>
 
             {loading ? null : user ? (
@@ -140,7 +140,7 @@ export default function Navbar() {
               onClick={closeMenu}
               className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
             >
-              Gallery
+              View Gallery / Vote
             </Link>
             <Link
               href="/announcements"
@@ -154,7 +154,7 @@ export default function Navbar() {
               onClick={closeMenu}
               className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
             >
-              Rules
+              Rules / Awards
             </Link>
 
             {loading ? null : user ? (

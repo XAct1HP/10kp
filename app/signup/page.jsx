@@ -51,7 +51,7 @@ export default function SignUpPage() {
   return (
     <AuthShell>
       <AuthHeader
-        title="Create your account"
+        title="Create Your Account"
         subtitle={
           <>
             Use your <span className="text-white/75 font-medium">@umich.edu</span> email to get started

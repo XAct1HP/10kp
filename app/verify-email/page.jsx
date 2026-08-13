@@ -7,7 +7,7 @@ export default function VerifyEmailPage() {
   return (
     <AuthShell>
       <AuthHeader
-        title="Check your inbox"
+        title="Check Your Inbox"
         subtitle="Confirm your email address by clicking the verification link we just sent."
       />
 
