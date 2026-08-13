@@ -7,15 +7,9 @@ import { useAuth } from "../lib/AuthContext";
 import { useRouter } from "next/navigation";
 
 export default function Navbar() {
-  const { user, signOut, loading } = useAuth();
+  const { user, signOut, loading, isAdmin } = useAuth();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  const isAdmin = user && adminEmails.includes(user.email?.toLowerCase());
 
   const handleSignOut = async () => {
     setMenuOpen(false);

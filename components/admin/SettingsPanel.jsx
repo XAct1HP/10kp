@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import SponsorsPanel from "./SponsorsPanel";
 import AwardsPanel from "./AwardsPanel";
+import AdminUsersPanel from "./AdminUsersPanel";
 
 function GlassCard({ children, className = "" }) {
   return (
@@ -252,6 +253,15 @@ export default function SettingsPanel({
       {/* Awards */}
       <div>
         <AwardsPanel
+          apiFetch={apiFetch}
+          onError={onError}
+          onSuccess={onSuccess}
+        />
+      </div>
+
+      {/* Administrators */}
+      <div>
+        <AdminUsersPanel
           apiFetch={apiFetch}
           onError={onError}
           onSuccess={onSuccess}

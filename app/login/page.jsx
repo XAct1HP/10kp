@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
+import { supabase } from "../../lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthShell, { AuthHeader } from "../../components/AuthShell";
@@ -28,21 +29,29 @@ export default function LoginPage() {
     setLoading(true);
 
     const { error: signInError } = await signIn(email, password);
-    setLoading(false);
 
     if (signInError) {
+      setLoading(false);
       setError(signInError.message);
-    } else {
-      const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
+      return;
+    }
 
-      if (adminEmails.includes(email.toLowerCase())) {
-        router.push("/admin");
-      } else {
-        router.push("/intake");
-      }
+    // Ask the server whether this account is an admin (env-var list OR
+    // admin_users table) so admins added through the Settings tab also
+    // land on /admin instead of /intake.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/auth/is-admin", {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      setLoading(false);
+      router.push(data?.isAdmin ? "/admin" : "/intake");
+    } catch {
+      setLoading(false);
+      router.push("/intake");
     }
   };
 

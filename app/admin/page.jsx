@@ -435,7 +435,7 @@ function ModerationNoteEditor({ pitch, onSave, saving }) {
 
 // ─── Main ─────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin, adminChecked } = useAuth();
   const router = useRouter();
 
   const [competitionDate, setCompetitionDate] = useState(null);
@@ -533,10 +533,12 @@ export default function AdminPage() {
   const timeLeft = useCountdown(competitionDate);
   const pad = (n) => String(n).padStart(2, "0");
 
-  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = user && adminEmails.includes(user.email?.toLowerCase());
-
-  useEffect(() => { if (!authLoading && (!user || !isAdmin)) router.push("/"); }, [authLoading, user, isAdmin, router]);
+  // Admin check now flows through AuthContext, which combines the
+  // ADMIN_EMAILS env list with dynamic admins from admin_users.
+  useEffect(() => {
+    if (authLoading || !adminChecked) return;
+    if (!user || !isAdmin) router.push("/");
+  }, [authLoading, adminChecked, user, isAdmin, router]);
 
   // ── Filtered + paginated pitches ──
   const filteredPitches = useMemo(() => {
