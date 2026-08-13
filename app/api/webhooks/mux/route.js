@@ -57,7 +57,7 @@ function safeParseJson(value) {
 async function findPitchByColumn(supabaseAdmin, column, value) {
   const { data, error } = await supabaseAdmin
     .from("pitches")
-    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error, media_status")
+    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error, media_status, is_seed")
     .eq(column, value)
     .limit(1)
     .maybeSingle();
@@ -126,7 +126,7 @@ async function updatePitch(supabaseAdmin, pitchId, update) {
     .from("pitches")
     .update(update)
     .eq("id", pitchId)
-    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error, media_status")
+    .select("id, mux_upload_id, mux_asset_id, mux_playback_id, mux_status, mux_error, media_status, is_seed")
     .single();
   if (error) throw new Error(`Failed to update pitch ${pitchId}: ${error.message}`);
   return data;
@@ -235,7 +235,9 @@ export async function POST(request) {
           event, identifiers: { ...identifiers, playbackId: playbackId || updated.mux_playback_id },
           pitch: updated, matchedBy,
         }));
-        if (playbackId || updated.mux_playback_id) {
+        if ((playbackId || updated.mux_playback_id) && !pitch.is_seed) {
+          // Seed pitches (past-year winners uploaded by admins) skip
+          // moderation entirely — they're pre-approved on insert.
           // Persist moderation progress before this invocation exits so the
           // row does not get stranded in `processing` if background work is
           // cut off by the serverless runtime.
@@ -273,8 +275,9 @@ export async function POST(request) {
 
       case "video.asset.track.ready": {
         // A caption track finished generating. Re-run moderation so the
-        // transcript channel picks it up on the next attempt.
-        if (pitch.mux_playback_id) {
+        // transcript channel picks it up on the next attempt. Seed
+        // pitches skip moderation, so this is a no-op for them.
+        if (pitch.mux_playback_id && !pitch.is_seed) {
           await kickModeration(pitch.id, "mux_webhook_track_ready");
         }
         await writeWebhookLog(supabaseAdmin, buildWebhookLog({

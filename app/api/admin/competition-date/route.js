@@ -8,7 +8,9 @@ export async function GET() {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("competition_settings")
-      .select("competition_date, submission_deadline, competition_description")
+      .select(
+        "competition_date, submission_deadline, competition_description, seeds_visible"
+      )
       .limit(1)
       .single();
 
@@ -20,6 +22,9 @@ export async function GET() {
       competition_date: data?.competition_date || null,
       submission_deadline: data?.submission_deadline || null,
       competition_description: data?.competition_description || null,
+      // Undefined column (pre-migration) or NULL both default to true so
+      // seed pitches show in the gallery by default.
+      seeds_visible: data?.seeds_visible !== false,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -45,6 +50,9 @@ export async function POST(request) {
     }
     if (body.competition_description !== undefined) {
       updates.competition_description = body.competition_description;
+    }
+    if (body.seeds_visible !== undefined) {
+      updates.seeds_visible = !!body.seeds_visible;
     }
 
     if (Object.keys(updates).length === 1) {

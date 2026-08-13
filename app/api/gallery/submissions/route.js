@@ -21,7 +21,18 @@ export async function GET(request) {
     const to = from + pageSize - 1;
 
     const supabaseAdmin = getSupabaseAdmin();
-    const { data, error, count } = await supabaseAdmin
+
+    // Read seed visibility toggle once up front so we can add the filter
+    // conditionally. Undefined column (pre-migration) is treated as true.
+    const { data: settingsRow } = await supabaseAdmin
+      .from("competition_settings")
+      .select("seeds_visible")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const seedsVisible = settingsRow?.seeds_visible !== false;
+
+    let query = supabaseAdmin
       .from("pitches")
       .select(`
         id,
@@ -38,6 +49,7 @@ export async function GET(request) {
         mux_error,
         mux_playback_id,
         created_at,
+        is_seed,
         pitch_tags (
           tags ( id, name )
         )
@@ -48,7 +60,15 @@ export async function GET(request) {
       // setting either column, but if a future migration accidentally
       // drops one filter the other still catches the mistake.
       .eq("moderation_status", "approved")
-      .eq("moderation_state", "approved")
+      .eq("moderation_state", "approved");
+
+    if (!seedsVisible) {
+      // Admin flipped the "show past winners" toggle off — usually once
+      // enough real submissions exist to fill the gallery on their own.
+      query = query.eq("is_seed", false);
+    }
+
+    const { data, error, count } = await query
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .range(from, to);

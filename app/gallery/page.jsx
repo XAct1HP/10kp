@@ -504,6 +504,33 @@ export default function GalleryPage() {
                       <span className={`${badgeText} font-black tracking-wider`} style={{ color: badge.textColor }}>{badge.short}</span>
                     </div>
 
+                    {/* Past-winner crown (seed pitch) — bottom-left so it
+                        doesn't collide with the rank badge or vote badge. */}
+                    {pitch.is_seed && (
+                      <div
+                        className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 left-1.5" : "bottom-3 left-3"} flex items-center gap-1 rounded-full ${sizeVariant === "compact" ? "pl-1 pr-1.5 py-0.5" : "pl-1.5 pr-2 py-1"}`}
+                        style={{
+                          background: "rgba(0,0,0,0.55)",
+                          backdropFilter: "blur(8px)",
+                          border: "1px solid rgba(255,203,5,0.3)",
+                        }}
+                        title="Past winner"
+                      >
+                        <svg
+                          className={sizeVariant === "compact" ? "w-3 h-3" : "w-3.5 h-3.5"}
+                          fill="#FFCB05"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                        </svg>
+                        {sizeVariant !== "compact" && (
+                          <span className="text-[9px] font-black uppercase tracking-wider text-white/85">
+                            Past
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Vote badge */}
                     <div className={`absolute ${cornerPos} ${cornerRight} flex items-center gap-1 rounded-full ${votePad}`}
                       style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,203,5,0.2)" }}>
@@ -720,6 +747,23 @@ export default function GalleryPage() {
                         <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
                       </div>
 
+                      {/* Past-winner crown (seed pitch) — top-left */}
+                      {pitch.is_seed && (
+                        <div
+                          className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{
+                            background: "rgba(0,0,0,0.55)",
+                            backdropFilter: "blur(8px)",
+                            border: "1px solid rgba(255,203,5,0.35)",
+                          }}
+                          title="Past winner"
+                        >
+                          <svg className="w-3 h-3" fill="#FFCB05" viewBox="0 0 24 24">
+                            <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                          </svg>
+                        </div>
+                      )}
+
                       {/* Voted */}
                       {pitch.user_has_voted && (
                         <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#FFCB05" }}>
@@ -881,6 +925,25 @@ export default function GalleryPage() {
                     </div>
                   );
                 })()}
+
+                {selectedPitch.is_seed && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-full pl-1.5 pr-3 py-1"
+                      style={{
+                        background: "rgba(255,203,5,0.12)",
+                        border: "1px solid rgba(255,203,5,0.35)",
+                      }}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="#FFCB05" viewBox="0 0 24 24">
+                        <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                      </svg>
+                      <span className="text-[10px] font-black tracking-wider" style={{ color: "#FFCB05" }}>
+                        PAST WINNER
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
                 <p className="text-xs text-white/35 mb-4">by {selectedPitch.name}</p>

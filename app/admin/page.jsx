@@ -10,6 +10,7 @@ import PageBackground from "../../components/PageBackground";
 import adminBg from "../../public/admin_bg.png";
 import SettingsPanel from "../../components/admin/SettingsPanel";
 import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPanel";
+import SeedPitchesPanel from "../../components/admin/SeedPitchesPanel";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1204,9 +1205,9 @@ export default function AdminPage() {
 
           {/* ═══ PITCHES ═══ */}
           {activeTab === "pitches" && (
-            <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 flex flex-col min-h-0 gap-3 overflow-y-auto no-scrollbar pr-1">
               {/* Toolbar */}
-              <GlassCard className="mb-3 flex-shrink-0 !p-4">
+              <GlassCard className="flex-shrink-0 !p-4">
                 <div className="flex flex-col md:flex-row gap-2">
                   <div className="relative flex-1">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -1239,18 +1240,18 @@ export default function AdminPage() {
                 )}
               </GlassCard>
 
-              {/* Pitch list (fills remaining space) */}
+              {/* Pitch list */}
               {loadingState.pitches ? (
-                <div className="flex-1 flex items-center justify-center">
+                <div className="flex items-center justify-center py-12 flex-shrink-0">
                   <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                 </div>
               ) : filteredPitches.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
+                <div className="flex items-center justify-center py-12 flex-shrink-0">
                   <p className="text-white/30 text-sm">{pitches.length === 0 ? "No pitches submitted yet." : "No pitches match your filters."}</p>
                 </div>
               ) : (
-                <GlassCard noPad className="flex-1 flex flex-col min-h-0">
-                  <div className="flex-1 divide-y divide-white/[0.04]">
+                <GlassCard noPad className="flex-shrink-0 flex flex-col">
+                  <div className="divide-y divide-white/[0.04]">
                     {paginatedPitches.map((pitch) => {
                       const tc = typeColor(pitch);
                       const isFlagged = pitch.moderation_status === "flagged";
@@ -1317,6 +1318,15 @@ export default function AdminPage() {
                   )}
                 </GlassCard>
               )}
+
+              {/* Seed pitches (past-year winners) */}
+              <div className="flex-shrink-0">
+                <SeedPitchesPanel
+                  apiFetch={apiFetch}
+                  onError={setError}
+                  onSuccess={setSuccess}
+                />
+              </div>
             </div>
           )}
 
