@@ -46,19 +46,3 @@ select option {
   animation: elevator-bg-fade-out 700ms ease-in-out forwards;
   will-change: opacity;
 }
-
-/* Sponsor carousel marquee — seamless infinite scroll (list is duplicated in JSX) */
-@keyframes marquee-scroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-.marquee-track {
-  animation: marquee-scroll 18s linear infinite;
-  will-change: transform;
-}
-.marquee-track:hover {
-  animation-play-state: paused;
-}
-@media (prefers-reduced-motion: reduce) {
-  .marquee-track { animation: none; }
-}
