@@ -140,12 +140,12 @@ export default function SponsorSpotlight() {
             <img
               src={sponsor.logo_url}
               alt={sponsor.name}
-              className="max-h-14 max-w-[192px] w-auto object-contain"
+              className="max-h-[72px] max-w-[250px] w-auto object-contain"
               style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}
             />
           ) : (
             <span
-              className="text-sm font-semibold uppercase tracking-wide text-center px-3 whitespace-nowrap"
+              className="text-base font-semibold uppercase tracking-wide text-center px-3 whitespace-nowrap"
               style={{ color: "rgba(255,255,255,0.95)" }}
             >
               {sponsor.name}
@@ -155,8 +155,8 @@ export default function SponsorSpotlight() {
           const inner = (
             <div
               style={{
-                width: "220px",
-                height: "80px",
+                width: "280px",
+                height: "100px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
