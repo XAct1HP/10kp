@@ -3,19 +3,28 @@
 import { useEffect, useState } from "react";
 
 /**
- * Rotates through sponsors one at a time in the top-right corner of the homepage.
- * Each sponsor holds for ~2.5s, then cross-fades to the next.
- * Sponsors are sourced from the admin Settings tab (Supabase `sponsors` table)
- * via GET /api/sponsors.
+ * Sponsor disk in the top-right corner of the homepage:
+ * - A large navy disk sits in the top-right; only its bottom-left quadrant is visible
+ *   (the container clips the rest).
+ * - Logos take turns on the disk: each spins in, holds for 2s, then spins out before
+ *   the next one spins in.
+ * - Sponsors come from the admin Settings tab (Supabase `sponsors` table) via /api/sponsors.
  */
-const HOLD_MS = 2500;
-const FADE_MS = 500;
+const IN_MS = 700;
+const HOLD_MS = 2000;
+const OUT_MS = 600;
+
+// Container / disk sizing. Disk is ~1.7× the container so only its corner peeks in.
+const BOX = 280; // container (visible viewport for the disk)
+const DISK = 480; // disk diameter
+const OFFSET = -240; // how far the disk sits outside the container (= -DISK/2 + BOX/2 - inset)
 
 export default function SponsorSpotlight() {
   const [sponsors, setSponsors] = useState(null);
   const [index, setIndex] = useState(0);
-  const [visible, setVisible] = useState(true);
+  const [phase, setPhase] = useState("in"); // "in" | "hold" | "out"
 
+  // Load sponsors from the public endpoint (backed by admin settings)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -33,45 +42,57 @@ export default function SponsorSpotlight() {
     };
   }, []);
 
+  // Phase machine: in → hold → out → (next sponsor) → in ...
   useEffect(() => {
-    if (!sponsors || sponsors.length <= 1) return; // nothing to rotate through
-    const holdTimer = setTimeout(() => {
-      setVisible(false);
-      const swapTimer = setTimeout(() => {
+    if (!sponsors || sponsors.length === 0) return;
+    let t;
+    if (phase === "in") {
+      t = setTimeout(() => setPhase("hold"), IN_MS);
+    } else if (phase === "hold") {
+      t = setTimeout(() => setPhase("out"), HOLD_MS);
+    } else {
+      t = setTimeout(() => {
         setIndex((i) => (i + 1) % sponsors.length);
-        setVisible(true);
-      }, FADE_MS);
-      // cleanup handled by outer effect return below
-      return () => clearTimeout(swapTimer);
-    }, HOLD_MS);
-    return () => clearTimeout(holdTimer);
-  }, [sponsors, index]);
+        setPhase("in");
+      }, OUT_MS);
+    }
+    return () => clearTimeout(t);
+  }, [phase, sponsors]);
 
   if (!sponsors || sponsors.length === 0) return null;
 
   const current = sponsors[index];
+  const animClass =
+    phase === "in" ? "sponsor-spin-in" : phase === "out" ? "sponsor-spin-out" : "";
 
   const logo = current.logo_url ? (
     <img
       src={current.logo_url}
       alt={current.name}
-      className="max-h-12 max-w-[160px] w-auto object-contain"
+      // 20% larger than the previous spotlight (h-12 → h-14, 160px → 192px)
+      className="max-h-14 max-w-[192px] w-auto object-contain"
+      style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}
     />
   ) : (
     <span
-      className="text-sm font-semibold uppercase tracking-wide text-right"
-      style={{ color: "rgba(255,255,255,0.92)" }}
+      className="text-sm font-semibold uppercase tracking-wide text-center px-3"
+      style={{ color: "rgba(255,255,255,0.95)" }}
     >
       {current.name}
     </span>
   );
 
-  const inner = (
+  const logoWrapper = (
     <div
-      className="relative flex items-center justify-end"
+      // key restarts the CSS animation cleanly each time phase changes
+      key={`${index}-${phase}`}
+      className={animClass}
       style={{
-        opacity: visible ? 1 : 0,
-        transition: `opacity ${FADE_MS}ms ease-in-out`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "220px",
+        maxWidth: "100%",
       }}
     >
       {logo}
@@ -80,21 +101,36 @@ export default function SponsorSpotlight() {
 
   return (
     <div
-      // Desktop only — mobile hero is too tight to overlay a logo up top
-      className="hidden lg:block absolute top-0 right-0 z-20 pointer-events-none"
+      // Desktop only — mobile hero is too tight for a large corner disk
+      className="hidden lg:block absolute top-0 right-0 z-20 overflow-hidden pointer-events-none"
+      style={{ width: `${BOX}px`, height: `${BOX}px` }}
     >
-      {/* Minimal blue radial gradient — anchors the logo without competing with the hero */}
+      {/* The blue disk — only its bottom-left quadrant lands in the visible container */}
       <div
         aria-hidden
-        className="absolute top-0 right-0"
+        className="absolute rounded-full"
         style={{
-          width: "320px",
-          height: "180px",
+          width: `${DISK}px`,
+          height: `${DISK}px`,
+          top: `${OFFSET}px`,
+          right: `${OFFSET}px`,
           background:
-            "radial-gradient(ellipse at top right, rgba(11,26,59,0.55) 0%, rgba(11,26,59,0.25) 45%, transparent 78%)",
+            "radial-gradient(circle at 32% 68%, #1e3568 0%, #0B1A3B 55%, #050f24 100%)",
+          boxShadow:
+            "0 10px 40px rgba(0,0,0,0.45), inset -30px -30px 80px rgba(0,0,0,0.25), inset 20px 20px 60px rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
         }}
       />
-      <div className="relative px-8 py-7 min-h-[80px] min-w-[180px] flex items-center justify-end pointer-events-auto">
+
+      {/* Logo layer — positioned inside the disk's visible quadrant */}
+      <div
+        className="absolute pointer-events-auto"
+        style={{
+          left: "56%",
+          top: "44%",
+          transform: "translate(-50%, -50%)",
+        }}
+      >
         {current.website ? (
           <a
             href={current.website}
@@ -103,10 +139,10 @@ export default function SponsorSpotlight() {
             title={current.name}
             className="block"
           >
-            {inner}
+            {logoWrapper}
           </a>
         ) : (
-          inner
+          logoWrapper
         )}
       </div>
     </div>
