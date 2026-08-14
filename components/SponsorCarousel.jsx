@@ -12,19 +12,19 @@ function LogoTile({ name, website, logo_url }) {
     <img
       src={logo_url}
       alt={name}
-      className="max-h-8 sm:max-h-10 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity duration-200"
+      className="max-h-10 sm:max-h-12 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity duration-200"
       loading="lazy"
     />
   ) : (
     <span
-      className="text-[10px] sm:text-xs font-semibold tracking-wide uppercase whitespace-nowrap opacity-70"
-      style={{ color: "rgba(255,255,255,0.85)" }}
+      className="text-xs sm:text-sm font-semibold tracking-wide uppercase whitespace-nowrap opacity-80"
+      style={{ color: "rgba(255,255,255,0.9)" }}
     >
       {name}
     </span>
   );
 
-  const wrapperClass = "flex items-center justify-center h-full px-4 sm:px-6 shrink-0";
+  const wrapperClass = "flex items-center justify-center h-full px-6 sm:px-8 shrink-0";
 
   if (website) {
     return (
@@ -66,8 +66,15 @@ export default function SponsorCarousel() {
   // avoids an empty bar flashing on the homepage.
   if (!sponsors || sponsors.length === 0) return null;
 
-  // Duplicate the list so the marquee loops seamlessly.
-  const loop = [...sponsors, ...sponsors];
+  // Build ONE cycle repeated enough times to comfortably exceed the viewport
+  // width, then duplicate that cycle so the marquee loops seamlessly.
+  // - 1 sponsor  → cycle is [A, A, A, A, A, A, A, A]      → shows A A A ... continuously
+  // - 2 sponsors → cycle is [A, B, A, B, A, B, A, B]      → alternates A B A B ...
+  // - 3 sponsors → cycle is [A, B, C, A, B, C, A, B, C]   → 1,2,3,1,2,3 ...
+  // - 8+         → cycle is the sponsors themselves once
+  const repeats = Math.max(1, Math.ceil(8 / sponsors.length));
+  const cycle = Array.from({ length: repeats }, () => sponsors).flat();
+  const loop = [...cycle, ...cycle];
 
   return (
     <div
@@ -76,29 +83,19 @@ export default function SponsorCarousel() {
         background: "rgba(255,255,255,0.04)",
         borderTop: "1px solid rgba(255,255,255,0.08)",
         WebkitMaskImage:
-          "linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%)",
+          "linear-gradient(to right, transparent 0, black 6%, black 94%, transparent 100%)",
         maskImage:
-          "linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%)",
+          "linear-gradient(to right, transparent 0, black 6%, black 94%, transparent 100%)",
       }}
     >
-      <div className="mx-auto max-w-7xl">
-        <div className="flex items-center h-12 sm:h-14">
-          <span
-            className="hidden sm:block text-[10px] uppercase tracking-[0.28em] font-semibold pl-6 pr-4 shrink-0"
-            style={{ color: "rgba(255,203,5,0.75)" }}
-          >
-            Presented by
-          </span>
-          <div className="flex-1 overflow-hidden">
-            <div
-              className="flex items-center marquee-track"
-              style={{ width: "max-content" }}
-            >
-              {loop.map((sponsor, i) => (
-                <LogoTile key={`${sponsor.id}-${i}`} {...sponsor} />
-              ))}
-            </div>
-          </div>
+      <div className="flex items-center h-12 sm:h-14">
+        <div
+          className="flex items-center marquee-track"
+          style={{ width: "max-content" }}
+        >
+          {loop.map((sponsor, i) => (
+            <LogoTile key={`${sponsor.id}-${i}`} {...sponsor} />
+          ))}
         </div>
       </div>
     </div>
