@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/AuthContext";
 import PageBackground from "../components/PageBackground";
+import SponsorCarousel from "../components/SponsorCarousel";
 import homeHero from "../public/10kp_hero_image.png";
 
 function useCountdown(targetDate) {
@@ -119,7 +120,7 @@ export default function Home() {
       />
 
       {/* MOBILE LAYOUT (< lg) */}
-      <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-6 pb-8">
+      <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-6 pb-4">
         {/* TOP: transparent countdown with centered separators */}
         {countdownUnits && (
           <div>
@@ -220,7 +221,7 @@ export default function Home() {
       </div>
 
       {/* DESKTOP LAYOUT (lg+) */}
-      <div className="relative z-10 flex-1 hidden lg:flex items-end px-16 pb-14">
+      <div className="relative z-10 flex-1 hidden lg:flex items-end px-16 pb-8">
         <div className="max-w-2xl flex-shrink-0">
           <h1
             className="font-bold text-white tracking-tight leading-[1.05] mb-4"
@@ -335,6 +336,11 @@ export default function Home() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* SPONSOR CAROUSEL — bottom strip, stays inside viewport (no-scroll page) */}
+      <div className="relative z-10">
+        <SponsorCarousel />
       </div>
     </div>
   );
