@@ -194,7 +194,7 @@ export default function RecordWinnersModal({
                 autoFocus
               />
               <p className="mt-2 text-[10px] text-white/30">
-                Showing {results.length} result{results.length === 1 ? "" : "s"}.
+                Showing {results.length} result{results.length === 1 ? "" : "s"}. Seed pitches are excluded — only intake-form submissions are eligible.
               </p>
             </div>
             <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-4 space-y-2">

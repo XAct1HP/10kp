@@ -23,6 +23,9 @@ export async function GET(request) {
     let query = supabaseAdmin
       .from("pitches")
       .select(SELECT)
+      // Seed pitches are demo content — never eligible for awards.
+      // Only real intake-form submissions can be picked as winners.
+      .eq("is_seed", false)
       .order("created_at", { ascending: false })
       .limit(limit);
 

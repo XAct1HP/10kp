@@ -78,6 +78,30 @@ async function replaceWinners(supabaseAdmin, announcementId, pitchIds) {
   if (error) throw new Error(error.message);
 }
 
+// Guard: seed pitches are demo content and can never be awarded 1st/2nd/3rd.
+// Only intake-form submissions are eligible. Throws with a 400-friendly message
+// if any of the given IDs belong to a seed pitch (or don't exist).
+async function assertNoSeedPitches(supabaseAdmin, pitchIds) {
+  if (!pitchIds?.length) return;
+  const { data, error } = await supabaseAdmin
+    .from("pitches")
+    .select("id, is_seed, title")
+    .in("id", pitchIds);
+  if (error) throw new Error(error.message);
+  const found = new Set((data || []).map((p) => p.id));
+  const missing = pitchIds.filter((id) => !found.has(id));
+  if (missing.length) {
+    throw new Error(`Unknown pitch id${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`);
+  }
+  const seeds = (data || []).filter((p) => p.is_seed);
+  if (seeds.length) {
+    const names = seeds.map((p) => `"${p.title}"`).join(", ");
+    throw new Error(
+      `Seed pitches cannot be selected as winners: ${names}. Only pitches submitted through the intake form are eligible.`
+    );
+  }
+}
+
 async function replaceAnnouncementSponsors(supabaseAdmin, announcementId, sponsorIds) {
   await supabaseAdmin
     .from("announcement_sponsors")
@@ -177,6 +201,11 @@ export async function POST(request) {
       }
       if (winnerPitchIds.length === 0) {
         return NextResponse.json({ error: "At least one winner pitch is required" }, { status: 400 });
+      }
+      try {
+        await assertNoSeedPitches(getSupabaseAdmin(), winnerPitchIds);
+      } catch (guardErr) {
+        return NextResponse.json({ error: guardErr.message }, { status: 400 });
       }
     }
     if (announcementType === "event") {
@@ -288,6 +317,11 @@ export async function PUT(request) {
 
     if (Array.isArray(body.winner_pitch_ids)) {
       const winnerPitchIds = body.winner_pitch_ids.filter((s) => typeof s === "string");
+      try {
+        await assertNoSeedPitches(supabaseAdmin, winnerPitchIds);
+      } catch (guardErr) {
+        return NextResponse.json({ error: guardErr.message }, { status: 400 });
+      }
       await replaceWinners(supabaseAdmin, id, winnerPitchIds);
     }
     if (Array.isArray(body.sponsor_ids)) {
