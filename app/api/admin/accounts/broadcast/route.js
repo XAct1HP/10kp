@@ -16,7 +16,8 @@ import {
 } from "../../../../../lib/outreach";
 
 const RESEND_API_BASE = "https://api.resend.com";
-const CONTACT_CONCURRENCY = 5;
+// Resend's /emails/batch accepts up to 100 messages per request.
+const RESEND_BATCH_LIMIT = 100;
 
 async function resendRequest(path, { apiKey, method = "GET", body } = {}) {
   const response = await fetch(`${RESEND_API_BASE}${path}`, {
@@ -50,104 +51,49 @@ async function resendRequest(path, { apiKey, method = "GET", body } = {}) {
   return data;
 }
 
-async function createResendSegment(apiKey, name) {
-  const data = await resendRequest("/segments", {
-    apiKey,
-    method: "POST",
-    body: { name },
-  });
-  return data.id;
-}
-
-async function getResendContactByEmail(apiKey, email) {
-  return resendRequest(`/contacts/${encodeURIComponent(email)}`, { apiKey });
-}
-
-async function createResendContact(apiKey, email) {
-  return resendRequest("/contacts", {
-    apiKey,
-    method: "POST",
-    body: {
-      email,
-      unsubscribed: false,
-    },
-  });
-}
-
-async function addContactToSegment(apiKey, contactId, segmentId) {
-  return resendRequest(
-    `/contacts/${encodeURIComponent(contactId)}/segments/${encodeURIComponent(segmentId)}`,
-    { apiKey, method: "POST" }
-  );
-}
-
-function isConflictError(error) {
-  const message = String(error?.message || "").toLowerCase();
-  return error?.status === 409 || message.includes("already exists") || message.includes("already in");
-}
-
-async function ensureContactInSegment(apiKey, email, segmentId) {
-  let contactId = null;
-
-  try {
-    const created = await createResendContact(apiKey, email);
-    contactId = created?.id || null;
-  } catch (error) {
-    if (!isConflictError(error)) throw error;
-    const existing = await getResendContactByEmail(apiKey, email);
-    contactId = existing?.id || null;
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
   }
-
-  if (!contactId) {
-    throw new Error(`Could not resolve a Resend contact for ${email}.`);
-  }
-
-  try {
-    await addContactToSegment(apiKey, contactId, segmentId);
-  } catch (error) {
-    if (!isConflictError(error)) throw error;
-  }
+  return chunks;
 }
 
-async function runWithConcurrency(items, concurrency, worker) {
-  const queue = [...items];
-  const failures = [];
+// Send the broadcast via /emails/batch. This avoids Resend's segment/contact
+// system entirely — previously we created a fresh segment per broadcast, which
+// hits the free plan's 3-segment cap after just three sends.
+async function sendBroadcastEmails({ apiKey, fromAddress, fromEmail, subject, message, recipients }) {
+  const html = buildBroadcastHtml(message, { subject });
+  const text = buildBroadcastText(message);
+  // RFC 8058 List-Unsubscribe header. Aids deliverability and lets Gmail/
+  // Apple Mail show a native "Unsubscribe" button in the header UI.
+  const unsubscribeMailto = `<mailto:${fromEmail}?subject=Unsubscribe>`;
 
-  async function consume() {
-    while (queue.length > 0) {
-      const next = queue.shift();
-      try {
-        await worker(next);
-      } catch (error) {
-        failures.push({
-          email: next?.email || null,
-          message: error.message || "Unknown Resend error.",
-        });
-      }
+  const emailIds = [];
+  for (const chunk of chunkArray(recipients, RESEND_BATCH_LIMIT)) {
+    const payload = chunk.map((email) => ({
+      from: fromAddress,
+      to: email,
+      subject,
+      html,
+      text,
+      headers: {
+        "List-Unsubscribe": unsubscribeMailto,
+      },
+    }));
+
+    const data = await resendRequest("/emails/batch", {
+      apiKey,
+      method: "POST",
+      body: payload,
+    });
+
+    for (const entry of data?.data || []) {
+      if (entry?.id) emailIds.push(entry.id);
     }
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, Math.max(queue.length, 1)) }, () => consume())
-  );
-
-  return failures;
-}
-
-async function createAndSendBroadcast({ apiKey, fromEmail, subject, message, segmentId }) {
-  return resendRequest("/broadcasts", {
-    apiKey,
-    method: "POST",
-    body: {
-      segment_id: segmentId,
-      from: fromEmail,
-      subject,
-      name: `${subject} (${new Date().toISOString()})`,
-      html: buildBroadcastHtml(message, { subject }),
-      text: buildBroadcastText(message),
-      send: true,
-    },
-  });
+  return emailIds;
 }
 
 export async function GET(request) {
@@ -217,32 +163,14 @@ export async function POST(request) {
       return NextResponse.json({ error: "No matching accounts found." }, { status: 400 });
     }
 
-    const segmentId = await createResendSegment(
-      resend.apiKey,
-      `10KP ${subject.slice(0, 60)} ${new Date().toISOString()}`
-    );
-
-    const failures = await runWithConcurrency(accounts, CONTACT_CONCURRENCY, async (account) => {
-      await ensureContactInSegment(resend.apiKey, account.email, segmentId);
-    });
-
-    if (failures.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Failed to prepare ${failures.length} recipient${failures.length === 1 ? "" : "s"} for broadcast.`,
-          failures: failures.slice(0, 10),
-        },
-        { status: 500 }
-      );
-    }
-
-    const broadcast = await createAndSendBroadcast({
+    const recipients = accounts.map((account) => account.email);
+    const emailIds = await sendBroadcastEmails({
       apiKey: resend.apiKey,
-      // Formatted as `"10,000 Pitches" <noreply@...>` so recipients see the brand.
-      fromEmail: resend.fromAddress,
+      fromAddress: resend.fromAddress,
+      fromEmail: resend.fromEmail,
       subject,
       message,
-      segmentId,
+      recipients,
     });
 
     const auditPayload = {
@@ -251,13 +179,15 @@ export async function POST(request) {
       body_text: message,
       recipient_scope: scope,
       confirmed_filter: confirmed,
-      recipient_count: accounts.length,
-      resend_segment_id: segmentId,
-      resend_broadcast_id: broadcast?.id || null,
+      recipient_count: recipients.length,
+      resend_segment_id: null,
+      resend_broadcast_id: null,
       status: "sent",
       details: {
+        delivery: "batch",
         search,
-        recipient_emails_preview: accounts.slice(0, 10).map((account) => account.email),
+        recipient_emails_preview: recipients.slice(0, 10),
+        resend_email_ids_preview: emailIds.slice(0, 10),
       },
     };
 
@@ -265,9 +195,8 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      broadcastId: broadcast?.id || null,
-      segmentId,
-      recipientCount: accounts.length,
+      recipientCount: recipients.length,
+      sentCount: emailIds.length,
       historyEnabled: historyInsert.historyEnabled,
       campaign: historyInsert.campaign,
     });

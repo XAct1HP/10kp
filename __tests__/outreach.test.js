@@ -71,10 +71,12 @@ test("buildAccountCsv includes stable headers and values", () => {
   assert.match(csv, /Yes/);
 });
 
-test("buildBroadcastText appends unsubscribe placeholder", () => {
+test("buildBroadcastText appends a plain-text unsubscribe footer", () => {
   const text = buildBroadcastText("Reminder");
   assert.match(text, /Reminder/);
-  assert.match(text, /RESEND_UNSUBSCRIBE_URL/);
+  assert.match(text, /unsubscribe/i);
+  // Placeholder is gone — batch-sent broadcasts no longer use segments.
+  assert.doesNotMatch(text, /RESEND_UNSUBSCRIBE_URL/);
 });
 
 test("parseEmailList normalizes and deduplicates recipients", () => {
@@ -125,14 +127,16 @@ test("renderBrandedEmail includes CTA button when provided", () => {
   assert.match(html, /#FFCB05/);
 });
 
-test("buildBroadcastHtml uses subject as title and keeps unsubscribe placeholder", () => {
+test("buildBroadcastHtml uses subject as title with a plain unsubscribe footer", () => {
   const html = buildBroadcastHtml("Hello everyone.\n\nSecond paragraph.", {
     subject: "Weekly update",
   });
   assert.match(html, /Weekly update/);
   assert.match(html, /Hello everyone\./);
   assert.match(html, /Second paragraph\./);
-  assert.match(html, /\{\{\{RESEND_UNSUBSCRIBE_URL\}\}\}/);
+  assert.match(html, /unsubscribe/i);
+  // No broadcast/segment placeholder — batch send doesn't substitute it.
+  assert.doesNotMatch(html, /\{\{\{RESEND_UNSUBSCRIBE_URL\}\}\}/);
 });
 
 test("buildWinnerNotificationHtml uses branded template with survey CTA", () => {
