@@ -238,7 +238,8 @@ export async function POST(request) {
 
     const broadcast = await createAndSendBroadcast({
       apiKey: resend.apiKey,
-      fromEmail: resend.fromEmail,
+      // Formatted as `"10,000 Pitches" <noreply@...>` so recipients see the brand.
+      fromEmail: resend.fromAddress,
       subject,
       message,
       segmentId,

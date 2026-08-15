@@ -133,7 +133,8 @@ export async function POST(request) {
 
     const emailIds = await sendWinnerEmails({
       apiKey: resend.apiKey,
-      fromEmail: resend.fromEmail,
+      // Formatted as `"10,000 Pitches" <noreply@...>` so recipients see the brand.
+      fromEmail: resend.fromAddress,
       recipients,
       subject,
       prizeLabel,
