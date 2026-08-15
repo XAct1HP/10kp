@@ -3,6 +3,13 @@ import { verifyAdmin } from "../../../../lib/adminAuth";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { decorateSponsor } from "../../../../lib/sponsors";
 
+// Keep client-supplied multipliers in a safe range; DB has a matching check.
+function clampMultiplier(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(5, Math.max(0.1, n));
+}
+
 export async function GET(request) {
   const auth = await verifyAdmin(request);
   if (auth.error) {
@@ -13,7 +20,7 @@ export async function GET(request) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("sponsors")
-      .select("id, name, website, logo_path, sort_order, created_at, updated_at")
+      .select("id, name, website, logo_path, sort_order, light_background, size_multiplier, created_at, updated_at")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 
@@ -39,6 +46,9 @@ export async function POST(request) {
     const website = body.website ? String(body.website).trim() : null;
     const logoPath = body.logo_path ? String(body.logo_path).trim() : null;
     const sortOrder = Number.isFinite(body.sort_order) ? Number(body.sort_order) : 0;
+    const lightBackground = Boolean(body.light_background);
+    // size_multiplier defaults to 1.0; clamp to the same range enforced by the DB check.
+    const sizeMultiplier = clampMultiplier(body.size_multiplier);
 
     if (!name) {
       return NextResponse.json({ error: "Sponsor name is required" }, { status: 400 });
@@ -52,8 +62,10 @@ export async function POST(request) {
         website,
         logo_path: logoPath,
         sort_order: sortOrder,
+        light_background: lightBackground,
+        size_multiplier: sizeMultiplier,
       })
-      .select("id, name, website, logo_path, sort_order, created_at, updated_at")
+      .select("id, name, website, logo_path, sort_order, light_background, size_multiplier, created_at, updated_at")
       .single();
 
     if (error) {
@@ -96,13 +108,19 @@ export async function PUT(request) {
     if (Number.isFinite(body.sort_order)) {
       patch.sort_order = Number(body.sort_order);
     }
+    if (body.light_background !== undefined) {
+      patch.light_background = Boolean(body.light_background);
+    }
+    if (body.size_multiplier !== undefined) {
+      patch.size_multiplier = clampMultiplier(body.size_multiplier);
+    }
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("sponsors")
       .update(patch)
       .eq("id", id)
-      .select("id, name, website, logo_path, sort_order, created_at, updated_at")
+      .select("id, name, website, logo_path, sort_order, light_background, size_multiplier, created_at, updated_at")
       .single();
 
     if (error) {

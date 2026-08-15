@@ -98,6 +98,13 @@ export default function SponsorSpotlight() {
   // so the computed rotation is unchanged — no jump.
   const rotation = (step + (isSpinning ? 1 : 0)) * STEP_DEG;
 
+  // Which sponsor is (or is about to be) at the visible resting spot?
+  // We cross-fade the disk face to match its `light_background` flag over the
+  // spin duration, so the disk color settles by the time the logo lands.
+  const restingStep = step + (isSpinning ? 1 : 0);
+  const restingSponsor = sponsors[restingStep % sponsors.length];
+  const showLightDisk = !!restingSponsor?.light_background;
+
   return (
     <div
       // Desktop-only so it doesn't crowd the mobile hero.
@@ -118,7 +125,8 @@ export default function SponsorSpotlight() {
           willChange: "transform",
         }}
       >
-        {/* Blue disk face */}
+        {/* Two disk faces stacked — cross-fade opacity between dark & light
+            based on the currently-visible sponsor's light_background flag. */}
         <div
           aria-hidden
           className="absolute inset-0 rounded-full"
@@ -128,6 +136,21 @@ export default function SponsorSpotlight() {
             boxShadow:
               "0 10px 40px rgba(0,0,0,0.45), inset -30px -30px 80px rgba(0,0,0,0.25), inset 20px 20px 60px rgba(255,255,255,0.04)",
             border: "1px solid rgba(255,255,255,0.08)",
+            opacity: showLightDisk ? 0 : 1,
+            transition: `opacity ${SPIN_MS}ms ease`,
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle at 32% 68%, #ffffff 0%, #f3f5fa 55%, #dfe4ee 100%)",
+            boxShadow:
+              "0 10px 40px rgba(0,0,0,0.25), inset -30px -30px 80px rgba(0,0,0,0.08), inset 20px 20px 60px rgba(255,255,255,0.6)",
+            border: "1px solid rgba(11,26,59,0.1)",
+            opacity: showLightDisk ? 1 : 0,
+            transition: `opacity ${SPIN_MS}ms ease`,
           }}
         />
 
@@ -136,17 +159,29 @@ export default function SponsorSpotlight() {
           const sponsor = sponsorForSlot(m, step, sponsors);
           if (!sponsor) return null;
 
+          // Per-sponsor size multiplier. Applied as a scale transform so the
+          // container geometry (slot position, disk edge margins) stays stable.
+          const scale =
+            Number.isFinite(Number(sponsor.size_multiplier)) && Number(sponsor.size_multiplier) > 0
+              ? Number(sponsor.size_multiplier)
+              : 1;
+          const onLight = !!sponsor.light_background;
+
           const content = sponsor.logo_url ? (
             <img
               src={sponsor.logo_url}
               alt={sponsor.name}
               className="max-h-[72px] max-w-[250px] w-auto object-contain"
-              style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.35))" }}
+              style={{
+                filter: onLight
+                  ? "drop-shadow(0 1px 3px rgba(0,0,0,0.15))"
+                  : "drop-shadow(0 2px 8px rgba(0,0,0,0.35))",
+              }}
             />
           ) : (
             <span
               className="text-base font-semibold uppercase tracking-wide text-center px-3 whitespace-nowrap"
-              style={{ color: "rgba(255,255,255,0.95)" }}
+              style={{ color: onLight ? "rgba(11,26,59,0.92)" : "rgba(255,255,255,0.95)" }}
             >
               {sponsor.name}
             </span>
@@ -160,6 +195,9 @@ export default function SponsorSpotlight() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                // Per-sponsor scale — 1.0 default; smaller/larger via admin field.
+                transform: `scale(${scale})`,
+                transformOrigin: "center",
               }}
             >
               {content}

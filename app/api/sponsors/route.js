@@ -11,7 +11,7 @@ export async function GET() {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("sponsors")
-      .select("id, name, website, logo_path, sort_order")
+      .select("id, name, website, logo_path, sort_order, light_background, size_multiplier")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
 

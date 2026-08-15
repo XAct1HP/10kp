@@ -73,7 +73,15 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", website: "", sort_order: 0, logo_path: null, logo_url: null });
+  const [form, setForm] = useState({
+    name: "",
+    website: "",
+    sort_order: 0,
+    logo_path: null,
+    logo_url: null,
+    light_background: false,
+    size_multiplier: 1,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -94,7 +102,15 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const resetForm = () => {
-    setForm({ name: "", website: "", sort_order: 0, logo_path: null, logo_url: null });
+    setForm({
+      name: "",
+      website: "",
+      sort_order: 0,
+      logo_path: null,
+      logo_url: null,
+      light_background: false,
+      size_multiplier: 1,
+    });
     setEditing(null);
     setShowForm(false);
   };
@@ -107,6 +123,8 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
       sort_order: sponsor.sort_order || 0,
       logo_path: sponsor.logo_path || null,
       logo_url: sponsor.logo_url || null,
+      light_background: Boolean(sponsor.light_background),
+      size_multiplier: Number(sponsor.size_multiplier ?? 1) || 1,
     });
     setShowForm(true);
   };
@@ -138,6 +156,8 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
         website: form.website.trim() || null,
         logo_path: form.logo_path || null,
         sort_order: Number(form.sort_order) || 0,
+        light_background: Boolean(form.light_background),
+        size_multiplier: Number(form.size_multiplier) > 0 ? Number(form.size_multiplier) : 1,
       };
       if (editing) {
         await apiFetch("/api/admin/sponsors", {
@@ -286,17 +306,54 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
                     style={inputStyle}
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Sort order</label>
-                  <input
-                    type="number"
-                    value={form.sort_order}
-                    onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
-                    style={inputStyle}
-                  />
-                  <p className="mt-1 text-[10px] text-white/30">Lower numbers appear first.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Sort order</label>
+                    <input
+                      type="number"
+                      value={form.sort_order}
+                      onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                      style={inputStyle}
+                    />
+                    <p className="mt-1 text-[10px] text-white/30">Lower numbers appear first.</p>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">
+                      Size multiplier
+                    </label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      max="5"
+                      step="0.05"
+                      value={form.size_multiplier}
+                      onChange={(e) => setForm({ ...form, size_multiplier: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                      style={inputStyle}
+                    />
+                    <p className="mt-1 text-[10px] text-white/30">1.0 = default. 0.8 shrinks, 1.3 grows.</p>
+                  </div>
                 </div>
+
+                {/* Light-background toggle */}
+                <label
+                  className="flex items-start gap-3 cursor-pointer rounded-lg p-3"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.light_background}
+                    onChange={(e) => setForm({ ...form, light_background: e.target.checked })}
+                    className="mt-0.5 accent-maize"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white">Use light background</p>
+                    <p className="text-[11px] text-white/50 mt-0.5">
+                      Turn on when this sponsor&apos;s logo has dark artwork that won&apos;t read on the navy disk.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 
