@@ -125,8 +125,8 @@ export default function SponsorSpotlight() {
           willChange: "transform",
         }}
       >
-        {/* Two disk faces stacked — cross-fade opacity between dark & light
-            based on the currently-visible sponsor's light_background flag. */}
+        {/* Dark navy disk — always present so we never see through to the hero
+            behind. The light face (below) fades IN on top of it when needed. */}
         <div
           aria-hidden
           className="absolute inset-0 rounded-full"
@@ -136,8 +136,6 @@ export default function SponsorSpotlight() {
             boxShadow:
               "0 10px 40px rgba(0,0,0,0.45), inset -30px -30px 80px rgba(0,0,0,0.25), inset 20px 20px 60px rgba(255,255,255,0.04)",
             border: "1px solid rgba(255,255,255,0.08)",
-            opacity: showLightDisk ? 0 : 1,
-            transition: `opacity ${SPIN_MS}ms ease`,
           }}
         />
         <div
@@ -147,7 +145,7 @@ export default function SponsorSpotlight() {
             background:
               "radial-gradient(circle at 32% 68%, #ffffff 0%, #f3f5fa 55%, #dfe4ee 100%)",
             boxShadow:
-              "0 10px 40px rgba(0,0,0,0.25), inset -30px -30px 80px rgba(0,0,0,0.08), inset 20px 20px 60px rgba(255,255,255,0.6)",
+              "inset -30px -30px 80px rgba(0,0,0,0.08), inset 20px 20px 60px rgba(255,255,255,0.6)",
             border: "1px solid rgba(11,26,59,0.1)",
             opacity: showLightDisk ? 1 : 0,
             transition: `opacity ${SPIN_MS}ms ease`,
