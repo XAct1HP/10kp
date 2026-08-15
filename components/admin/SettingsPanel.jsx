@@ -182,23 +182,30 @@ export default function SettingsPanel({
         )}
       </GlassCard>
 
-      {/* Default thumbnails */}
+      {/* Default thumbnails — compact row; two small preview chips side by side */}
       <GlassCard>
-        <h2 className="text-lg font-bold text-white mb-1">Default Thumbnails</h2>
-        <p className="text-sm text-white/35 mb-5">Fallback images for audio and text pitches.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="flex items-baseline justify-between gap-4 mb-3">
+          <div>
+            <h2 className="text-base font-bold text-white">Default Thumbnails</h2>
+            <p className="text-[11px] text-white/40 mt-0.5">Fallback images for audio and text pitches.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3">
           {[
-            { type: "audio", label: "Audio Pitch" },
-            { type: "text", label: "Text Pitch" },
+            { type: "audio", label: "Audio" },
+            { type: "text", label: "Text" },
           ].map(({ type, label }) => (
-            <div key={type}>
-              <p className="text-sm font-semibold text-white/60 mb-2">{label}</p>
+            <div
+              key={type}
+              className="flex items-center gap-3 rounded-lg p-2 pr-3"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
               {defaultThumbnails[type] ? (
-                <div className="relative group rounded-xl overflow-hidden">
+                <div className="relative group w-28 h-16 rounded-md overflow-hidden flex-shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={defaultThumbnails[type]} alt={label} className="w-full aspect-video object-cover" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <label className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/20 hover:bg-white/30 cursor-pointer transition-colors">
+                  <img src={defaultThumbnails[type]} alt={label} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <label className="px-2 py-1 rounded text-[10px] font-semibold text-white bg-white/25 hover:bg-white/35 cursor-pointer transition-colors">
                       Replace
                       <input
                         type="file"
@@ -211,21 +218,16 @@ export default function SettingsPanel({
                 </div>
               ) : (
                 <label
-                  className="flex flex-col items-center justify-center w-full aspect-video rounded-xl cursor-pointer transition-colors hover:bg-white/[0.03]"
-                  style={{ border: "2px dashed rgba(255,255,255,0.08)" }}
+                  className="flex items-center justify-center w-28 h-16 rounded-md cursor-pointer transition-colors hover:bg-white/[0.03] flex-shrink-0"
+                  style={{ border: "1.5px dashed rgba(255,255,255,0.12)" }}
                 >
                   {uploadingThumbnail === type ? (
-                    <svg className="animate-spin h-5 w-5 text-maize" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-4 w-4 text-maize" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
                   ) : (
-                    <>
-                      <svg className="w-7 h-7 text-white/15 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span className="text-xs text-white/25">Upload image</span>
-                    </>
+                    <span className="text-[10px] text-white/35">Upload</span>
                   )}
                   <input
                     type="file"
@@ -235,6 +237,7 @@ export default function SettingsPanel({
                   />
                 </label>
               )}
+              <p className="text-xs font-semibold text-white/70">{label}</p>
             </div>
           ))}
         </div>

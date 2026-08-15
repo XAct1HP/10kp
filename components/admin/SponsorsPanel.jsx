@@ -24,7 +24,9 @@ const inputStyle = {
   border: "1px solid rgba(255,255,255,0.12)",
 };
 
-// Small icon-only action button so the list cards stay logo-focused.
+// Small icon-only action button. Uses a solid, high-contrast style so it stays
+// fully visible whether the tile behind it is the dark navy default or a light
+// backdrop for light-background sponsors.
 function IconButton({ onClick, disabled, label, danger, children }) {
   return (
     <button
@@ -33,11 +35,12 @@ function IconButton({ onClick, disabled, label, danger, children }) {
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="w-7 h-7 rounded-md flex items-center justify-center transition-colors disabled:opacity-40"
+      className="w-7 h-7 rounded-md flex items-center justify-center transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
       style={{
-        color: danger ? "rgba(252,165,165,0.85)" : "rgba(255,255,255,0.55)",
-        background: danger ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.05)",
-        border: `1px solid ${danger ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)"}`,
+        color: "#ffffff",
+        background: danger ? "#DC2626" : "#0B1A3B",
+        border: `1px solid ${danger ? "#F87171" : "#FFCB05"}`,
+        boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
       }}
     >
       {children}
