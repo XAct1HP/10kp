@@ -234,9 +234,12 @@ export default function GalleryPage() {
   }, [searchQuery, selectedTagIds]);
 
   // ── Top 3 by votes (constant, independent of search) ──
+  // Seed pitches are demo content and can never occupy a podium spot,
+  // regardless of vote count. Only real intake submissions are eligible.
   const topPitches = useMemo(
     () =>
       [...allSubmissions]
+        .filter((p) => !p.is_seed)
         .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
         .slice(0, TOP_COUNT),
     [allSubmissions]
@@ -919,8 +922,9 @@ export default function GalleryPage() {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                {/* Rank badge if top 3 */}
+                {/* Rank badge if top 3 — but only when the admin podium switch is on */}
                 {(() => {
+                  if (!podiumVisible) return null;
                   const rank = topPitches.findIndex((p) => p.id === selectedPitch.id);
                   if (rank === -1) return null;
                   const badge = RANK_BADGES[rank];
