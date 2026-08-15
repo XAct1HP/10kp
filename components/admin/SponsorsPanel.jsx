@@ -242,13 +242,26 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
                 <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Logo</label>
                 <div
                   className="w-full aspect-square rounded-xl flex items-center justify-center overflow-hidden"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px dashed rgba(255,255,255,0.15)" }}
+                  style={{
+                    // Mirror the homepage disk so admins see the logo on the exact
+                    // background it'll ship on. Flips live with the toggle.
+                    background: form.light_background
+                      ? "linear-gradient(135deg, #ffffff 0%, #f3f5fa 60%, #dfe4ee 100%)"
+                      : "linear-gradient(135deg, #1e3568 0%, #0B1A3B 60%, #050f24 100%)",
+                    border: `1px dashed ${form.light_background ? "rgba(11,26,59,0.2)" : "rgba(255,255,255,0.18)"}`,
+                    transition: "background 300ms ease, border-color 300ms ease",
+                  }}
                 >
                   {form.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={form.logo_url} alt="Sponsor logo" className="max-w-full max-h-full object-contain p-3" />
                   ) : (
-                    <span className="text-xs text-white/30">No logo yet</span>
+                    <span
+                      className="text-xs"
+                      style={{ color: form.light_background ? "rgba(11,26,59,0.4)" : "rgba(255,255,255,0.3)" }}
+                    >
+                      No logo yet
+                    </span>
                   )}
                 </div>
                 <input
@@ -415,8 +428,17 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
                 </IconButton>
               </div>
 
-              {/* Logo — dominant */}
-              <div className="flex-1 min-h-0 flex items-center justify-center px-2 pt-2 pb-1">
+              {/* Logo — dominant. Background mirrors the homepage disk so the
+                  preview shows the logo on its actual final backdrop. */}
+              <div
+                className="flex-1 min-h-0 flex items-center justify-center rounded-lg px-2 py-2 my-1 mx-1"
+                style={{
+                  background: sponsor.light_background
+                    ? "linear-gradient(135deg, #ffffff 0%, #f3f5fa 60%, #dfe4ee 100%)"
+                    : "linear-gradient(135deg, #1e3568 0%, #0B1A3B 60%, #050f24 100%)",
+                  border: `1px solid ${sponsor.light_background ? "rgba(11,26,59,0.08)" : "rgba(255,255,255,0.06)"}`,
+                }}
+              >
                 {sponsor.logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -425,7 +447,12 @@ export default function SponsorsPanel({ apiFetch, apiUpload, onError, onSuccess 
                     className="max-w-full max-h-full object-contain"
                   />
                 ) : (
-                  <span className="text-[11px] text-white/25 uppercase tracking-wider">No logo</span>
+                  <span
+                    className="text-[11px] uppercase tracking-wider"
+                    style={{ color: sponsor.light_background ? "rgba(11,26,59,0.35)" : "rgba(255,255,255,0.25)" }}
+                  >
+                    No logo
+                  </span>
                 )}
               </div>
 
