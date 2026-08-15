@@ -143,7 +143,7 @@ async function createAndSendBroadcast({ apiKey, fromEmail, subject, message, seg
       from: fromEmail,
       subject,
       name: `${subject} (${new Date().toISOString()})`,
-      html: buildBroadcastHtml(message),
+      html: buildBroadcastHtml(message, { subject }),
       text: buildBroadcastText(message),
       send: true,
     },

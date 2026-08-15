@@ -4,12 +4,15 @@ import assert from "node:assert/strict";
 const {
   applyAccountFilters,
   buildAccountCsv,
+  buildBroadcastHtml,
   buildBroadcastText,
+  buildWinnerNotificationHtml,
   buildWinnerNotificationText,
   joinEmailList,
   normalizeAccountScope,
   normalizeConfirmedFilter,
   parseEmailList,
+  renderBrandedEmail,
   WINNER_SURVEY_URL,
 } = await import("../lib/outreach.js");
 
@@ -92,4 +95,55 @@ test("buildWinnerNotificationText includes survey link", () => {
   assert.match(text, /Weekly Raffle/);
   assert.match(text, new RegExp(WINNER_SURVEY_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(text, /Friday/);
+});
+
+test("renderBrandedEmail includes logo, navy title, and org footer", () => {
+  const html = renderBrandedEmail({
+    title: "Hello there",
+    bodyHtml: "<p>Body content.</p>",
+  });
+  assert.match(html, /10kp_email_logo\.png/);
+  assert.match(html, /Hello there/);
+  assert.match(html, /#00274C/);
+  assert.match(html, /Center for Entrepreneurship/);
+});
+
+test("renderBrandedEmail escapes the title", () => {
+  const html = renderBrandedEmail({ title: "<script>x</script>", bodyHtml: "<p>ok</p>" });
+  assert.doesNotMatch(html, /<script>x<\/script>/);
+  assert.match(html, /&lt;script&gt;/);
+});
+
+test("renderBrandedEmail includes CTA button when provided", () => {
+  const html = renderBrandedEmail({
+    title: "T",
+    bodyHtml: "<p>b</p>",
+    cta: { label: "Do the thing", url: "https://example.com/x" },
+  });
+  assert.match(html, /Do the thing/);
+  assert.match(html, /https:\/\/example\.com\/x/);
+  assert.match(html, /#FFCB05/);
+});
+
+test("buildBroadcastHtml uses subject as title and keeps unsubscribe placeholder", () => {
+  const html = buildBroadcastHtml("Hello everyone.\n\nSecond paragraph.", {
+    subject: "Weekly update",
+  });
+  assert.match(html, /Weekly update/);
+  assert.match(html, /Hello everyone\./);
+  assert.match(html, /Second paragraph\./);
+  assert.match(html, /\{\{\{RESEND_UNSUBSCRIBE_URL\}\}\}/);
+});
+
+test("buildWinnerNotificationHtml uses branded template with survey CTA", () => {
+  const html = buildWinnerNotificationHtml({
+    prizeLabel: "Grand Prize",
+    note: "Reply if you need help.",
+  });
+  assert.match(html, /Congratulations!/);
+  assert.match(html, /Grand Prize/);
+  assert.match(html, /Complete Payment Survey/);
+  assert.match(html, new RegExp(WINNER_SURVEY_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(html, /Reply if you need help/);
+  assert.match(html, /10kp_email_logo\.png/);
 });
