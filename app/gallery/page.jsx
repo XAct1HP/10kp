@@ -16,6 +16,33 @@ const RANK_BADGES = [
   { label: "3RD PLACE", short: "3RD", gradient: "linear-gradient(135deg, #CD7F32 0%, #E8A84C 50%, #CD7F32 100%)", shadow: "0 0 18px rgba(205,127,50,0.35)", textColor: "#1a1a2e", ring: "rgba(205,127,50,0.3)" },
 ];
 
+// Dual-lane gallery: the same grid system renders either the live cohort or
+// the archived winners, with the accent palette swapping to signal the switch.
+const GALLERY_LANES = {
+  current: {
+    id: "current",
+    label: "Current Cohort",
+    accent: "#FFCB05",
+    accentSoft: "rgba(255,203,5,0.14)",
+    accentBorder: "rgba(255,203,5,0.4)",
+    accentOnText: "#0B1A3B",
+    ringClass: "ring-[#FFCB05]",
+    searchPlaceholder: "Search this year's pitches by title, submitter, or tag",
+    emptyCopy: "No pitches submitted yet. Be the first!",
+  },
+  winners: {
+    id: "winners",
+    label: "Last Year Winners",
+    accent: "#E8A84C",
+    accentSoft: "rgba(232,168,76,0.14)",
+    accentBorder: "rgba(232,168,76,0.42)",
+    accentOnText: "#1a1a2e",
+    ringClass: "ring-[#E8A84C]",
+    searchPlaceholder: "Search past winners by title, founder, or tag",
+    emptyCopy: "No archived winners yet.",
+  },
+};
+
 export default function GalleryPage() {
   const { user } = useAuth();
 
@@ -60,6 +87,8 @@ export default function GalleryPage() {
 
   const [defaultThumbnails, setDefaultThumbnails] = useState({ audioThumbnail: null, textThumbnail: null });
   const [podiumVisible, setPodiumVisible] = useState(true);
+  const [galleryLane, setGalleryLane] = useState("current");
+  const [activeWinnerYear, setActiveWinnerYear] = useState(null);
 
   const [pulsingVoteIds, setPulsingVoteIds] = useState([]);
   const previousVotesRef = useRef({});
@@ -171,10 +200,78 @@ export default function GalleryPage() {
     if (updated) setSelectedPitch(updated);
   }, [allSubmissions]);
 
-  // ── Unique tag pool derived from loaded submissions ──
+  // ── Lane datasets: live cohort vs archived winners (seed pitches) ──
+  const currentCohort = useMemo(
+    () => allSubmissions.filter((p) => !p.is_seed),
+    [allSubmissions]
+  );
+
+  const winnerArchiveByYear = useMemo(() => {
+    const grouped = new Map();
+    for (const pitch of allSubmissions) {
+      if (!pitch.is_seed) continue;
+      const parsedYear = pitch.created_at ? new Date(pitch.created_at).getFullYear() : null;
+      const key = Number.isFinite(parsedYear) ? parsedYear : "unknown";
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(pitch);
+    }
+    grouped.forEach((items) => {
+      items.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+    });
+    return grouped;
+  }, [allSubmissions]);
+
+  const winnerArchiveYears = useMemo(
+    () =>
+      Array.from(winnerArchiveByYear.keys())
+        .filter((k) => k !== "unknown")
+        .map(Number)
+        .sort((a, b) => b - a),
+    [winnerArchiveByYear]
+  );
+
+  // Prefer literally "last year"; fall back to the newest archive we have.
+  const defaultWinnerYear = useMemo(() => {
+    const lastYear = new Date().getFullYear() - 1;
+    if (winnerArchiveYears.includes(lastYear)) return lastYear;
+    return winnerArchiveYears[0] ?? null;
+  }, [winnerArchiveYears]);
+
+  const selectedWinnerYear = activeWinnerYear ?? defaultWinnerYear;
+
+  const winnersCohort = useMemo(() => {
+    if (selectedWinnerYear !== null) {
+      return winnerArchiveByYear.get(selectedWinnerYear) || [];
+    }
+    return winnerArchiveByYear.get("unknown") || [];
+  }, [winnerArchiveByYear, selectedWinnerYear]);
+
+  const hasWinnersLane = useMemo(
+    () => Array.from(winnerArchiveByYear.values()).some((items) => items.length > 0),
+    [winnerArchiveByYear]
+  );
+
+  const isWinnersLane = galleryLane === "winners";
+  const lane = GALLERY_LANES[isWinnersLane ? "winners" : "current"];
+  const laneSubmissions = isWinnersLane ? winnersCohort : currentCohort;
+
+  // Placement lookup so winner cards can show 1st/2nd/3rd instead of a
+  // generic crown once the whole lane is winners.
+  const winnerPlacementById = useMemo(() => {
+    const map = new Map();
+    winnersCohort.forEach((pitch, idx) => map.set(pitch.id, idx));
+    return map;
+  }, [winnersCohort]);
+
+  // The winners lane disappears if the archive empties out mid-session.
+  useEffect(() => {
+    if (isWinnersLane && !hasWinnersLane) setGalleryLane("current");
+  }, [isWinnersLane, hasWinnersLane]);
+
+  // ── Unique tag pool derived from the active lane ──
   const availableTags = useMemo(() => {
     const seen = new Map();
-    for (const pitch of allSubmissions) {
+    for (const pitch of laneSubmissions) {
       for (const tag of pitch.tags || []) {
         if (tag?.id && !seen.has(tag.id)) {
           seen.set(tag.id, { id: tag.id, name: tag.name || "" });
@@ -184,16 +281,16 @@ export default function GalleryPage() {
     return Array.from(seen.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
-  }, [allSubmissions]);
+  }, [laneSubmissions]);
 
   const filteredSubmissions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const tagSet = new Set(selectedTagIds);
     const hasQuery = query.length > 0;
     const hasTagFilter = tagSet.size > 0;
-    if (!hasQuery && !hasTagFilter) return allSubmissions;
+    if (!hasQuery && !hasTagFilter) return laneSubmissions;
 
-    return allSubmissions.filter((pitch) => {
+    return laneSubmissions.filter((pitch) => {
       const pitchTagIds = (pitch.tags || []).map((t) => t?.id).filter(Boolean);
 
       // Tag filter: OR — pitch matches if it has ANY of the selected tags
@@ -221,7 +318,7 @@ export default function GalleryPage() {
         tags.includes(query)
       );
     });
-  }, [allSubmissions, searchQuery, selectedTagIds]);
+  }, [laneSubmissions, searchQuery, selectedTagIds]);
 
   const toggleTag = (tagId) => {
     setSelectedTagIds((prev) =>
@@ -233,30 +330,46 @@ export default function GalleryPage() {
     setGalleryPage(1);
   }, [searchQuery, selectedTagIds]);
 
-  // ── Top 3 by votes (constant, independent of search) ──
-  // Seed pitches are demo content and can never occupy a podium spot,
-  // regardless of vote count. Only real intake submissions are eligible.
+  // Switching lanes resets paging and tag chips (tag ids rarely overlap between
+  // cohorts), but keeps the search query so the same term can be compared.
+  const switchLane = (nextLane) => {
+    if (nextLane === galleryLane) return;
+    setGalleryLane(nextLane);
+    setSelectedTagIds([]);
+    setTagFilterOpen(false);
+    setGalleryPage(1);
+  };
+
+  // ── Podium: live top 3 for the current cohort, final placements for winners ──
   const topPitches = useMemo(
     () =>
-      [...allSubmissions]
-        .filter((p) => !p.is_seed)
+      [...currentCohort]
         .sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0))
         .slice(0, TOP_COUNT),
-    [allSubmissions]
+    [currentCohort]
   );
 
-  // ── Searchable gallery list (all submissions; filtered when searching) ──
-  const shuffledGallery = useMemo(() => {
+  const podiumPitches = isWinnersLane ? winnersCohort.slice(0, TOP_COUNT) : topPitches;
+  const showPodium = isWinnersLane
+    ? podiumPitches.length > 0
+    : podiumVisible && podiumPitches.length > 0;
+
+  // ── Gallery ordering: shuffled for the live cohort so nobody gets a
+  // permanent front-row seat; ranked by final votes in the winners lane. ──
+  const orderedGallery = useMemo(() => {
+    if (isWinnersLane) {
+      return [...filteredSubmissions].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+    }
     const arr = [...filteredSubmissions];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor((shuffleSeed * (i + 1) * 9301 + 49297) % arr.length);
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
-  }, [filteredSubmissions, shuffleSeed]);
+  }, [filteredSubmissions, shuffleSeed, isWinnersLane]);
 
-  const totalGalleryPages = Math.max(1, Math.ceil(shuffledGallery.length / CARDS_PER_PAGE));
-  const paginatedGallery = shuffledGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
+  const totalGalleryPages = Math.max(1, Math.ceil(orderedGallery.length / CARDS_PER_PAGE));
+  const paginatedGallery = orderedGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
 
   // ── Helpers ──
   const getThumbnail = (pitch) => {
@@ -419,6 +532,87 @@ export default function GalleryPage() {
           </div>
         )}
 
+        {/* ═══ DUAL-LANE TOGGLE — lives outside the results block so an
+             empty lane can always be switched away from ═══ */}
+        {!loading && !error && allSubmissions.length > 0 && hasWinnersLane && (
+          <div className="flex-shrink-0 px-3 sm:px-8 lg:px-10 pt-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div
+                className="inline-flex items-center gap-1 rounded-full p-1"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                role="tablist"
+                aria-label="Gallery lane"
+              >
+                {["current", "winners"].map((laneId) => {
+                  const config = GALLERY_LANES[laneId];
+                  const active = galleryLane === laneId;
+                  const count = laneId === "winners" ? winnersCohort.length : currentCohort.length;
+                  return (
+                    <button
+                      key={laneId}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => switchLane(laneId)}
+                      className="flex items-center gap-1.5 rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-[13px] font-bold transition-all duration-200"
+                      style={{
+                        background: active ? config.accent : "transparent",
+                        color: active ? config.accentOnText : "rgba(255,255,255,0.5)",
+                      }}
+                    >
+                      {laneId === "winners" && (
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                        </svg>
+                      )}
+                      {config.label}
+                      <span
+                        className="text-[10px] font-black tabular-nums"
+                        style={{ color: active ? config.accentOnText : "rgba(255,255,255,0.3)" }}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Year picker — only meaningful with more than one archive year */}
+              {isWinnersLane && winnerArchiveYears.length > 1 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {winnerArchiveYears.map((year) => {
+                    const active = selectedWinnerYear === year;
+                    return (
+                      <button
+                        key={year}
+                        type="button"
+                        onClick={() => {
+                          setActiveWinnerYear(year);
+                          setGalleryPage(1);
+                        }}
+                        className="rounded-full px-2.5 py-1 text-[11px] font-semibold tabular-nums transition-all duration-150"
+                        style={{
+                          background: active ? lane.accentSoft : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${active ? lane.accentBorder : "rgba(255,255,255,0.1)"}`,
+                          color: active ? lane.accent : "rgba(255,255,255,0.55)",
+                        }}
+                      >
+                        {year}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p className="text-[11px] text-white/35 w-full sm:w-auto">
+                {isWinnersLane
+                  ? `Final results${selectedWinnerYear ? ` from ${selectedWinnerYear}` : ""} — vote counts are archived.`
+                  : "This year's submissions, open for voting."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
         {!loading && !error && allSubmissions.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
@@ -429,16 +623,25 @@ export default function GalleryPage() {
           </div>
         )}
 
-        {!loading && !error && allSubmissions.length > 0 && filteredSubmissions.length === 0 && (
+        {!loading && !error && allSubmissions.length > 0 && laneSubmissions.length === 0 && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-5xl mb-3 opacity-25">{isWinnersLane ? "🏆" : "🎤"}</div>
+              <p className="text-white/25 text-sm">{lane.emptyCopy}</p>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && laneSubmissions.length > 0 && filteredSubmissions.length === 0 && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="text-5xl mb-3 opacity-25">🔍</div>
               <p className="text-white/30 text-sm">
                 {searchQuery && selectedTagIds.length > 0
-                  ? `No pitches match "${searchQuery}" with the selected tags.`
+                  ? `No ${isWinnersLane ? "winners" : "pitches"} match "${searchQuery}" with the selected tags.`
                   : searchQuery
-                  ? `No pitches match "${searchQuery}".`
-                  : "No pitches match the selected tags."}
+                  ? `No ${isWinnersLane ? "winners" : "pitches"} match "${searchQuery}".`
+                  : `No ${isWinnersLane ? "winners" : "pitches"} match the selected tags.`}
               </p>
             </div>
           </div>
@@ -449,12 +652,10 @@ export default function GalleryPage() {
             ═══════════════════════════════════════ */}
         {!loading && !error && filteredSubmissions.length > 0 && (
           <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-8 lg:px-10 pt-4">
-
-            {/* ── TOP 3 PODIUM — admin-controlled via the Pitches tab
-                    toggle (competition_settings.podium_visible). Renders
-                    nothing if the podium is off, or if there are no
-                    pitches to rank yet. ── */}
-            {podiumVisible && topPitches.length > 0 && (() => {
+            {/* ── PODIUM — live top 3 (admin-controlled via the Pitches tab
+                    toggle) in the current lane; final placements in the
+                    winners lane, where the podium is the whole point. ── */}
+            {showPodium && (() => {
               const renderPodiumCard = (pitch, actualRank, displayIdx, sizeVariant) => {
                 const badge = RANK_BADGES[actualRank];
                 const isFirst = actualRank === 0;
@@ -488,7 +689,7 @@ export default function GalleryPage() {
                     onClick={() => setSelectedPitch(pitch)}
                     onMouseEnter={() => setHoveredPitchId(pitch.id)}
                     onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
-                    className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? "ring-2 ring-[#FFCB05]" : ""}`}
+                    className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? `ring-2 ${lane.ringClass}` : ""}`}
                     style={{
                       aspectRatio: aspect,
                       boxShadow: `${badge.shadow}, 0 8px 32px rgba(0,0,0,0.4)`,
@@ -517,9 +718,9 @@ export default function GalleryPage() {
                       <span className={`${badgeText} font-black tracking-wider`} style={{ color: badge.textColor }}>{badge.short}</span>
                     </div>
 
-                    {/* Past-winner crown (seed pitch) — bottom-left so it
-                        doesn't collide with the rank badge or vote badge. */}
-                    {pitch.is_seed && (
+                    {/* Past-winner crown — redundant inside the winners lane,
+                        where every card is already an archived champion. */}
+                    {pitch.is_seed && !isWinnersLane && (
                       <div
                         className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 left-1.5" : "bottom-3 left-3"} flex items-center gap-1 rounded-full ${sizeVariant === "compact" ? "pl-1 pr-1.5 py-0.5" : "pl-1.5 pr-2 py-1"}`}
                         style={{
@@ -546,11 +747,14 @@ export default function GalleryPage() {
 
                     {/* Vote badge */}
                     <div className={`absolute ${cornerPos} ${cornerRight} flex items-center gap-1 rounded-full ${votePad}`}
-                      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,203,5,0.2)" }}>
-                      <svg className={voteIcon} fill="#FFCB05" viewBox="0 0 24 24">
+                      style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(12px)", border: `1px solid ${lane.accentBorder}` }}>
+                      <svg className={voteIcon} fill={lane.accent} viewBox="0 0 24 24">
                         <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                       </svg>
-                      <span className={`${voteText} font-black`} style={{ color: "#FFCB05" }}>{pitch.vote_count || 0}</span>
+                      <span className={`${voteText} font-black`} style={{ color: lane.accent }}>{pitch.vote_count || 0}</span>
+                      {isWinnersLane && sizeVariant !== "compact" && (
+                        <span className="text-[9px] text-white/45">final</span>
+                      )}
                     </div>
 
                     {/* Info */}
@@ -560,7 +764,7 @@ export default function GalleryPage() {
                     </div>
 
                     {pitch.user_has_voted && (
-                      <div className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 right-1.5 w-5 h-5" : "bottom-3 right-3 w-7 h-7"} rounded-full flex items-center justify-center`} style={{ background: "#FFCB05" }}>
+                      <div className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 right-1.5 w-5 h-5" : "bottom-3 right-3 w-7 h-7"} rounded-full flex items-center justify-center`} style={{ background: lane.accent }}>
                         <svg className={sizeVariant === "compact" ? "w-3 h-3" : "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                       </div>
                     )}
@@ -570,22 +774,28 @@ export default function GalleryPage() {
 
               return (
                 <div className="flex-shrink-0 mb-4">
+                  {isWinnersLane && (
+                    <p className="text-[10px] uppercase tracking-[0.2em] font-semibold mb-2" style={{ color: lane.accent }}>
+                      {selectedWinnerYear ? `${selectedWinnerYear} champions` : "Champions"}
+                    </p>
+                  )}
+
                   {/* Mobile podium — 1st hero, 2nd/3rd row below */}
                   <div className="md:hidden space-y-2">
-                    {renderPodiumCard(topPitches[0], 0, 0, "hero")}
-                    {topPitches.length > 1 && (
+                    {renderPodiumCard(podiumPitches[0], 0, 0, "hero")}
+                    {podiumPitches.length > 1 && (
                       <div className="grid grid-cols-2 gap-2">
-                        {topPitches[1] && renderPodiumCard(topPitches[1], 1, 1, "compact")}
-                        {topPitches[2] && renderPodiumCard(topPitches[2], 2, 2, "compact")}
+                        {podiumPitches[1] && renderPodiumCard(podiumPitches[1], 1, 1, "compact")}
+                        {podiumPitches[2] && renderPodiumCard(podiumPitches[2], 2, 2, "compact")}
                       </div>
                     )}
                   </div>
 
                   {/* Desktop podium — 2nd | 1st (larger) | 3rd */}
                   <div className="hidden md:grid gap-3 items-end"
-                    style={{ gridTemplateColumns: topPitches.length >= 3 ? "1fr 1.2fr 1fr" : `repeat(${topPitches.length}, 1fr)` }}>
-                    {(topPitches.length >= 3 ? [topPitches[1], topPitches[0], topPitches[2]] : topPitches).map((pitch, displayIdx) => {
-                      const actualRank = topPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
+                    style={{ gridTemplateColumns: podiumPitches.length >= 3 ? "1fr 1.2fr 1fr" : `repeat(${podiumPitches.length}, 1fr)` }}>
+                    {(podiumPitches.length >= 3 ? [podiumPitches[1], podiumPitches[0], podiumPitches[2]] : podiumPitches).map((pitch, displayIdx) => {
+                      const actualRank = podiumPitches.length >= 3 ? [1, 0, 2][displayIdx] : displayIdx;
                       const variant = actualRank === 0 ? "desktop-first" : "desktop-side";
                       return renderPodiumCard(pitch, actualRank, displayIdx, variant);
                     })}
@@ -610,7 +820,7 @@ export default function GalleryPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by title, submitter, description, or tag"
+                  placeholder={lane.searchPlaceholder}
                   className="w-full bg-transparent text-sm text-white placeholder:text-white/60 focus:outline-none"
                 />
                 {searchQuery && (
@@ -631,9 +841,9 @@ export default function GalleryPage() {
                       style={
                         selectedTagIds.length > 0
                           ? {
-                              background: "rgba(255,203,5,0.15)",
-                              border: "1px solid #FFCB05",
-                              color: "#FFCB05",
+                              background: lane.accentSoft,
+                              border: `1px solid ${lane.accent}`,
+                              color: lane.accent,
                             }
                           : {
                               background: "rgba(255,255,255,0.05)",
@@ -651,7 +861,7 @@ export default function GalleryPage() {
                       {selectedTagIds.length > 0 && (
                         <span
                           className="inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[16px] h-4 px-1"
-                          style={{ background: "#FFCB05", color: "#0B1A3B" }}
+                          style={{ background: lane.accent, color: lane.accentOnText }}
                         >
                           {selectedTagIds.length}
                         </span>
@@ -692,9 +902,9 @@ export default function GalleryPage() {
                                 style={
                                   active
                                     ? {
-                                        background: "rgba(255,203,5,0.15)",
-                                        border: "1px solid #FFCB05",
-                                        color: "#FFCB05",
+                                        background: lane.accentSoft,
+                                        border: `1px solid ${lane.accent}`,
+                                        color: lane.accent,
                                       }
                                     : {
                                         background: "rgba(255,255,255,0.04)",
@@ -714,7 +924,8 @@ export default function GalleryPage() {
                 )}
               </div>
               <p className="text-[11px] text-white/50 mt-1.5">
-                Showing {filteredSubmissions.length} of {allSubmissions.length} pitches
+                Showing {filteredSubmissions.length} of {laneSubmissions.length}{" "}
+                {isWinnersLane ? "past winners" : "pitches"}
               </p>
             </div>
 
@@ -726,13 +937,18 @@ export default function GalleryPage() {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
                   const animatedSrc = getAnimatedThumbnail(pitch);
                   const isHovered = hoveredPitchId === pitch.id;
+                  const placement = isWinnersLane ? winnerPlacementById.get(pitch.id) : undefined;
+                  const placementBadge =
+                    placement !== undefined && placement < RANK_BADGES.length
+                      ? RANK_BADGES[placement]
+                      : null;
 
                   return (
                     <button key={pitch.id}
                       onClick={() => setSelectedPitch(pitch)}
                       onMouseEnter={() => setHoveredPitchId(pitch.id)}
                       onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
-                      className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? "ring-2 ring-[#FFCB05] ring-inset" : ""}`}
+                      className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? `ring-2 ring-inset ${lane.ringClass}` : ""}`}
                       style={{
                         aspectRatio: "16/9",
                         animation: "fadeInUp 0.3s ease-out both",
@@ -751,35 +967,55 @@ export default function GalleryPage() {
                         <p className="text-white/50 text-[10px] truncate">{pitch.name}</p>
                       </div>
 
-                      {/* Vote — maize star */}
+                      {/* Vote tally — lane accent */}
                       <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full px-2 py-0.5"
                         style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}>
-                        <svg className="w-3.5 h-3.5" fill="#FFCB05" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" fill={lane.accent} viewBox="0 0 24 24">
                           <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                         </svg>
                         <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
                       </div>
 
-                      {/* Past-winner crown (seed pitch) — top-left */}
-                      {pitch.is_seed && (
+                      {/* Top-left marker: final placement inside the winners
+                          lane, past-winner crown when mixed into the cohort. */}
+                      {isWinnersLane ? (
                         <div
-                          className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center"
-                          style={{
-                            background: "rgba(0,0,0,0.55)",
-                            backdropFilter: "blur(8px)",
-                            border: "1px solid rgba(255,203,5,0.35)",
-                          }}
-                          title="Past winner"
+                          className="absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-black tracking-wider"
+                          style={
+                            placementBadge
+                              ? { background: placementBadge.gradient, color: placementBadge.textColor }
+                              : {
+                                  background: "rgba(0,0,0,0.55)",
+                                  backdropFilter: "blur(8px)",
+                                  border: `1px solid ${lane.accentBorder}`,
+                                  color: lane.accent,
+                                }
+                          }
+                          title={placementBadge ? placementBadge.label : "Winner"}
                         >
-                          <svg className="w-3 h-3" fill="#FFCB05" viewBox="0 0 24 24">
-                            <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
-                          </svg>
+                          {placementBadge ? placementBadge.short : `#${(placement ?? 0) + 1}`}
                         </div>
+                      ) : (
+                        pitch.is_seed && (
+                          <div
+                            className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+                            style={{
+                              background: "rgba(0,0,0,0.55)",
+                              backdropFilter: "blur(8px)",
+                              border: "1px solid rgba(255,203,5,0.35)",
+                            }}
+                            title="Past winner"
+                          >
+                            <svg className="w-3 h-3" fill="#FFCB05" viewBox="0 0 24 24">
+                              <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                            </svg>
+                          </div>
+                        )
                       )}
 
                       {/* Voted */}
                       {pitch.user_has_voted && (
-                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#FFCB05" }}>
+                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: lane.accent }}>
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                         </div>
                       )}
@@ -801,8 +1037,8 @@ export default function GalleryPage() {
                       disabled={totalGalleryPages <= 1}
                       className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all disabled:cursor-not-allowed"
                       style={{
-                        background: p === galleryPage ? "#FFCB05" : "transparent",
-                        color: p === galleryPage ? "#0B1A3B" : "rgba(255,255,255,0.2)",
+                        background: p === galleryPage ? lane.accent : "transparent",
+                        color: p === galleryPage ? lane.accentOnText : "rgba(255,255,255,0.2)",
                       }}>
                       {p}
                     </button>
@@ -922,10 +1158,11 @@ export default function GalleryPage() {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                {/* Rank badge if top 3 — but only when the admin podium switch is on */}
+                {/* Rank badge if top 3 — live podium respects the admin switch;
+                    the winners lane always shows the final placement. */}
                 {(() => {
-                  if (!podiumVisible) return null;
-                  const rank = topPitches.findIndex((p) => p.id === selectedPitch.id);
+                  if (!isWinnersLane && !podiumVisible) return null;
+                  const rank = podiumPitches.findIndex((p) => p.id === selectedPitch.id);
                   if (rank === -1) return null;
                   const badge = RANK_BADGES[rank];
                   return (
@@ -1054,6 +1291,7 @@ export default function GalleryPage() {
             </div>
           </div>
         )}
+
       </div>
     </>
   );
