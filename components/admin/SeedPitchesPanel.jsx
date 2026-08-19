@@ -707,9 +707,9 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
           {sortedPitches.map((pitch) => {
             const s = statusLabel(pitch);
             const awardLabel = awardNameFor(pitch, awardsById);
-            // 240px wide is plenty for a ~120px-wide 16:9 tile at 2× dpi.
+            // Match the 120×68 display box at 2× dpi (16:9).
             const thumb = pitch.mux_playback_id
-              ? `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=240&fit_mode=smartcrop`
+              ? `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=240&height=135&fit_mode=smartcrop`
               : null;
             const isEditing = editingId === pitch.id;
             return (
@@ -721,10 +721,10 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
                   border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
-                {/* Fixed-size thumbnail — 120×68 at 16:9 keeps the tile compact
-                    regardless of how wide the grid cell gets. */}
+                {/* Fixed 16:9 box — image is absolutely inset so it always
+                    scales to fill without overflowing. */}
                 <div
-                  className="relative w-[120px] flex-shrink-0 aspect-video rounded-md overflow-hidden flex items-center justify-center"
+                  className="relative w-[120px] h-[68px] flex-shrink-0 rounded-md overflow-hidden"
                   style={{ background: "rgba(0,0,0,0.35)" }}
                 >
                   {thumb ? (
@@ -732,11 +732,11 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
                     <img
                       src={thumb}
                       alt={pitch.title}
-                      className="w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
                     <svg
-                      className="animate-spin h-4 w-4 text-maize"
+                      className="absolute inset-0 m-auto animate-spin h-4 w-4 text-maize"
                       viewBox="0 0 24 24"
                     >
                       <circle
