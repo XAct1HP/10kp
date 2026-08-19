@@ -62,6 +62,7 @@ export async function GET(request) {
         transcript_language,
         transcript_last_error,
         media_status,
+        is_seed,
         pitch_tags (
           tags ( id, name )
         ),

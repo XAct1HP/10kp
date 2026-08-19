@@ -514,6 +514,8 @@ export default function AdminPage() {
   const [deletingPitchId, setDeletingPitchId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activeTab, setActiveTab] = useState("pitches");
+  // Dual-lane within the Pitches tab: live cohort vs past winners.
+  const [pitchesLane, setPitchesLane] = useState("current");
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [chartTab, setChartTab] = useState("timeline");
@@ -542,9 +544,18 @@ export default function AdminPage() {
     if (!user || !isAdmin) router.push("/");
   }, [authLoading, adminChecked, user, isAdmin, router]);
 
-  // ── Filtered + paginated pitches ──
+  // ── Filtered + paginated pitches (current-cohort lane only) ──
+  const currentCohortPitches = useMemo(
+    () => pitches.filter((p) => !p.is_seed),
+    [pitches]
+  );
+  const seedPitchCount = useMemo(
+    () => pitches.filter((p) => p.is_seed).length,
+    [pitches]
+  );
+
   const filteredPitches = useMemo(() => {
-    let r = pitches;
+    let r = currentCohortPitches;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       r = r.filter((p) => p.title?.toLowerCase().includes(q) || p.name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q));
@@ -556,7 +567,7 @@ export default function AdminPage() {
       else if (filterType === "audio") r = r.filter((p) => p.file_type === "file" && /\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || ""));
     }
     return r;
-  }, [pitches, searchQuery, filterTag, filterType]);
+  }, [currentCohortPitches, searchQuery, filterTag, filterType]);
 
   const pitchTotalPages = Math.max(1, Math.ceil(filteredPitches.length / PITCHES_PER_PAGE));
   const paginatedPitches = filteredPitches.slice((pitchPage - 1) * PITCHES_PER_PAGE, pitchPage * PITCHES_PER_PAGE);
@@ -1207,6 +1218,69 @@ export default function AdminPage() {
           {/* ═══ PITCHES ═══ */}
           {activeTab === "pitches" && (
             <div className="flex-1 flex flex-col min-h-0 gap-3 overflow-y-auto no-scrollbar pr-1">
+              {/* Dual-lane toggle — same idea as the public gallery */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
+                <div
+                  className="inline-flex items-center gap-1 rounded-full p-1"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  role="tablist"
+                  aria-label="Pitches lane"
+                >
+                  {[
+                    {
+                      id: "current",
+                      label: "Current Submissions",
+                      count: currentCohortPitches.length,
+                      accent: "#FFCB05",
+                      accentOnText: "#0B1A3B",
+                    },
+                    {
+                      id: "winners",
+                      label: "Last Year's Winners",
+                      count: seedPitchCount,
+                      accent: "#E8A84C",
+                      accentOnText: "#1a1a2e",
+                    },
+                  ].map((lane) => {
+                    const active = pitchesLane === lane.id;
+                    return (
+                      <button
+                        key={lane.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => setPitchesLane(lane.id)}
+                        className="flex items-center gap-1.5 rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-[13px] font-bold transition-all duration-200"
+                        style={{
+                          background: active ? lane.accent : "transparent",
+                          color: active ? lane.accentOnText : "rgba(255,255,255,0.5)",
+                        }}
+                      >
+                        {lane.id === "winners" && (
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                          </svg>
+                        )}
+                        {lane.label}
+                        <span
+                          className="text-[10px] font-black tabular-nums"
+                          style={{ color: active ? lane.accentOnText : "rgba(255,255,255,0.3)" }}
+                        >
+                          {lane.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-white/35 w-full sm:w-auto">
+                  {pitchesLane === "winners"
+                    ? "Archive past winners for the gallery."
+                    : "This year's submissions for moderation and review."}
+                </p>
+              </div>
+
+              {pitchesLane === "current" ? (
+                <>
               {/* Toolbar */}
               <GlassCard className="flex-shrink-0 !p-4">
                 <div className="flex flex-col md:flex-row gap-2">
@@ -1237,7 +1311,7 @@ export default function AdminPage() {
                   </button>
                 </div>
                 {(searchQuery || filterTag || filterType) && (
-                  <p className="text-xs text-white/30 mt-2">{filteredPitches.length} of {pitches.length} pitches{searchQuery && <span> matching &ldquo;{searchQuery}&rdquo;</span>}</p>
+                  <p className="text-xs text-white/30 mt-2">{filteredPitches.length} of {currentCohortPitches.length} pitches{searchQuery && <span> matching &ldquo;{searchQuery}&rdquo;</span>}</p>
                 )}
               </GlassCard>
 
@@ -1248,7 +1322,7 @@ export default function AdminPage() {
                 </div>
               ) : filteredPitches.length === 0 ? (
                 <div className="flex items-center justify-center py-12 flex-shrink-0">
-                  <p className="text-white/30 text-sm">{pitches.length === 0 ? "No pitches submitted yet." : "No pitches match your filters."}</p>
+                  <p className="text-white/30 text-sm">{currentCohortPitches.length === 0 ? "No pitches submitted yet." : "No pitches match your filters."}</p>
                 </div>
               ) : (
                 <GlassCard
@@ -1321,8 +1395,8 @@ export default function AdminPage() {
                   >
                     <span>
                       Showing all {filteredPitches.length}
-                      {filteredPitches.length !== pitches.length && (
-                        <span className="text-white/20"> of {pitches.length}</span>
+                      {filteredPitches.length !== currentCohortPitches.length && (
+                        <span className="text-white/20"> of {currentCohortPitches.length}</span>
                       )}{" "}
                       pitches
                     </span>
@@ -1339,15 +1413,22 @@ export default function AdminPage() {
                   onSuccess={setSuccess}
                 />
               </div>
-
-              {/* Seed pitches (past-year winners) */}
+                </>
+              ) : (
               <div className="flex-shrink-0">
                 <SeedPitchesPanel
                   apiFetch={apiFetch}
                   onError={setError}
-                  onSuccess={setSuccess}
+                  onSuccess={(msg) => {
+                    setSuccess(msg);
+                    // Refresh so the lane badge count stays accurate after
+                    // upload / delete without leaving the winners lane.
+                    fetchPitches();
+                  }}
+                  embedded
                 />
               </div>
+              )}
             </div>
           )}
 

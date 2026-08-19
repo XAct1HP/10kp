@@ -43,6 +43,28 @@ const GALLERY_LANES = {
   },
 };
 
+// Competition year a seed pitch placed in. Rows created before the
+// winner-metadata migration have no winner_year, so fall back to the upload
+// date rather than dropping them out of the archive entirely.
+function winnerYearOf(pitch) {
+  const explicit = Number(pitch.winner_year);
+  if (Number.isFinite(explicit)) return explicit;
+  const uploaded = pitch.created_at ? new Date(pitch.created_at).getFullYear() : NaN;
+  return Number.isFinite(uploaded) ? uploaded : null;
+}
+
+// Within a year: award sort_order asc, then title. Unawarded winners sink to
+// the end. Vote counts are not consulted — voting is closed on seeds.
+function byWinnerAward(a, b) {
+  const orderA = Number(a.winner_award?.sort_order);
+  const orderB = Number(b.winner_award?.sort_order);
+  const hasA = Number.isFinite(orderA);
+  const hasB = Number.isFinite(orderB);
+  if (hasA && hasB && orderA !== orderB) return orderA - orderB;
+  if (hasA !== hasB) return hasA ? -1 : 1;
+  return String(a.title || "").localeCompare(String(b.title || ""));
+}
+
 export default function GalleryPage() {
   const { user } = useAuth();
 
@@ -210,14 +232,14 @@ export default function GalleryPage() {
     const grouped = new Map();
     for (const pitch of allSubmissions) {
       if (!pitch.is_seed) continue;
-      const parsedYear = pitch.created_at ? new Date(pitch.created_at).getFullYear() : null;
-      const key = Number.isFinite(parsedYear) ? parsedYear : "unknown";
+      // winner_year is the competition the pitch placed in; created_at is
+      // merely when an admin uploaded it, so it's only a fallback for rows
+      // predating the winner-metadata migration.
+      const key = winnerYearOf(pitch) ?? "unknown";
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key).push(pitch);
     }
-    grouped.forEach((items) => {
-      items.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
-    });
+    grouped.forEach((items) => items.sort(byWinnerAward));
     return grouped;
   }, [allSubmissions]);
 
@@ -254,14 +276,6 @@ export default function GalleryPage() {
   const isWinnersLane = galleryLane === "winners";
   const lane = GALLERY_LANES[isWinnersLane ? "winners" : "current"];
   const laneSubmissions = isWinnersLane ? winnersCohort : currentCohort;
-
-  // Placement lookup so winner cards can show 1st/2nd/3rd instead of a
-  // generic crown once the whole lane is winners.
-  const winnerPlacementById = useMemo(() => {
-    const map = new Map();
-    winnersCohort.forEach((pitch, idx) => map.set(pitch.id, idx));
-    return map;
-  }, [winnersCohort]);
 
   // The winners lane disappears if the archive empties out mid-session.
   useEffect(() => {
@@ -340,7 +354,9 @@ export default function GalleryPage() {
     setGalleryPage(1);
   };
 
-  // ── Podium: live top 3 for the current cohort, final placements for winners ──
+  // ── Podium: live top 3 of the current cohort only. The winners lane keeps
+  // the plain grid so both lanes share one layout; award category there is
+  // carried by the chip on each card instead of a separate hero treatment. ──
   const topPitches = useMemo(
     () =>
       [...currentCohort]
@@ -349,16 +365,14 @@ export default function GalleryPage() {
     [currentCohort]
   );
 
-  const podiumPitches = isWinnersLane ? winnersCohort.slice(0, TOP_COUNT) : topPitches;
-  const showPodium = isWinnersLane
-    ? podiumPitches.length > 0
-    : podiumVisible && podiumPitches.length > 0;
+  const podiumPitches = topPitches;
+  const showPodium = !isWinnersLane && podiumVisible && podiumPitches.length > 0;
 
   // ── Gallery ordering: shuffled for the live cohort so nobody gets a
-  // permanent front-row seat; ranked by final votes in the winners lane. ──
+  // permanent front-row seat; award sort_order in the winners lane. ──
   const orderedGallery = useMemo(() => {
     if (isWinnersLane) {
-      return [...filteredSubmissions].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+      return [...filteredSubmissions].sort(byWinnerAward);
     }
     const arr = [...filteredSubmissions];
     for (let i = arr.length - 1; i > 0; i--) {
@@ -415,6 +429,10 @@ export default function GalleryPage() {
   };
 
   const handleVote = async (pitchId) => {
+    // The UI hides the vote button on past winners; this backs that up so a
+    // stale render can't open the voter modal for one. The API rejects them
+    // too — see the is_seed guard in /api/gallery/votes.
+    if (allSubmissions.find((p) => p.id === pitchId)?.is_seed) return;
     if (!voterProfile.email || !voterProfile.name) {
       setPendingPitchId(pitchId);
       setVoterForm({ name: "", email: "" });
@@ -606,7 +624,7 @@ export default function GalleryPage() {
 
               <p className="text-[11px] text-white/35 w-full sm:w-auto">
                 {isWinnersLane
-                  ? `Final results${selectedWinnerYear ? ` from ${selectedWinnerYear}` : ""} — vote counts are archived.`
+                  ? `Final results${selectedWinnerYear ? ` from ${selectedWinnerYear}` : ""} — voting is closed.`
                   : "This year's submissions, open for voting."}
               </p>
             </div>
@@ -652,9 +670,9 @@ export default function GalleryPage() {
             ═══════════════════════════════════════ */}
         {!loading && !error && filteredSubmissions.length > 0 && (
           <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-8 lg:px-10 pt-4">
-            {/* ── PODIUM — live top 3 (admin-controlled via the Pitches tab
-                    toggle) in the current lane; final placements in the
-                    winners lane, where the podium is the whole point. ── */}
+            {/* ── PODIUM — live top 3 of the current cohort, admin-controlled
+                    via the Pitches tab toggle. The winners lane skips it so
+                    both lanes share the same uniform grid. ── */}
             {showPodium && (() => {
               const renderPodiumCard = (pitch, actualRank, displayIdx, sizeVariant) => {
                 const badge = RANK_BADGES[actualRank];
@@ -718,9 +736,9 @@ export default function GalleryPage() {
                       <span className={`${badgeText} font-black tracking-wider`} style={{ color: badge.textColor }}>{badge.short}</span>
                     </div>
 
-                    {/* Past-winner crown — redundant inside the winners lane,
-                        where every card is already an archived champion. */}
-                    {pitch.is_seed && !isWinnersLane && (
+                    {/* Past-winner crown, for a seed that slipped into the
+                        live top 3 before the winners lane existed. */}
+                    {pitch.is_seed && (
                       <div
                         className={`absolute ${sizeVariant === "compact" ? "bottom-1.5 left-1.5" : "bottom-3 left-3"} flex items-center gap-1 rounded-full ${sizeVariant === "compact" ? "pl-1 pr-1.5 py-0.5" : "pl-1.5 pr-2 py-1"}`}
                         style={{
@@ -752,9 +770,6 @@ export default function GalleryPage() {
                         <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
                       </svg>
                       <span className={`${voteText} font-black`} style={{ color: lane.accent }}>{pitch.vote_count || 0}</span>
-                      {isWinnersLane && sizeVariant !== "compact" && (
-                        <span className="text-[9px] text-white/45">final</span>
-                      )}
                     </div>
 
                     {/* Info */}
@@ -774,12 +789,6 @@ export default function GalleryPage() {
 
               return (
                 <div className="flex-shrink-0 mb-4">
-                  {isWinnersLane && (
-                    <p className="text-[10px] uppercase tracking-[0.2em] font-semibold mb-2" style={{ color: lane.accent }}>
-                      {selectedWinnerYear ? `${selectedWinnerYear} champions` : "Champions"}
-                    </p>
-                  )}
-
                   {/* Mobile podium — 1st hero, 2nd/3rd row below */}
                   <div className="md:hidden space-y-2">
                     {renderPodiumCard(podiumPitches[0], 0, 0, "hero")}
@@ -937,11 +946,9 @@ export default function GalleryPage() {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
                   const animatedSrc = getAnimatedThumbnail(pitch);
                   const isHovered = hoveredPitchId === pitch.id;
-                  const placement = isWinnersLane ? winnerPlacementById.get(pitch.id) : undefined;
-                  const placementBadge =
-                    placement !== undefined && placement < RANK_BADGES.length
-                      ? RANK_BADGES[placement]
-                      : null;
+                  const awardName = isWinnersLane
+                    ? (pitch.winner_award?.name || "").trim()
+                    : "";
 
                   return (
                     <button key={pitch.id}
@@ -967,33 +974,32 @@ export default function GalleryPage() {
                         <p className="text-white/50 text-[10px] truncate">{pitch.name}</p>
                       </div>
 
-                      {/* Vote tally — lane accent */}
-                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full px-2 py-0.5"
-                        style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}>
-                        <svg className="w-3.5 h-3.5" fill={lane.accent} viewBox="0 0 24 24">
-                          <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
-                        </svg>
-                        <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
-                      </div>
+                      {/* Vote tally — live cohort only. Winners can't be voted
+                          on, so a permanent zero would just read as broken. */}
+                      {!isWinnersLane && (
+                        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full px-2 py-0.5"
+                          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)" }}>
+                          <svg className="w-3.5 h-3.5" fill={lane.accent} viewBox="0 0 24 24">
+                            <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
+                          </svg>
+                          <span className="text-[11px] font-bold text-white">{pitch.vote_count || 0}</span>
+                        </div>
+                      )}
 
-                      {/* Top-left marker: final placement inside the winners
-                          lane, past-winner crown when mixed into the cohort. */}
+                      {/* Top-left marker: award category in the winners lane,
+                          past-winner crown when a seed is mixed into cohort. */}
                       {isWinnersLane ? (
                         <div
-                          className="absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-black tracking-wider"
-                          style={
-                            placementBadge
-                              ? { background: placementBadge.gradient, color: placementBadge.textColor }
-                              : {
-                                  background: "rgba(0,0,0,0.55)",
-                                  backdropFilter: "blur(8px)",
-                                  border: `1px solid ${lane.accentBorder}`,
-                                  color: lane.accent,
-                                }
-                          }
-                          title={placementBadge ? placementBadge.label : "Winner"}
+                          className="absolute top-1.5 left-1.5 max-w-[75%] truncate rounded-full px-1.5 py-0.5 text-[9px] font-black tracking-wider"
+                          style={{
+                            background: "rgba(0,0,0,0.55)",
+                            backdropFilter: "blur(8px)",
+                            border: `1px solid ${lane.accentBorder}`,
+                            color: lane.accent,
+                          }}
+                          title={awardName || "Winner"}
                         >
-                          {placementBadge ? placementBadge.short : `#${(placement ?? 0) + 1}`}
+                          {awardName || "Winner"}
                         </div>
                       ) : (
                         pitch.is_seed && (
@@ -1014,7 +1020,7 @@ export default function GalleryPage() {
                       )}
 
                       {/* Voted */}
-                      {pitch.user_has_voted && (
+                      {pitch.user_has_voted && !isWinnersLane && (
                         <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: lane.accent }}>
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="#0B1A3B" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                         </div>
@@ -1158,12 +1164,13 @@ export default function GalleryPage() {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                {/* Rank badge if top 3 — live podium respects the admin switch;
-                    the winners lane always shows the final placement. */}
-                {(() => {
-                  if (!isWinnersLane && !podiumVisible) return null;
-                  const rank = podiumPitches.findIndex((p) => p.id === selectedPitch.id);
-                  if (rank === -1) return null;
+                {/* Rank badge — live cohort top-3 only when podium is on.
+                    Seed pitches show award category below instead. */}
+                {!selectedPitch.is_seed && (() => {
+                  const rank = podiumVisible
+                    ? podiumPitches.findIndex((p) => p.id === selectedPitch.id)
+                    : -1;
+                  if (rank === -1 || rank >= RANK_BADGES.length) return null;
                   const badge = RANK_BADGES[rank];
                   return (
                     <div className="flex items-center gap-2 mb-3">
@@ -1178,7 +1185,25 @@ export default function GalleryPage() {
                 })()}
 
                 {selectedPitch.is_seed && (
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    {selectedPitch.winner_award?.name && (
+                      <div
+                        className="inline-flex items-center gap-1.5 rounded-full pl-1.5 pr-3 py-1"
+                        style={{
+                          background: "linear-gradient(135deg, #CD7F32 0%, #E8A84C 50%, #CD7F32 100%)",
+                          boxShadow: "0 0 18px rgba(205,127,50,0.35)",
+                        }}
+                      >
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)" }}>
+                          <svg className="w-3 h-3" fill="#1a1a2e" viewBox="0 0 24 24">
+                            <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                          </svg>
+                        </div>
+                        <span className="text-[10px] font-black tracking-wider" style={{ color: "#1a1a2e" }}>
+                          {selectedPitch.winner_award.name}
+                        </span>
+                      </div>
+                    )}
                     <div
                       className="inline-flex items-center gap-1.5 rounded-full pl-1.5 pr-3 py-1"
                       style={{
@@ -1190,7 +1215,9 @@ export default function GalleryPage() {
                         <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
                       </svg>
                       <span className="text-[10px] font-black tracking-wider" style={{ color: "#FFCB05" }}>
-                        PAST WINNER
+                        {winnerYearOf(selectedPitch)
+                          ? `${winnerYearOf(selectedPitch)} WINNER`
+                          : "PAST WINNER"}
                       </span>
                     </div>
                   </div>
@@ -1212,7 +1239,21 @@ export default function GalleryPage() {
                   </div>
                 )}
 
-                {/* Vote area */}
+                {/* Vote area — archived winners are a showcase, not a ballot,
+                    so they get a closed-voting notice instead of a button. */}
+                {selectedPitch.is_seed ? (
+                  <div
+                    className="flex items-center gap-2.5 flex-shrink-0 pt-4"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.35)" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <p className="text-xs text-white/40">
+                      Voting is closed for past winners — this pitch is here as an archive.
+                    </p>
+                  </div>
+                ) : (
                 <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <div className="flex items-center gap-2">
                     <svg className="w-6 h-6" fill="#FFCB05" viewBox="0 0 24 24">
@@ -1243,8 +1284,9 @@ export default function GalleryPage() {
                     )}
                   </button>
                 </div>
+                )}
 
-                {voterProfile.email && (
+                {voterProfile.email && !selectedPitch.is_seed && (
                   <p className="text-[10px] text-white/15 mt-2 text-center flex-shrink-0">
                     {voting.remainingVotes} of {voting.maxVotesPerUser} votes remaining
                   </p>

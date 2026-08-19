@@ -8,6 +8,50 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+const PITCH_COLUMNS = `
+  id,
+  name,
+  title,
+  description,
+  file_name,
+  file_path,
+  file_type,
+  text_content,
+  thumbnail_path,
+  mux_asset_id,
+  mux_status,
+  mux_error,
+  mux_playback_id,
+  created_at,
+  is_seed,
+  pitch_tags (
+    tags ( id, name )
+  )
+`;
+
+// winner_year / winner_award_id arrive with migrations/20260818_add_winner_metadata.sql
+// (and 20260819_winner_award_category.sql). Until that runs, asking for them
+// fails the whole gallery query, so we detect the missing-column error and
+// retry without them.
+const WINNER_COLUMNS = `,
+  winner_year,
+  winner_award_id,
+  winner_award:awards!winner_award_id ( id, name, sort_order )
+`;
+
+function isMissingColumnError(error) {
+  // Postgres undefined_column, or PostgREST schema-cache miss (PGRST204)
+  // when the winner metadata migration hasn't been applied yet.
+  return (
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column .* does not exist/i.test(error?.message || "") ||
+    /Could not find the '.*' column of '.*' in the schema cache/i.test(
+      error?.message || ""
+    )
+  );
+}
+
 // Public gallery feed of all submissions.
 export async function GET(request) {
   try {
@@ -33,46 +77,35 @@ export async function GET(request) {
     const seedsVisible = settingsRow?.seeds_visible !== false;
     const podiumVisible = settingsRow?.podium_visible !== false;
 
-    let query = supabaseAdmin
-      .from("pitches")
-      .select(`
-        id,
-        name,
-        title,
-        description,
-        file_name,
-        file_path,
-        file_type,
-        text_content,
-        thumbnail_path,
-        mux_asset_id,
-        mux_status,
-        mux_error,
-        mux_playback_id,
-        created_at,
-        is_seed,
-        pitch_tags (
-          tags ( id, name )
-        )
-      `, { count: "exact" })
-      // Only approved pitches are visible in the public gallery.
-      // Defense in depth — check BOTH the v1 and v2 moderation columns.
-      // The DB trigger already prevents non-service-role writes from
-      // setting either column, but if a future migration accidentally
-      // drops one filter the other still catches the mistake.
-      .eq("moderation_status", "approved")
-      .eq("moderation_state", "approved");
+    const runQuery = (columns) => {
+      let query = supabaseAdmin
+        .from("pitches")
+        .select(columns, { count: "exact" })
+        // Only approved pitches are visible in the public gallery.
+        // Defense in depth — check BOTH the v1 and v2 moderation columns.
+        // The DB trigger already prevents non-service-role writes from
+        // setting either column, but if a future migration accidentally
+        // drops one filter the other still catches the mistake.
+        .eq("moderation_status", "approved")
+        .eq("moderation_state", "approved");
 
-    if (!seedsVisible) {
-      // Admin flipped the "show past winners" toggle off — usually once
-      // enough real submissions exist to fill the gallery on their own.
-      query = query.eq("is_seed", false);
+      if (!seedsVisible) {
+        // Admin flipped the "show past winners" toggle off — usually once
+        // enough real submissions exist to fill the gallery on their own.
+        query = query.eq("is_seed", false);
+      }
+
+      return query
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to);
+    };
+
+    let { data, error, count } = await runQuery(PITCH_COLUMNS + WINNER_COLUMNS);
+
+    if (error && isMissingColumnError(error)) {
+      ({ data, error, count } = await runQuery(PITCH_COLUMNS));
     }
-
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(from, to);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

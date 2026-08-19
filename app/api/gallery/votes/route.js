@@ -58,13 +58,23 @@ export async function POST(request) {
     // appear in the public gallery, so they must not be votable either.
     const { data: pitch } = await supabaseAdmin
       .from("pitches")
-      .select("id, moderation_status")
+      .select("id, moderation_status, is_seed")
       .eq("id", pitchId)
       .limit(1)
       .maybeSingle();
 
     if (!pitch || pitch.moderation_status !== "approved") {
       return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
+    }
+
+    // Past winners are an archive, not a ballot. They carry
+    // moderation_status = 'approved' by construction, so the check above
+    // would otherwise let them through.
+    if (pitch.is_seed) {
+      return NextResponse.json(
+        { error: "Voting is closed for past winners." },
+        { status: 403 }
+      );
     }
 
     const { error: voteError } = await supabaseAdmin.from("pitch_votes").insert({
