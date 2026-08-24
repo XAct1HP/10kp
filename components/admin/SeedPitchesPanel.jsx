@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import SeedBulkUpload from "./SeedBulkUpload";
 
 function GlassCard({ children, className = "" }) {
   return (
@@ -111,6 +112,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
     newAwardName: "",
   });
   const [savingId, setSavingId] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const fileInputRef = useRef(null);
 
   const awardsById = useMemo(() => {
@@ -257,6 +259,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (bulkBusy) return;
     if (!file) {
       onError?.("Please choose a video file.");
       return;
@@ -516,7 +519,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              disabled={uploading}
+              disabled={uploading || bulkBusy}
               required
               placeholder="Ann Arbor Aquaponics"
               className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
@@ -530,7 +533,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              disabled={uploading}
+              disabled={uploading || bulkBusy}
               required
               placeholder="Jane Doe"
               className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
@@ -546,7 +549,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
           <textarea
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            disabled={uploading}
+            disabled={uploading || bulkBusy}
             rows={2}
             placeholder="Short blurb shown on the pitch detail card."
             className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize resize-none"
@@ -565,7 +568,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
               max={2200}
               value={form.winnerYear}
               onChange={(e) => setForm({ ...form, winnerYear: e.target.value })}
-              disabled={uploading}
+              disabled={uploading || bulkBusy}
               placeholder={String(defaultWinnerYear())}
               className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
               style={inputStyle}
@@ -585,7 +588,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
                     e.target.value === NEW_AWARD_VALUE ? form.newAwardName : "",
                 })
               }
-              disabled={uploading || !winnerMetaReady}
+              disabled={uploading || bulkBusy || !winnerMetaReady}
               className="w-full px-3 py-2.5 rounded-lg text-sm text-white focus:outline-none focus:border-maize"
               style={inputStyle}
             >
@@ -604,7 +607,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
                 onChange={(e) =>
                   setForm({ ...form, newAwardName: e.target.value })
                 }
-                disabled={uploading}
+                disabled={uploading || bulkBusy}
                 required
                 placeholder="e.g. Grand Prize, Audience Choice"
                 className="w-full mt-2 px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
@@ -627,13 +630,13 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
               type="file"
               accept="video/mp4,video/quicktime,video/webm"
               onChange={handleFilePick}
-              disabled={uploading}
+              disabled={uploading || bulkBusy}
               className="hidden"
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || bulkBusy}
               className="px-4 py-2 rounded-lg text-xs font-semibold text-white/80 hover:text-white transition-colors disabled:opacity-40"
               style={{
                 background: "rgba(255,255,255,0.06)",
@@ -677,7 +680,13 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
         <div className="flex justify-end pt-1">
           <button
             type="submit"
-            disabled={uploading || !file || !form.title.trim() || !form.name.trim()}
+            disabled={
+              uploading ||
+              bulkBusy ||
+              !file ||
+              !form.title.trim() ||
+              !form.name.trim()
+            }
             className="px-5 py-2 rounded-lg text-sm font-semibold text-black transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
             style={{ background: "#FFCB05" }}
           >
@@ -685,6 +694,24 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
           </button>
         </div>
       </form>
+
+      <SeedBulkUpload
+        apiFetch={apiFetch}
+        awards={awards}
+        onAwardsChange={(created) =>
+          setAwards((prev) =>
+            prev.some((a) => a.id === created.id) ? prev : [...prev, created]
+          )
+        }
+        winnerMetaReady={winnerMetaReady}
+        onError={onError}
+        onSuccess={onSuccess}
+        disabled={uploading}
+        onBusyChange={setBulkBusy}
+        onPitchCreated={(pitch) =>
+          setPitches((prev) => [pitch, ...prev.filter((p) => p.id !== pitch.id)])
+        }
+      />
 
       {/* Existing winners */}
       {loading ? (
