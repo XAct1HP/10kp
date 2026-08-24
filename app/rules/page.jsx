@@ -158,7 +158,7 @@ export default function RulesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/awards");
+        const res = await fetch("/api/awards", { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to load awards");
         const data = await res.json();
         if (!cancelled) setAwards(Array.isArray(data) ? data : []);

@@ -4,6 +4,12 @@ import { NextResponse } from "next/server";
 import { supabase } from "../../../lib/supabase";
 import { decorateSponsor } from "../../../lib/sponsors";
 
+// Awards are edited live from the admin Settings panel, so this route must
+// never be statically prerendered or cached — otherwise the Rules page keeps
+// serving the build-time snapshot.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const { data, error } = await supabase
