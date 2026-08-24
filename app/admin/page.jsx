@@ -5,6 +5,7 @@ import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import { buildAccountCsv, joinEmailList, parseEmailList, WINNER_SURVEY_URL } from "../../lib/outreach";
+import { buildPitchCsv } from "../../lib/pitchExport";
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
 import adminBg from "../../public/admin_bg.png";
@@ -781,11 +782,20 @@ export default function AdminPage() {
     }
   };
   const handleExportCSV = () => {
-    const rows = filteredPitches.map((p) => ({ Name: p.name, Title: p.title, Description: (p.description || "").replace(/[\n\r]+/g, " "), Role: p.role || "", Schools: (p.schools || []).join("; "), Tags: (p.tags || []).map((t) => t.name).join("; "), "File Type": p.file_type || "file", "File Name": p.file_name || "", Votes: p.vote_count || 0, "Submitted At": p.created_at ? new Date(p.created_at).toLocaleString() : "", "Mux Status": p.mux_status || "" }));
-    if (!rows.length) { setError("No pitches to export."); return; }
-    const h = Object.keys(rows[0]);
-    const csv = [h.join(","), ...rows.map((r) => h.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
-    const b = new Blob([csv], { type: "text/csv;charset=utf-8;" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `pitches_export_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(u); setSuccess("CSV exported.");
+    if (!filteredPitches.length) { setError("No pitches to export."); return; }
+    // Links in the CSV have to be absolute so they still work once the file
+    // leaves this browser and lands in a supervisor's spreadsheet.
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const csv = buildPitchCsv(filteredPitches, origin);
+    // BOM so Excel reads the file as UTF-8 rather than mangling names.
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `pitches_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setSuccess(`CSV exported — ${filteredPitches.length} submission${filteredPitches.length === 1 ? "" : "s"}.`);
   };
   const handleRefreshOutreach = async () => {
     setError("");
@@ -2439,12 +2449,20 @@ export default function AdminPage() {
               <div className="w-full md:w-64 flex-shrink-0 flex flex-col space-y-4">
                 <div className="space-y-3">
                   {[
+                    { l: "Uniqname", v: selectedPitch.uniqname ? `${selectedPitch.uniqname}@umich.edu` : "Not provided" },
+                    { l: "Account Email", v: selectedPitch.submitter_email || "Unknown" },
+                    {
+                      l: "Teammates",
+                      v: (selectedPitch.teammate_uniqnames || []).length
+                        ? selectedPitch.teammate_uniqnames.join(", ")
+                        : "None",
+                    },
                     { l: "Schools", v: (selectedPitch.schools || []).join(", ") || "None" },
                     { l: "File", v: selectedPitch.file_name || "None" },
                   ].map(({ l, v }) => (
                     <div key={l}>
                       <p className="text-[10px] text-white/25 uppercase tracking-widest mb-0.5">{l}</p>
-                      <p className="text-xs text-white/50 truncate">{v}</p>
+                      <p className="text-xs text-white/50 break-words">{v}</p>
                     </div>
                   ))}
                 </div>

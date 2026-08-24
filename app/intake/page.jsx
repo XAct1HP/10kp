@@ -109,6 +109,9 @@ export default function IntakePage() {
   const backgroundPreloadPromisesRef = useRef(new Map());
 
   const [name, setName] = useState("");
+  const [uniqname, setUniqname] = useState("");
+  // Teammate uniqnames. Each "Add Teammate" click appends a blank field.
+  const [teammateUniqnames, setTeammateUniqnames] = useState([]);
   const [pitchTitle, setPitchTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
@@ -139,6 +142,57 @@ export default function IntakePage() {
   ]);
 
   const [competitionDescription, setCompetitionDescription] = useState("");
+
+  // Uniqnames are the part of a U-M address before the @. Accept a pasted
+  // full email and reduce it, since that is the most common mistake.
+  const normalizeUniqname = (value) =>
+    String(value || "").trim().toLowerCase().split("@")[0].replace(/\s+/g, "");
+
+  const isValidUniqname = (value) => /^[a-z0-9-]{2,32}$/.test(value);
+
+  // Prefill the submitter's own uniqname from the @umich.edu account they
+  // signed in with. Only fills a blank field so a manual edit is never
+  // clobbered by a re-render.
+  useEffect(() => {
+    const derived = normalizeUniqname(user?.email);
+    if (derived && isValidUniqname(derived)) {
+      setUniqname((prev) => (prev ? prev : derived));
+    }
+  }, [user?.email]);
+
+  // Postgres undefined_column, or a PostgREST schema-cache miss, when the
+  // uniqname migration has not been applied to this environment yet.
+  const isMissingColumnError = (error) =>
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column .* does not exist/i.test(error?.message || "") ||
+    /Could not find the '.*' column of '.*' in the schema cache/i.test(error?.message || "");
+
+  const addTeammate = () => setTeammateUniqnames((prev) => [...prev, ""]);
+
+  const updateTeammate = (index, value) =>
+    setTeammateUniqnames((prev) =>
+      prev.map((entry, i) => (i === index ? value : entry))
+    );
+
+  const removeTeammate = (index) =>
+    setTeammateUniqnames((prev) => prev.filter((_, i) => i !== index));
+
+  // Cleaned, de-duplicated teammate list — what gets validated, reviewed and
+  // saved. Blank rows are dropped, and the submitter's own uniqname is
+  // filtered out so they never appear as their own teammate.
+  const cleanedTeammates = () => {
+    const seen = new Set();
+    const own = normalizeUniqname(uniqname);
+    const result = [];
+    for (const entry of teammateUniqnames) {
+      const cleaned = normalizeUniqname(entry);
+      if (!cleaned || cleaned === own || seen.has(cleaned)) continue;
+      seen.add(cleaned);
+      result.push(cleaned);
+    }
+    return result;
+  };
 
   const preloadBackground = (index) => {
     if (index < 0 || index >= FLOOR_IMAGES.length) {
@@ -306,6 +360,16 @@ export default function IntakePage() {
     switch (f) {
       case 1:
         if (!name.trim()) return "Please enter your name.";
+        if (!normalizeUniqname(uniqname)) return "Please enter your uniqname.";
+        if (!isValidUniqname(normalizeUniqname(uniqname))) {
+          return "That uniqname does not look right — enter just the part of your U-M email before @umich.edu.";
+        }
+        for (const entry of teammateUniqnames) {
+          const cleaned = normalizeUniqname(entry);
+          if (entry.trim() && !isValidUniqname(cleaned)) {
+            return `"${entry.trim()}" is not a valid uniqname — enter just the part before @umich.edu.`;
+          }
+        }
         if (!role) return "Please select your role.";
         if (role === "Current student" && !studentLevel) return "Please select your student level.";
         return null;
@@ -399,24 +463,44 @@ export default function IntakePage() {
     let createdPitchId = null;
 
     try {
-      const { data: pitch, error: pitchError } = await supabase
+      const basePitchRow = {
+        user_id: user.id,
+        name: name.trim(),
+        role,
+        student_level: role === "Current student" ? studentLevel : null,
+        schools,
+        title: pitchTitle.trim(),
+        description: description.trim(),
+        file_type: isVideoUpload ? "video" : isAudioUpload ? "audio" : "file",
+        file_name: file ? file.name : (isTextOnly ? "Text Submission" : null),
+        text_content: pitchMode === "text" ? textContent.trim() || null : null,
+        mux_status: isMuxUpload ? "pending" : null,
+        mux_error: null,
+      };
+
+      let { data: pitch, error: pitchError } = await supabase
         .from("pitches")
         .insert({
-          user_id: user.id,
-          name: name.trim(),
-          role,
-          student_level: role === "Current student" ? studentLevel : null,
-          schools,
-          title: pitchTitle.trim(),
-          description: description.trim(),
-          file_type: isVideoUpload ? "video" : isAudioUpload ? "audio" : "file",
-          file_name: file ? file.name : (isTextOnly ? "Text Submission" : null),
-          text_content: pitchMode === "text" ? textContent.trim() || null : null,
-          mux_status: isMuxUpload ? "pending" : null,
-          mux_error: null,
+          ...basePitchRow,
+          uniqname: normalizeUniqname(uniqname) || null,
+          teammate_uniqnames: cleanedTeammates(),
         })
         .select()
         .single();
+
+      // uniqname / teammate_uniqnames arrive with
+      // migrations/20260824_add_uniqnames_to_pitches.sql. If this deploy is
+      // ahead of the database, fall back to the columns that do exist rather
+      // than failing the submission outright — losing a uniqname is recoverable,
+      // losing a pitch is not.
+      if (pitchError && isMissingColumnError(pitchError)) {
+        console.warn("Uniqname columns missing — run the 20260824 migration.");
+        ({ data: pitch, error: pitchError } = await supabase
+          .from("pitches")
+          .insert(basePitchRow)
+          .select()
+          .single());
+      }
 
       if (pitchError) throw pitchError;
       createdPitchId = pitch.id;
@@ -595,6 +679,96 @@ export default function IntakePage() {
             style={inputStyle()}
           />
         </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-white/80 mb-2">
+            Your Uniqname <span className="text-maize">*</span>
+          </label>
+          <div className="flex items-stretch rounded-xl overflow-hidden" style={inputStyle()}>
+            <input
+              type="text"
+              placeholder="uniqname"
+              value={uniqname}
+              onChange={(e) => setUniqname(e.target.value)}
+              onBlur={() => setUniqname((prev) => normalizeUniqname(prev))}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="flex-1 min-w-0 px-4 py-3.5 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none"
+            />
+            <span
+              className="flex items-center px-3 text-sm text-white/40 select-none flex-shrink-0"
+              style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              @umich.edu
+            </span>
+          </div>
+          <p className="text-xs text-white/40 mt-2">
+            The part of your U-M email before @umich.edu.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-white/80 mb-2">
+            Teammates
+          </label>
+          <p className="text-xs text-white/40 mb-3">
+            Pitching with others? Add each teammate&rsquo;s uniqname. Optional.
+          </p>
+          {teammateUniqnames.length > 0 && (
+            <div className="space-y-3 mb-3">
+              {teammateUniqnames.map((entry, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div
+                    className="flex-1 min-w-0 flex items-stretch rounded-xl overflow-hidden"
+                    style={inputStyle()}
+                  >
+                    <input
+                      type="text"
+                      placeholder="uniqname"
+                      value={entry}
+                      onChange={(e) => updateTeammate(index, e.target.value)}
+                      onBlur={() => updateTeammate(index, normalizeUniqname(entry))}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="flex-1 min-w-0 px-4 py-3 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none"
+                    />
+                    <span
+                      className="flex items-center px-3 text-sm text-white/40 select-none flex-shrink-0"
+                      style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}
+                    >
+                      @umich.edu
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeTeammate(index)}
+                    aria-label={`Remove teammate ${index + 1}`}
+                    className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+                    style={{ border: "2px solid rgba(255,255,255,0.12)" }}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={addTeammate}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:text-white transition-colors"
+            style={{ border: "2px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.03)" }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Teammate
+          </button>
+        </div>
+
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-3">
             Are you <span className="text-maize">*</span>
@@ -934,6 +1108,10 @@ export default function IntakePage() {
         <div className="space-y-4">
           {[
             { label: "Name", value: name },
+            { label: "Uniqname", value: normalizeUniqname(uniqname) ? `${normalizeUniqname(uniqname)}@umich.edu` : "" },
+            ...(cleanedTeammates().length > 0
+              ? [{ label: "Teammates", value: cleanedTeammates().map((u) => `${u}@umich.edu`).join(", ") }]
+              : []),
             { label: "Role", value: role },
             ...(role === "Current student" && studentLevel ? [{ label: "Student Level", value: studentLevel }] : []),
             { label: "School(s)", value: schools.length > 0 ? schools.join(", ") : "None selected" },

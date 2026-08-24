@@ -179,6 +179,34 @@ export default function GalleryPage() {
 
   useEffect(() => { fetchSubmissions(); }, [voterProfile.email]);
 
+  // Deep link: /gallery?pitch=<id> opens that submission's modal directly.
+  // This is the link carried by the admin pitch CSV export, so it has to work
+  // for a pitch in either lane. Runs once after the submissions land — the
+  // ref stops a later refetch from reopening a modal the user closed.
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    if (loading || !allSubmissions.length) return;
+    if (typeof window === "undefined") return;
+
+    const pitchId = new URLSearchParams(window.location.search).get("pitch");
+    if (!pitchId) {
+      deepLinkHandledRef.current = true;
+      return;
+    }
+
+    const match = allSubmissions.find((p) => p.id === pitchId);
+    deepLinkHandledRef.current = true;
+    if (!match) {
+      setError("That submission could not be found — it may have been removed.");
+      return;
+    }
+    // Archived winners live in the other lane; switch so closing the modal
+    // leaves the user looking at the grid the pitch actually belongs to.
+    setGalleryLane(match.is_seed ? "winners" : "current");
+    setSelectedPitch(match);
+  }, [loading, allSubmissions]);
+
   // Extract text from document files when a pitch is selected
   useEffect(() => {
     setExtractedText(null);
