@@ -505,11 +505,10 @@ export default function GalleryPage() {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 0.7; }
         }
-        .gallery-scroll::-webkit-scrollbar { width: 8px; }
-        .gallery-scroll::-webkit-scrollbar-track { background: #060810; }
-        .gallery-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
-        .gallery-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-        .gallery-scroll { scrollbar-color: rgba(255,255,255,0.12) #060810; scrollbar-width: thin; }
+        /* The gallery is the one surface that still drew a visible scrollbar.
+           Hidden to match the rest of the site — the content still scrolls. */
+        .gallery-scroll::-webkit-scrollbar { display: none; }
+        .gallery-scroll { scrollbar-width: none; -ms-overflow-style: none; }
       ` }} />
 
       <div className="h-[calc(100vh-5rem)] overflow-y-auto flex flex-col gallery-scroll"
@@ -1090,10 +1089,12 @@ export default function GalleryPage() {
 
         {/* ═══ PITCH DETAIL MODAL ═══ */}
         {selectedPitch && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-6"
             style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setSelectedPitch(null)}>
-            <div className="relative w-full max-w-6xl max-h-[92vh] sm:max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            {/* Mobile is a bottom sheet pinned to the viewport; desktop keeps the
+                centered dialog. `dvh` so mobile browser chrome doesn't clip it. */}
+            <div className="relative w-full max-w-6xl h-[92dvh] md:h-auto md:max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
               {/* Floating custom thumbnail — overlaps top-left corner (desktop only; hidden on mobile to avoid clipping) */}
               {(getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") && selectedPitch.thumbnail_path && (
                 <img src={selectedPitch.thumbnail_path} alt=""
@@ -1107,20 +1108,40 @@ export default function GalleryPage() {
                   }}
                 />
               )}
-              <div className="w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col md:flex-row rounded-2xl overflow-hidden"
+              <div className="w-full h-full md:h-auto md:max-h-[90vh] flex flex-col rounded-t-3xl md:rounded-2xl overflow-hidden"
               style={{
                 background: "linear-gradient(135deg, #0B1A3B 0%, #0d1f45 100%)",
                 boxShadow: "0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)",
               }}>
 
+              {/* Mobile: grab handle + a close button that never scrolls away.
+                  Both are outside the scroll container on purpose. */}
+              <div className="md:hidden flex-shrink-0 relative pt-2.5 pb-1">
+                <div className="mx-auto w-10 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.18)" }} />
+                <button
+                  onClick={() => setSelectedPitch(null)}
+                  aria-label="Close"
+                  className="absolute top-1.5 right-3 p-2 rounded-full text-white/50 active:text-white transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {/* On mobile this wrapper is the single scroll surface, so the
+                  media, the title and the description all move as one column
+                  instead of fighting over two 45vh scrollers. On desktop it
+                  reverts to the side-by-side layout with its own inner scrolls. */}
+              <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden no-scrollbar">
+
               {/* Left: Media / Content */}
-              <div className="flex-1 min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : (getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") ? "#0a0f1e" : "#000" }}>
+              <div className="flex-shrink-0 md:flex-1 md:flex-shrink min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : (getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") ? "#0a0f1e" : "#000" }}>
                 <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
                 {selectedPitch.mux_playback_id ? (
                   <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05"
                     style={{ width: "100%", aspectRatio: "16/9" }} />
                 ) : getPitchType(selectedPitch) === "audio" ? (
-                  <div className="w-full h-full flex flex-col max-h-[45vh] md:max-h-[80vh]">
+                  <div className="w-full flex flex-col md:h-full md:max-h-[80vh]">
                     {/* Audio player */}
                     <div className="w-full px-5 sm:px-8 pt-5 sm:pt-8 pb-4 flex-shrink-0">
                       {/* Reserved space for floating thumbnail — desktop only (thumbnail is hidden on mobile) */}
@@ -1144,19 +1165,19 @@ export default function GalleryPage() {
                     </div>
                     {/* Description text below player */}
                     {(extractedText || selectedPitch.text_content || selectedPitch.description) && (
-                      <div className="w-full flex-1 overflow-y-auto text-pitch-scroll px-5 sm:px-8 pb-6 sm:pb-8" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                      <div className="w-full md:flex-1 md:overflow-y-auto text-pitch-scroll px-5 sm:px-8 pb-6 sm:pb-8" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content || selectedPitch.description}</p>
                       </div>
                     )}
                   </div>
                 ) : getPitchType(selectedPitch) === "text" ? (
-                  <div className="w-full h-full flex flex-col max-h-[45vh] md:max-h-[80vh]">
+                  <div className="w-full flex flex-col md:h-full md:max-h-[80vh]">
                     {extractingText ? (
                       <div className="w-full flex-1 flex items-center justify-center">
                         <svg className="animate-spin h-6 w-6 text-white/30" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                       </div>
                     ) : (extractedText || selectedPitch.text_content) ? (
-                      <div className="w-full h-full overflow-y-auto text-pitch-scroll p-5 sm:p-8 md:max-h-[80vh]" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                      <div className="w-full md:h-full md:overflow-y-auto text-pitch-scroll p-5 sm:p-8 md:max-h-[80vh]" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         {/* Desktop: reserve space for the floating thumbnail overlay */}
                         {selectedPitch.thumbnail_path && (
                           <div className="hidden md:block" style={{ float: "left", width: "340px", height: "210px", marginRight: "20px", marginBottom: "4px", marginTop: "-32px", marginLeft: "-32px" }} />
@@ -1186,9 +1207,13 @@ export default function GalleryPage() {
               </div>
 
               {/* Right: Info */}
-              <div className="w-full md:w-96 flex-shrink-0 flex flex-col p-5 sm:p-6 max-h-[45vh] md:max-h-none overflow-y-auto md:overflow-visible" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
+              <div
+                className="w-full md:w-96 md:flex-shrink-0 flex flex-col px-5 pt-5 pb-0 sm:px-6 sm:pt-6 md:pb-6 md:max-h-none md:overflow-visible border-t md:border-t-0 md:border-l"
+                style={{ borderColor: "rgba(255,255,255,0.05)" }}
+              >
+                {/* Desktop close — mobile has its own pinned button in the header. */}
                 <button onClick={() => setSelectedPitch(null)}
-                  className="self-end p-1.5 rounded-lg text-white/20 hover:text-white hover:bg-white/5 transition-colors mb-3">
+                  className="hidden md:block self-end p-1.5 rounded-lg text-white/20 hover:text-white hover:bg-white/5 transition-colors mb-3">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
@@ -1251,11 +1276,13 @@ export default function GalleryPage() {
                   </div>
                 )}
 
-                <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
+                <h2 className="text-2xl md:text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
                 <p className="text-xs text-white/35 mb-4">by {selectedPitch.name}</p>
 
-                <div className="flex-1 min-h-0 overflow-y-auto mb-4">
-                  <p className="text-sm text-white/45 leading-relaxed">{selectedPitch.description}</p>
+                {/* Mobile: flows into the sheet's single scroll. Desktop: its own
+                    scroll area so a long description can't push the vote bar off. */}
+                <div className="mb-4 md:flex-1 md:min-h-0 md:overflow-y-auto no-scrollbar">
+                  <p className="text-sm text-white/45 leading-relaxed whitespace-pre-wrap">{selectedPitch.description}</p>
                 </div>
 
                 {selectedPitch.tags?.length > 0 && (
@@ -1267,11 +1294,21 @@ export default function GalleryPage() {
                   </div>
                 )}
 
+                {/* Sheet footer. One sticky container, not several — stacked
+                    sticky siblings would pile up on the same bottom edge. */}
+                <div
+                  className="flex-shrink-0 sticky bottom-0 md:static pb-5 md:pb-0"
+                  style={{
+                    background: "linear-gradient(to bottom, rgba(13,31,69,0.82) 0%, #0d1f45 45%)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                  }}
+                >
                 {/* Vote area — archived winners are a showcase, not a ballot,
                     so they get a closed-voting notice instead of a button. */}
                 {selectedPitch.is_seed ? (
                   <div
-                    className="flex items-center gap-2.5 flex-shrink-0 pt-4"
+                    className="flex items-center gap-2.5 pt-4"
                     style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
                   >
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="rgba(255,255,255,0.35)" strokeWidth={2}>
@@ -1282,7 +1319,10 @@ export default function GalleryPage() {
                     </p>
                   </div>
                 ) : (
-                <div className="flex items-center justify-between flex-shrink-0 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                <div
+                  className="flex items-center justify-between pt-4"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+                >
                   <div className="flex items-center gap-2">
                     <svg className="w-6 h-6" fill="#FFCB05" viewBox="0 0 24 24">
                       <path d="M12 4l2.5 5.1 5.5.8-4 3.9.9 5.5L12 16.8l-4.9 2.5.9-5.5-4-3.9 5.5-.8L12 4z" />
@@ -1315,10 +1355,14 @@ export default function GalleryPage() {
                 )}
 
                 {voterProfile.email && !selectedPitch.is_seed && (
-                  <p className="text-[10px] text-white/15 mt-2 text-center flex-shrink-0">
+                  <p
+                    className="text-[10px] text-white/15 mt-2 text-center"
+                  >
                     {voting.remainingVotes} of {voting.maxVotesPerUser} votes remaining
                   </p>
                 )}
+                </div>
+              </div>
               </div>
             </div>
             </div>

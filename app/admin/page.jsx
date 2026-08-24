@@ -1722,7 +1722,7 @@ export default function AdminPage() {
                   </div>
                 </GlassCard>
 
-                <GlassCard noPad className="xl:col-span-3 flex flex-col min-h-[42rem]">
+                <GlassCard noPad className="xl:col-span-3 flex flex-col">
                   <div className="px-5 py-4 border-b border-white/[0.04]">
                     <h2 className="text-lg font-bold text-white">Matching Accounts</h2>
                     <p className="text-xs text-white/30 mt-1">
@@ -1731,15 +1731,20 @@ export default function AdminPage() {
                   </div>
 
                   {outreachLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
+                    <div className="h-64 flex items-center justify-center">
                       <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                     </div>
                   ) : outreach.accounts.length === 0 ? (
                     <p className="text-white/30 text-sm p-5">No accounts match the current filters.</p>
                   ) : (
-                    <div className="flex-1 overflow-auto no-scrollbar">
+                    // Bounded pane: the account list grows with every signup, so it
+                    // scrolls inside the card instead of stretching the page. The
+                    // header row stays pinned, and a fade at the bottom edge stands
+                    // in for the scrollbar we deliberately hide.
+                    <div className="relative">
+                      <div className="max-h-[26rem] overflow-y-auto no-scrollbar">
                       <table className="w-full text-sm">
-                        <thead>
+                        <thead className="sticky top-0 z-10" style={{ background: "rgba(11,26,59,0.92)", backdropFilter: "blur(12px)" }}>
                           <tr className="text-[10px] uppercase tracking-wider text-white/25 border-b border-white/[0.04]">
                             <th className="text-left px-5 py-2.5 font-semibold">Email</th>
                             <th className="text-left px-5 py-2.5 font-semibold">Joined</th>
@@ -1790,6 +1795,18 @@ export default function AdminPage() {
                           ))}
                         </tbody>
                       </table>
+                      </div>
+                      {/* Roughly ten rows fit in 26rem, so anything past that
+                          is scrollable and earns the fade. Below that the pane
+                          is shorter than its max and the fade would just dim
+                          the last row. */}
+                      {outreach.accounts.length > 9 && (
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute bottom-0 left-0 right-0 h-10"
+                          style={{ background: "linear-gradient(to bottom, rgba(11,26,59,0) 0%, rgba(11,26,59,0.75) 100%)" }}
+                        />
+                      )}
                     </div>
                   )}
 
@@ -1816,7 +1833,8 @@ export default function AdminPage() {
                         {broadcastHistoryEnabled ? "No outreach sends yet." : "Outreach sends will appear here after the SQL migration is applied."}
                       </p>
                     ) : (
-                      <div className="divide-y divide-white/[0.03]">
+                      <div className="relative">
+                        <div className="max-h-[20rem] overflow-y-auto no-scrollbar divide-y divide-white/[0.03]">
                         {broadcastHistory.map((item) => (
                           <div key={item.id} className="px-5 py-3">
                             <div className="flex items-start justify-between gap-4">
@@ -1841,6 +1859,16 @@ export default function AdminPage() {
                             </div>
                           </div>
                         ))}
+                        </div>
+                        {/* Same rule as the account pane — about four entries
+                            fit in 20rem. */}
+                        {broadcastHistory.length > 3 && (
+                          <div
+                            aria-hidden
+                            className="pointer-events-none absolute bottom-0 left-0 right-0 h-8"
+                            style={{ background: "linear-gradient(to bottom, rgba(11,26,59,0) 0%, rgba(11,26,59,0.75) 100%)" }}
+                          />
+                        )}
                       </div>
                     )}
                   </div>

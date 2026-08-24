@@ -119,73 +119,86 @@ export default function Home() {
         }}
       />
 
-      {/* Sponsor spotlight — top-right corner rotator (desktop only) */}
+      {/* Sponsor spotlight — top-right corner rotator, compact on mobile */}
       <SponsorSpotlight />
 
-      {/* MOBILE LAYOUT (< lg) */}
+      {/* MOBILE LAYOUT (< lg)
+          Reorganized so the sponsor disk owns the top-right corner: the hero
+          image gets the upper half to breathe, and everything with words in it
+          — countdown, headline, copy, CTAs — is grouped into one bottom stack.
+          The countdown shrank from four huge numerals to a compact tile row so
+          it reads as a status line above the headline rather than competing
+          with it. */}
       <div className="relative z-10 flex-1 flex flex-col lg:hidden px-6 sm:px-10 pt-6 pb-8">
-        {/* TOP: transparent countdown with centered separators */}
-        {countdownUnits && (
-          <div>
-            <p
-              className="text-[10px] uppercase tracking-[0.28em] font-semibold mb-4"
-              style={{ color: "#FFCB05" }}
-            >
-              {countdownLabel}
-            </p>
-            {/* 7-column grid: 4 numbers + 3 centered separators */}
-            <div
-              className="grid items-center"
-              style={{ gridTemplateColumns: "1fr auto 1fr auto 1fr auto 1fr" }}
-            >
-              {countdownUnits.map(({ label, value }, i) => (
-                <Fragment key={label}>
-                  <div className="text-center">
+        {/* Reserve the corner the disk occupies so nothing collides with it.
+            The compact disk's box is 172px tall and this block starts below the
+            container's pt-6, so 156px clears it with room to spare. */}
+        <div className="h-[156px] flex-shrink-0" aria-hidden />
+
+        <div className="mt-auto">
+          {countdownUnits && (
+            <div className="mb-5">
+              <p
+                className="text-[10px] uppercase tracking-[0.28em] font-semibold mb-2.5"
+                style={{ color: "#FFCB05" }}
+              >
+                {countdownLabel}
+              </p>
+              <div className="flex items-stretch gap-1.5">
+                {countdownUnits.map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="flex-1 rounded-xl px-1 py-2 text-center"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
+                    }}
+                  >
                     <div
                       className="font-mono font-bold text-white leading-none tabular-nums"
                       style={{
-                        fontSize: "clamp(1.75rem, 8vw, 2.75rem)",
-                        textShadow: "0 0 30px rgba(255,203,5,0.2), 0 4px 16px rgba(0,0,0,0.5)",
+                        fontSize: "clamp(1.15rem, 5.5vw, 1.6rem)",
+                        textShadow: "0 2px 12px rgba(0,0,0,0.45)",
                       }}
                     >
                       {pad(value)}
                     </div>
-                    <div className="text-[10px] uppercase tracking-[0.2em] mt-2 text-white/40">
+                    <div className="text-[9px] uppercase tracking-[0.16em] mt-1.5 text-white/40">
                       {label}
                     </div>
                   </div>
-                  {i < countdownUnits.length - 1 && (
-                    <div className="flex flex-col items-center gap-1.5 mb-4">
-                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#FFCB05", opacity: 0.7 }} />
-                      <div className="rounded-full" style={{ width: "5px", height: "5px", background: "#FFCB05", opacity: 0.7 }} />
-                    </div>
-                  )}
-                </Fragment>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {phase === "closed" && (
-          <div className="flex items-center gap-3">
-            <svg className="w-6 h-6 flex-shrink-0" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-white font-bold text-base">Submissions are now closed</span>
-          </div>
-        )}
+          {phase === "closed" && (
+            <div
+              className="flex items-center gap-2.5 mb-5 px-3.5 py-2.5 rounded-xl"
+              style={{
+                background: "rgba(255,203,5,0.10)",
+                border: "1px solid rgba(255,203,5,0.22)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <svg className="w-5 h-5 flex-shrink-0" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-white font-bold text-sm">Submissions are now closed</span>
+            </div>
+          )}
 
-        {/* BOTTOM: headline + description + side-by-side buttons */}
-        <div className="mt-auto pt-10">
           <h1
-            className="font-bold text-white tracking-tight leading-[1.05] mb-4"
+            className="font-bold text-white tracking-tight leading-[1.05] mb-3"
             style={{ fontSize: "clamp(2rem, 9vw, 3.25rem)" }}
           >
             Every Great Idea{" "}
             <span style={{ color: "#FFCB05" }}>Deserves Its First Pitch</span>
           </h1>
 
-          <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed mb-6">
+          <p className="text-white/75 text-sm sm:text-base max-w-lg leading-relaxed mb-5">
             From every corner of the Michigan community, ideas become impact. Text it. Say it. Film it. Pitch it.
           </p>
 
