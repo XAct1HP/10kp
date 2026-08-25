@@ -79,6 +79,8 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
     prize: "",
     sort_order: 0,
     is_active: true,
+    is_raffle: false,
+    match_criteria: "",
     sponsor_ids: [],
   });
   const [submitting, setSubmitting] = useState(false);
@@ -109,7 +111,16 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
   }, [sponsors]);
 
   const resetForm = () => {
-    setForm({ name: "", description: "", prize: "", sort_order: 0, is_active: true, sponsor_ids: [] });
+    setForm({
+      name: "",
+      description: "",
+      prize: "",
+      sort_order: 0,
+      is_active: true,
+      is_raffle: false,
+      match_criteria: "",
+      sponsor_ids: [],
+    });
     setEditing(null);
     setShowForm(false);
   };
@@ -122,6 +133,8 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
       prize: award.prize || "",
       sort_order: award.sort_order || 0,
       is_active: award.is_active !== false,
+      is_raffle: award.is_raffle === true,
+      match_criteria: award.match_criteria || "",
       sponsor_ids: (award.sponsors || []).map((s) => s.id),
     });
     setShowForm(true);
@@ -160,6 +173,11 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
         prize: form.prize.trim() || null,
         sort_order: Number(form.sort_order) || 0,
         is_active: !!form.is_active,
+        is_raffle: !!form.is_raffle,
+        // The raffle is auto-entry, so its criteria are never scored. Clear
+        // them rather than leaving a stale rubric behind if an award is
+        // converted into the raffle.
+        match_criteria: form.is_raffle ? "" : form.match_criteria.trim(),
         sponsor_ids: form.sponsor_ids,
       };
       if (editing) {
@@ -253,7 +271,7 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
               </div>
 
               <div>
-                <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Description (optional)</label>
+                <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Description</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -262,6 +280,11 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
                   className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize resize-none"
                   style={inputStyle}
                 />
+                <p className="text-[11px] text-white/35 mt-1.5">
+                  Public. Shown on the Rules page and under this award on the
+                  submission form &mdash; keep it to a sentence or two so students
+                  can tell at a glance whether their pitch belongs here.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -296,6 +319,56 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
                 />
                 Active (show on Rules page)
               </label>
+
+              {/* Auto-entry (raffle) toggle. Exactly one award can hold this
+                  flag; the API clears it from any other award on save. */}
+              <div
+                className="rounded-lg p-3"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                <label className="flex items-start gap-2 text-sm text-white/75 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.is_raffle}
+                    onChange={(e) => setForm({ ...form, is_raffle: e.target.checked })}
+                    className="w-4 h-4 accent-maize mt-0.5 flex-shrink-0"
+                  />
+                  <span>
+                    Automatic entry (the Weekly Raffle)
+                    <span className="block text-[11px] text-white/40 mt-1 leading-relaxed">
+                      Every approved pitch is entered. This award is hidden from the
+                      submission form&rsquo;s award picker and skipped by the relevance
+                      check &mdash; no criteria needed. Only one award can be the
+                      automatic-entry award.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {/* AI matching criteria — admin-only, never sent to the browser
+                  for non-admins (stored in the award_criteria table). */}
+              {!form.is_raffle && (
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">
+                    Relevance criteria (admin only)
+                  </label>
+                  <textarea
+                    value={form.match_criteria}
+                    onChange={(e) => setForm({ ...form, match_criteria: e.target.value })}
+                    rows={4}
+                    placeholder={"What must a pitch actually be about to belong in this track?\n\ne.g. The pitch must center on a physical product, device, or piece of hardware the team would build or manufacture. Software-only ideas, services, and app concepts do not qualify, even if a device is mentioned in passing."}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize resize-y"
+                    style={inputStyle}
+                  />
+                  <p className="text-[11px] text-white/35 mt-1.5">
+                    Never shown to students. After a pitch clears moderation, its
+                    transcript or text is scored against this &mdash; pitches that
+                    don&rsquo;t fit are dropped from the track automatically. Be
+                    concrete about what counts and what doesn&rsquo;t. Leave blank to
+                    score against the public description instead.
+                  </p>
+                </div>
+              )}
 
               {/* Sponsor selector */}
               <div>
@@ -444,6 +517,15 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
               <div className="flex-1 min-h-0 flex flex-col pr-16">
                 <div className="flex items-center gap-1.5 mb-1">
                   <h3 className="text-sm font-bold text-white truncate">{award.name}</h3>
+                  {award.is_raffle && (
+                    <span
+                      className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0 font-semibold"
+                      style={{ background: "rgba(255,203,5,0.15)", color: "#FFCB05" }}
+                      title="Every approved pitch is entered automatically"
+                    >
+                      Auto
+                    </span>
+                  )}
                   {!award.is_active && (
                     <span
                       className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded text-white/50 flex-shrink-0"
@@ -460,6 +542,14 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
                   <p className="text-[11px] text-white/50 leading-relaxed line-clamp-3">{award.description}</p>
                 )}
               </div>
+
+              {/* An award with no criteria and no description has nothing to
+                  score against — the relevance check would pass everything. */}
+              {!award.is_raffle && !award.match_criteria && !award.description && (
+                <p className="text-[10px] text-amber-300/70 mt-1">
+                  No relevance criteria &mdash; every selection is accepted.
+                </p>
+              )}
 
               {/* Sponsor logos footer */}
               {award.sponsors?.length > 0 && (

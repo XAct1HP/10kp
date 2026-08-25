@@ -93,7 +93,7 @@ const FLOOR_LABELS = [
   "Your Info",
   "School(s)",
   "Pitch Details",
-  "Tags",
+  "Tags & Awards",
   "Pitch File",
   "Review",
   "Submit",
@@ -116,6 +116,14 @@ export default function IntakePage() {
   const [description, setDescription] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
+  // Award tracks the submitter is asking to be judged for. Selecting one is
+  // a request, not a guarantee — after the pitch clears moderation its
+  // content is scored against each award's criteria, and tracks it doesn't
+  // fit are dropped. The auto-entry raffle is excluded here; every approved
+  // pitch is in it already.
+  const [selectedAwards, setSelectedAwards] = useState([]);
+  const [availableAwards, setAvailableAwards] = useState([]);
+  const [raffleAward, setRaffleAward] = useState(null);
   const [role, setRole] = useState("");
   const [studentLevel, setStudentLevel] = useState("");
   const [schools, setSchools] = useState([]);
@@ -287,6 +295,23 @@ export default function IntakePage() {
   }, []);
 
   useEffect(() => {
+    async function fetchAwards() {
+      try {
+        const res = await fetch("/api/awards");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        setAvailableAwards(data.filter((a) => !a.is_raffle));
+        setRaffleAward(data.find((a) => a.is_raffle) || null);
+      } catch {
+        // Award tracks are optional — a failure here must not block a
+        // submission. The picker simply doesn't render.
+      }
+    }
+    fetchAwards();
+  }, []);
+
+  useEffect(() => {
     async function fetchDescription() {
       try {
         const res = await fetch("/api/admin/competition-date");
@@ -389,6 +414,12 @@ export default function IntakePage() {
   const toggleTag = (tagId) => {
     setSelectedTags((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const toggleAward = (awardId) => {
+    setSelectedAwards((prev) =>
+      prev.includes(awardId) ? prev.filter((id) => id !== awardId) : [...prev, awardId]
     );
   };
 
@@ -512,6 +543,21 @@ export default function IntakePage() {
         }));
         const { error: tagError } = await supabase.from("pitch_tags").insert(tagRows);
         if (tagError) throw tagError;
+      }
+
+      if (selectedAwards.length > 0) {
+        // status 'pending' until moderation approves the pitch and the
+        // relevance check runs. A failure here must not sink the submission —
+        // losing an award selection is recoverable, losing a pitch is not.
+        const awardRows = selectedAwards.map((awardId) => ({
+          pitch_id: pitch.id,
+          award_id: awardId,
+          status: "pending",
+        }));
+        const { error: awardError } = await supabase.from("pitch_awards").insert(awardRows);
+        if (awardError) {
+          console.warn("Award track selection failed to save:", awardError.message);
+        }
       }
 
       // Upload thumbnail if provided
@@ -918,28 +964,136 @@ export default function IntakePage() {
 
   const renderTags = () => (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-1">Floor 4 — Tags</h2>
-      <p className="text-white/50 text-sm mb-6">Categorize your pitch.</p>
-      {availableTags.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {availableTags.map((tag) => (
-            <button
-              key={tag.id}
-              type="button"
-              onClick={() => toggleTag(tag.id)}
-              className="px-4 py-2 text-sm rounded-full transition-all duration-200"
-              style={{
-                border: selectedTags.includes(tag.id) ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
-                background: selectedTags.includes(tag.id) ? "rgba(255,203,5,0.15)" : "transparent",
-                color: selectedTags.includes(tag.id) ? "#FFCB05" : "rgba(255,255,255,0.6)",
-              }}
-            >
-              {tag.name}
-            </button>
-          ))}
+      <h2 className="text-2xl font-bold text-white mb-1">Floor 4 — Tags &amp; Awards</h2>
+      <p className="text-white/50 text-sm mb-6">
+        Categorize your pitch, then tell us which awards it should compete for.
+      </p>
+
+      {/* ── Tags: descriptive only ───────────────────────────────── */}
+      <div className="mb-8">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tags</h3>
+          <span className="text-[11px] text-white/30">Optional</span>
         </div>
-      ) : (
-        <p className="text-white/40 text-sm italic">No tags available yet.</p>
+        <p className="text-white/40 text-xs mb-4 leading-relaxed">
+          The categories your pitch belongs to. Tags help people find your pitch in
+          the gallery — they don&rsquo;t affect which awards you&rsquo;re considered for.
+        </p>
+        {availableTags.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {availableTags.map((tag) => {
+              const on = selectedTags.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
+                  aria-pressed={on}
+                  className="px-4 py-2 text-sm rounded-full transition-all duration-200"
+                  style={{
+                    border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
+                    background: on ? "rgba(255,203,5,0.15)" : "transparent",
+                    color: on ? "#FFCB05" : "rgba(255,255,255,0.6)",
+                  }}
+                >
+                  {tag.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-white/40 text-sm italic">No tags available yet.</p>
+        )}
+      </div>
+
+      {/* ── Award tracks: what the pitch competes for ─────────────── */}
+      {availableAwards.length > 0 && (
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} className="pt-6">
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+              Awards
+            </h3>
+            <span className="text-[11px] font-semibold" style={{ color: "#FFCB05" }}>
+              Highly encouraged
+            </span>
+          </div>
+          <p className="text-white/40 text-xs mb-4 leading-relaxed">
+            Pick every award your pitch genuinely fits. After your pitch is reviewed,
+            we check its content against each award&rsquo;s criteria — pick ones that
+            don&rsquo;t match and your pitch is simply dropped from those, so there&rsquo;s
+            no advantage to selecting everything.
+            {raffleAward && (
+              <>
+                {" "}
+                Every approved pitch is automatically entered in the{" "}
+                <span className="text-white/60 font-semibold">{raffleAward.name}</span> —
+                you don&rsquo;t need to select anything for that.
+              </>
+            )}
+          </p>
+
+          <div className="space-y-2">
+            {availableAwards.map((award) => {
+              const on = selectedAwards.includes(award.id);
+              return (
+                <button
+                  key={award.id}
+                  type="button"
+                  onClick={() => toggleAward(award.id)}
+                  aria-pressed={on}
+                  className="w-full text-left rounded-xl p-4 transition-all duration-200 flex items-start gap-3"
+                  style={{
+                    border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+                    background: on ? "rgba(255,203,5,0.1)" : "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <span
+                    className="mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                    style={{
+                      border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.25)",
+                      background: on ? "#FFCB05" : "transparent",
+                    }}
+                    aria-hidden="true"
+                  >
+                    {on && (
+                      <svg className="w-3 h-3" viewBox="0 0 20 20" fill="#0B1A3B">
+                        <path
+                          fillRule="evenodd"
+                          d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block text-sm font-bold"
+                      style={{ color: on ? "#FFCB05" : "rgba(255,255,255,0.85)" }}
+                    >
+                      {award.name}
+                    </span>
+                    {award.prize && (
+                      <span className="block text-[11px] font-semibold text-maize/70 mt-0.5">
+                        {award.prize}
+                      </span>
+                    )}
+                    {award.description && (
+                      <span className="block text-xs text-white/45 mt-1 leading-relaxed">
+                        {award.description}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-[11px] text-white/30 mt-3">
+            {selectedAwards.length === 0
+              ? "No awards selected — your pitch will still appear in the gallery."
+              : `${selectedAwards.length} award${selectedAwards.length === 1 ? "" : "s"} selected.`}
+          </p>
+        </div>
       )}
     </div>
   );
@@ -1118,6 +1272,7 @@ export default function IntakePage() {
             { label: "Pitch Title", value: pitchTitle },
             { label: "Description", value: description },
             { label: "Tags", value: selectedTags.length > 0 ? availableTags.filter((t) => selectedTags.includes(t.id)).map((t) => t.name).join(", ") : "None" },
+            { label: "Awards Considered For", value: selectedAwards.length > 0 ? availableAwards.filter((a) => selectedAwards.includes(a.id)).map((a) => a.name).join(", ") : "None selected" },
             { label: "Pitch", value: pitchType },
             ...(pitchMode === "text" && textContent ? [{ label: "Text Content", value: textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent }] : []),
             ...(thumbnail ? [{ label: "Thumbnail", value: thumbnail.name }] : []),

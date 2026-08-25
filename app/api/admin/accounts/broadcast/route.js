@@ -134,6 +134,11 @@ export async function POST(request) {
     const scope = normalizeAccountScope(body.scope);
     const confirmed = normalizeConfirmedFilter(body.confirmed);
     const search = normalizeAccountSearch(body.search);
+    // The award-track / tag filters narrow the recipient list the same way
+    // they narrow the on-screen list — a broadcast must go to exactly the
+    // accounts the admin was looking at when they hit send.
+    const award = String(body.award || "").trim() || null;
+    const tag = String(body.tag || "").trim() || null;
 
     if (!subject) {
       return NextResponse.json({ error: "Subject is required." }, { status: 400 });
@@ -157,6 +162,8 @@ export async function POST(request) {
       scope,
       confirmed,
       search,
+      award,
+      tag,
     });
 
     if (accounts.length === 0) {
@@ -186,6 +193,8 @@ export async function POST(request) {
       details: {
         delivery: "batch",
         search,
+        award,
+        tag,
         recipient_emails_preview: recipients.slice(0, 10),
         resend_email_ids_preview: emailIds.slice(0, 10),
       },

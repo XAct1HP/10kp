@@ -14,12 +14,16 @@ export async function GET(request) {
     const scope = searchParams.get("scope");
     const confirmed = searchParams.get("confirmed");
     const search = searchParams.get("search");
+    const award = searchParams.get("award");
+    const tag = searchParams.get("tag");
 
     const supabaseAdmin = getSupabaseAdmin();
     const { accounts, summary, filters } = await listAccountsForOutreach(supabaseAdmin, {
       scope,
       confirmed,
       search,
+      award,
+      tag,
     });
     const resend = getResendBroadcastConfig();
 

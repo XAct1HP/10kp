@@ -151,3 +151,41 @@ test("buildWinnerNotificationHtml uses branded template with survey CTA", () => 
   assert.match(html, /Reply if you need help/);
   assert.match(html, /10kp_email_logo\.png/);
 });
+
+// ── Award-track / tag narrowing ─────────────────────────────────────────
+// The award and tag filters resolve server-side to a set of account ids.
+// The distinction that matters: `undefined` means no filter is active, while
+// an empty set means the filter ran and matched nobody. Treating the second
+// as the first would broadcast to the whole list.
+test("an allowlist narrows the accounts to its members", () => {
+  const ids = accounts.slice(0, 1).map((a) => a.id);
+  const filtered = applyAccountFilters(accounts, { allowedUserIds: ids });
+  assert.deepEqual(filtered.map((a) => a.id), ids);
+});
+
+test("an empty allowlist matches nobody", () => {
+  assert.equal(applyAccountFilters(accounts, { allowedUserIds: [] }).length, 0);
+  assert.equal(applyAccountFilters(accounts, { allowedUserIds: new Set() }).length, 0);
+});
+
+test("no allowlist leaves the account list untouched", () => {
+  assert.equal(applyAccountFilters(accounts, {}).length, accounts.length);
+  assert.equal(
+    applyAccountFilters(accounts, { allowedUserIds: null }).length,
+    accounts.length
+  );
+  assert.equal(
+    applyAccountFilters(accounts, { allowedUserIds: undefined }).length,
+    accounts.length
+  );
+});
+
+test("an allowlist composes with the other filters rather than replacing them", () => {
+  const allIds = accounts.map((a) => a.id);
+  const confirmedOnly = applyAccountFilters(accounts, {
+    allowedUserIds: allIds,
+    confirmed: "confirmed",
+  });
+  assert.ok(confirmedOnly.every((a) => a.confirmed));
+  assert.ok(confirmedOnly.length < accounts.length);
+});

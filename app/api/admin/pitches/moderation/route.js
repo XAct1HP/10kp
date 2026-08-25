@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "../../../../../lib/supabase";
 import { writeAudit } from "../../../../../lib/moderation/audit";
 import { enqueueForModeration, runModeration } from "../../../../../lib/moderation/pipeline";
 import { MODERATION_STATE } from "../../../../../lib/moderation/types";
+import { evaluateAwardEligibility } from "../../../../../lib/awards/eligibility";
 
 export const runtime = "nodejs";
 // Long-running: retry action synchronously waits for the pipeline to
@@ -162,6 +163,19 @@ export async function PATCH(request) {
     adminNotes: note || null,
   });
 
+  // A manual approval is the other way a pitch reaches the gallery, so the
+  // award-track check has to run here too. Awaited — an admin can wait a few
+  // seconds and would rather see the tracks resolved on the spot. A failure
+  // here must not undo the approval; the reconciler picks it up instead.
+  let awardEligibility = null;
+  if (action === "approve") {
+    try {
+      awardEligibility = await evaluateAwardEligibility(pitchId);
+    } catch (err) {
+      awardEligibility = { error: err.message };
+    }
+  }
+
   // For retry, actually run the pipeline right now (not just enqueue).
   // This is admin-only, so we can afford to wait synchronously — the
   // reconciler cron is a safety net for production, not the primary
@@ -192,7 +206,7 @@ export async function PATCH(request) {
     }
   }
 
-  return NextResponse.json({ pitch: updated });
+  return NextResponse.json({ pitch: updated, awardEligibility });
 }
 
 // GET /api/admin/pitches/moderation?pitchId=...

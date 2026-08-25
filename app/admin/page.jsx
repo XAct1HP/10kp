@@ -453,6 +453,161 @@ function ModerationReport({ pitch }) {
 
 // Internal notes editor for the moderation panel.
 // Notes are admin-visible only and stored in `moderation_admin_notes`.
+// ── Award tracks ────────────────────────────────────────────────────────
+// What the submitter asked to be judged for, what the relevance check made
+// of it, and the admin's last word. The check only ever removes a pitch on a
+// confident "no", so `unverified` here means the check couldn't run — not
+// that the pitch failed it.
+function AwardTrackRow({ track, onAction, busy, disabled }) {
+  const removed = track.status === "removed";
+  const pending = track.status === "pending";
+  const overridden = Boolean(track.overridden_by);
+
+  const pill = removed
+    ? { label: "Removed", fg: "#fca5a5", bg: "rgba(239,68,68,0.12)" }
+    : pending
+    ? { label: "Pending check", fg: "rgba(255,255,255,0.5)", bg: "rgba(255,255,255,0.06)" }
+    : track.match_decision === "unverified"
+    ? { label: "Unverified", fg: "#fcd34d", bg: "rgba(245,158,11,0.12)" }
+    : { label: "In track", fg: "#86efac", bg: "rgba(34,197,94,0.12)" };
+
+  return (
+    <div
+      className="rounded-lg p-3"
+      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-sm font-semibold ${removed ? "text-white/40 line-through" : "text-white/85"}`}>
+              {track.name}
+            </span>
+            {track.is_raffle && (
+              <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-semibold"
+                style={{ background: "rgba(255,203,5,0.15)", color: "#FFCB05" }}>Auto</span>
+            )}
+            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold"
+              style={{ background: pill.bg, color: pill.fg }}>{pill.label}</span>
+            {overridden && (
+              <span className="text-[10px] text-white/35" title={`Overridden by ${track.overridden_by}`}>
+                set by {track.overridden_by}
+              </span>
+            )}
+          </div>
+          {track.match_reason && (
+            <p className="text-[11px] text-white/45 mt-1.5 leading-relaxed">{track.match_reason}</p>
+          )}
+          {typeof track.match_confidence === "number" && (
+            <p className="text-[10px] text-white/25 mt-1 tabular-nums">
+              confidence {Math.round(track.match_confidence * 100)}%
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          {removed ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onAction(track.award_id, "include")}
+              className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-40"
+            >
+              {busy === "include" ? "..." : "Put back"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onAction(track.award_id, "exclude")}
+              className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-red-300 hover:text-red-200 transition-colors disabled:opacity-40"
+              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
+            >
+              {busy === "exclude" ? "..." : "Remove"}
+            </button>
+          )}
+          {!track.is_raffle && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onAction(track.award_id, "recheck")}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white/50 hover:text-white/80 transition-colors disabled:opacity-40"
+              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+              title="Discard the override and re-run the relevance check"
+            >
+              {busy === "recheck" ? "..." : "Re-check"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AwardTracksPanel({ pitch, awards, onAction, busyKey }) {
+  const [adding, setAdding] = useState("");
+  const tracks = pitch.award_tracks || [];
+  const trackIds = new Set(tracks.map((t) => t.award_id));
+  const addable = (awards || []).filter((a) => !trackIds.has(a.id));
+  const inTrack = tracks.filter((t) => t.status === "eligible").length;
+
+  return (
+    <div className="px-4 sm:px-7 pb-4">
+      <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-white/60">Award tracks</h4>
+          <span className="text-[11px] text-white/30">
+            {tracks.length === 0 ? "none selected" : `${inTrack} of ${tracks.length} active`}
+          </span>
+        </div>
+        <p className="text-[11px] text-white/35 mb-3 leading-relaxed">
+          Selected by the submitter, then checked against each award&rsquo;s criteria once
+          the pitch was approved. Your decision here is final &mdash; the check won&rsquo;t
+          revisit a track you&rsquo;ve set.
+        </p>
+
+        {tracks.length > 0 ? (
+          <div className="space-y-2">
+            {tracks.map((track) => (
+              <AwardTrackRow
+                key={track.award_id}
+                track={track}
+                onAction={(awardId, action) => onAction(pitch.id, awardId, action)}
+                busy={busyKey?.startsWith(`${track.award_id}:`) ? busyKey.split(":")[1] : null}
+                disabled={Boolean(busyKey)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-white/30 italic">
+            This pitch isn&rsquo;t in any award track.
+          </p>
+        )}
+
+        {addable.length > 0 && (
+          <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <select
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              className="flex-1 px-3 py-1.5 rounded-lg text-xs text-white/70 focus:outline-none focus:ring-1 focus:ring-maize/40 appearance-none cursor-pointer"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <option value="">Add to an award track...</option>
+              {addable.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <button
+              type="button"
+              disabled={!adding || Boolean(busyKey)}
+              onClick={() => { onAction(pitch.id, adding, "include"); setAdding(""); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ModerationNoteEditor({ pitch, onSave, saving }) {
   const [value, setValue] = useState(pitch?.moderation_admin_notes || "");
   const [dirty, setDirty] = useState(false);
@@ -500,6 +655,9 @@ export default function AdminPage() {
 
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState("");
+  const [awards, setAwards] = useState([]);
+  // "<awardId>:<action>" while an override request is in flight.
+  const [awardActionKey, setAwardActionKey] = useState(null);
   const [votes, setVotes] = useState([]);
   const [votePage, setVotePage] = useState(1);
   const [announcements, setAnnouncements] = useState([]);
@@ -514,6 +672,8 @@ export default function AdminPage() {
   const [outreachScope, setOutreachScope] = useState("all");
   const [outreachConfirmed, setOutreachConfirmed] = useState("all");
   const [outreachSearch, setOutreachSearch] = useState("");
+  const [outreachAward, setOutreachAward] = useState("");
+  const [outreachTag, setOutreachTag] = useState("");
   const [broadcastForm, setBroadcastForm] = useState({
     subject: "",
     message: "Heads up, get your pitch in by 5PM Friday for the upcoming Weekly Raffle!",
@@ -556,6 +716,7 @@ export default function AdminPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTag, setFilterTag] = useState("");
+  const [filterAward, setFilterAward] = useState("");
   const [filterType, setFilterType] = useState("");
 
   const [defaultThumbnails, setDefaultThumbnails] = useState({ audio: null, text: null });
@@ -611,13 +772,16 @@ export default function AdminPage() {
       r = r.filter((p) => p.title?.toLowerCase().includes(q) || p.name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q));
     }
     if (filterTag) r = r.filter((p) => p.tags?.some((t) => t.id === filterTag));
+    // Award track = the tracks a pitch is actually still in. Selections the
+    // relevance check dropped, or an admin removed, don't match.
+    if (filterAward) r = r.filter((p) => (p.award_ids || []).includes(filterAward));
     if (filterType) {
       if (filterType === "video") r = r.filter((p) => p.file_type === "video");
       else if (filterType === "text") r = r.filter((p) => p.file_type === "file" && (p.text_content || /\.(txt|pdf|doc|docx)$/i.test(p.file_name || "")));
       else if (filterType === "audio") r = r.filter((p) => p.file_type === "file" && /\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || ""));
     }
     return r;
-  }, [currentCohortPitches, searchQuery, filterTag, filterType]);
+  }, [currentCohortPitches, searchQuery, filterTag, filterAward, filterType]);
 
   const pitchTotalPages = Math.max(1, Math.ceil(filteredPitches.length / PITCHES_PER_PAGE));
   const paginatedPitches = filteredPitches.slice((pitchPage - 1) * PITCHES_PER_PAGE, pitchPage * PITCHES_PER_PAGE);
@@ -625,7 +789,7 @@ export default function AdminPage() {
   const paginatedVotes = votes.slice((votePage - 1) * VOTES_PER_PAGE, votePage * VOTES_PER_PAGE);
 
   // Reset page when filters change
-  useEffect(() => { setPitchPage(1); }, [searchQuery, filterTag, filterType]);
+  useEffect(() => { setPitchPage(1); }, [searchQuery, filterTag, filterAward, filterType]);
 
   // ── Fetchers ──
   const fetchDate = useCallback(async () => {
@@ -633,6 +797,9 @@ export default function AdminPage() {
   }, []);
   const fetchPitches = useCallback(async () => { try { setPitches(await apiFetch("/api/admin/pitches")); } catch {} finally { setLoadingState((s) => ({ ...s, pitches: false })); } }, []);
   const fetchTags = useCallback(async () => { try { setTags(await apiFetch("/api/admin/tags")); } catch {} finally { setLoadingState((s) => ({ ...s, tags: false })); } }, []);
+  // Award list drives the track filter, the outreach filter, and the "add to
+  // track" picker. A failure just leaves those pickers empty.
+  const fetchAwards = useCallback(async () => { try { setAwards(await apiFetch("/api/admin/awards")); } catch {} }, []);
   const fetchVotes = useCallback(async () => { try { setVotes(await apiFetch("/api/admin/votes")); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
   const fetchAnnouncements = useCallback(async () => {
     try {
@@ -650,6 +817,8 @@ export default function AdminPage() {
       if (outreachScope !== "all") params.set("scope", outreachScope);
       if (outreachConfirmed !== "all") params.set("confirmed", outreachConfirmed);
       if (outreachSearch.trim()) params.set("search", outreachSearch.trim());
+      if (outreachAward) params.set("award", outreachAward);
+      if (outreachTag) params.set("tag", outreachTag);
       const query = params.toString();
       const data = await apiFetch(`/api/admin/accounts${query ? `?${query}` : ""}`);
       setOutreach({
@@ -662,7 +831,7 @@ export default function AdminPage() {
     } finally {
       setOutreachLoading(false);
     }
-  }, [outreachScope, outreachConfirmed, outreachSearch]);
+  }, [outreachScope, outreachConfirmed, outreachSearch, outreachAward, outreachTag]);
   const fetchBroadcastHistory = useCallback(async () => {
     setBroadcastHistoryLoading(true);
     try {
@@ -707,6 +876,7 @@ export default function AdminPage() {
       fetchDate();
       fetchPitches();
       fetchTags();
+      fetchAwards();
       fetchVotes();
       fetchAnnouncements();
       fetchDefThumb();
@@ -717,6 +887,7 @@ export default function AdminPage() {
     fetchDate,
     fetchPitches,
     fetchTags,
+    fetchAwards,
     fetchVotes,
     fetchAnnouncements,
     fetchDefThumb,
@@ -740,7 +911,7 @@ export default function AdminPage() {
       fetchOutreach().catch((e) => setError(e.message));
     }, 250);
     return () => clearTimeout(timeout);
-  }, [activeTab, outreachLoaded, outreachScope, outreachConfirmed, outreachSearch, fetchOutreach]);
+  }, [activeTab, outreachLoaded, outreachScope, outreachConfirmed, outreachSearch, outreachAward, outreachTag, fetchOutreach]);
 
   // Extract text from PDF/DOC/DOCX/TXT when a text pitch is opened
   useEffect(() => {
@@ -782,6 +953,46 @@ export default function AdminPage() {
     setError(""); setDeletingPitchId(pid);
     try { await apiFetch(`/api/admin/pitches?id=${pid}`, { method: "DELETE" }); setPitches((p) => p.filter((x) => x.id !== pid)); setDeleteConfirm(null); if (selectedPitch?.id === pid) setSelectedPitch(null); setSuccess("Pitch removed."); } catch (e) { setError(e.message); } finally { setDeletingPitchId(null); }
   };
+  // The API hands back the authoritative track list after any change; fold it
+  // into both the list row (which the award filter reads) and the open modal.
+  const applyAwardTracks = (pitchId, tracks) => {
+    const patch = {
+      award_tracks: tracks,
+      award_ids: tracks.filter((t) => t.status === "eligible").map((t) => t.award_id),
+    };
+    setPitches((prev) => prev.map((p) => (p.id === pitchId ? { ...p, ...patch } : p)));
+    setSelectedPitch((prev) => (prev && prev.id === pitchId ? { ...prev, ...patch } : prev));
+  };
+
+  const refreshAwardTracks = async (pitchId) => {
+    try {
+      const d = await apiFetch(`/api/admin/pitches/awards?pitchId=${encodeURIComponent(pitchId)}`);
+      applyAwardTracks(pitchId, d.tracks || []);
+    } catch {
+      // Non-fatal — the tracks just stay as they were until the next reload.
+    }
+  };
+
+  const handleAwardTrackAction = async (pitchId, awardId, action) => {
+    setError(""); setAwardActionKey(`${awardId}:${action}`);
+    try {
+      const d = await apiFetch("/api/admin/pitches/awards", {
+        method: "PATCH",
+        body: JSON.stringify({ pitchId, awardId, action }),
+      });
+      applyAwardTracks(pitchId, d.tracks || []);
+      setSuccess(
+        action === "include" ? "Added to the award track."
+        : action === "exclude" ? "Removed from the award track."
+        : "Relevance check re-run."
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAwardActionKey(null);
+    }
+  };
+
   const handleModerationDecision = async (pitchId, decision, note) => {
     setError(""); setModerationSubmitting(decision);
     try {
@@ -794,6 +1005,8 @@ export default function AdminPage() {
       );
       setSelectedPitch((prev) => (prev && prev.id === pitchId ? { ...prev, ...d.pitch } : prev));
       setSuccess(decision === "approve" ? "Pitch approved." : "Pitch rejected.");
+      // Approval triggers the award-track relevance check on the server.
+      if (decision === "approve") await refreshAwardTracks(pitchId);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -892,6 +1105,8 @@ export default function AdminPage() {
           scope: outreachScope,
           confirmed: outreachConfirmed,
           search: outreachSearch,
+          award: outreachAward,
+          tag: outreachTag,
         }),
       });
       setSuccess(`Broadcast sent to ${data.recipientCount} account${data.recipientCount === 1 ? "" : "s"}.`);
@@ -1355,6 +1570,12 @@ export default function AdminPage() {
                     <option value="">All Tags</option>
                     {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
+                  <select value={filterAward} onChange={(e) => setFilterAward(e.target.value)}
+                    className="px-3 py-2 rounded-lg text-sm text-white/70 focus:outline-none focus:ring-1 focus:ring-maize/40 appearance-none cursor-pointer"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <option value="">All Award Tracks</option>
+                    {awards.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
                   <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
                     className="px-3 py-2 rounded-lg text-sm text-white/70 focus:outline-none focus:ring-1 focus:ring-maize/40 appearance-none cursor-pointer"
                     style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1369,7 +1590,7 @@ export default function AdminPage() {
                     Export CSV
                   </button>
                 </div>
-                {(searchQuery || filterTag || filterType) && (
+                {(searchQuery || filterTag || filterAward || filterType) && (
                   <p className="text-xs text-white/30 mt-2">{filteredPitches.length} of {currentCohortPitches.length} pitches{searchQuery && <span> matching &ldquo;{searchQuery}&rdquo;</span>}</p>
                 )}
               </GlassCard>
@@ -1591,6 +1812,34 @@ export default function AdminPage() {
                       <option value="unconfirmed">Unconfirmed only</option>
                     </select>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                    <select
+                      value={outreachAward}
+                      onChange={(e) => setOutreachAward(e.target.value)}
+                      className="px-4 py-2.5 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-maize/40"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      <option value="">All award tracks</option>
+                      {awards.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                    <select
+                      value={outreachTag}
+                      onChange={(e) => setOutreachTag(e.target.value)}
+                      className="px-4 py-2.5 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-maize/40"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      <option value="">All tags</option>
+                      {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+
+                  {(outreachAward || outreachTag) && (
+                    <p className="text-[11px] text-white/35 mt-2">
+                      Showing only accounts that submitted a matching pitch. Broadcasts
+                      and the CSV export follow this same list.
+                    </p>
+                  )}
 
                   <input
                     type="text"
@@ -2427,6 +2676,13 @@ export default function AdminPage() {
                 />
               </div>
             )}
+
+            <AwardTracksPanel
+              pitch={selectedPitch}
+              awards={awards}
+              onAction={handleAwardTrackAction}
+              busyKey={awardActionKey}
+            />
 
             {/* Body — flex column on mobile, row on desktop. Parent wrapper handles scrolling. */}
             <div className="flex flex-col md:flex-row px-4 sm:px-7 pb-5 sm:pb-6 gap-4 md:gap-6">

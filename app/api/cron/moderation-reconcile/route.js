@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { runModeration } from "../../../../lib/moderation/pipeline";
 import { getModerationConfig } from "../../../../lib/env";
 import { MODERATION_STATE } from "../../../../lib/moderation/types";
+import { evaluateAwardEligibility } from "../../../../lib/awards/eligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ export const dynamic = "force-dynamic";
 //   3. Rows in `failed` whose retry window has arrived.
 //   4. Rows stranded in `not_started` because the submit-time handoff
 //      never completed.
+//   5. Approved pitches whose award-track relevance check never ran — the
+//      pipeline fires it as a background promise, which Vercel may kill
+//      once the response is flushed. This is its durable backstop.
 //
 // Auth: caller must supply the shared secret configured in
 // MODERATION_CRON_SECRET (via `Authorization: Bearer <secret>` OR the
@@ -25,6 +29,34 @@ export const dynamic = "force-dynamic";
 const STALE_PROCESSING_MS = 15 * 60_000; // 15 minutes
 const STRANDED_NOT_STARTED_MS = 30_000; // grace period after insert
 const BATCH_SIZE = 25;
+const AWARD_BATCH_SIZE = 25;
+
+// Sweep award tracks left `pending` on pitches that are already approved.
+// Never fatal: award tracks are a nice-to-have next to moderation itself, so
+// a failure here returns a note rather than failing the whole cron run.
+async function reconcileAwardTracks(supabase) {
+  const { data, error } = await supabase
+    .from("pitch_awards")
+    .select("pitch_id, pitches!inner ( moderation_state )")
+    .eq("status", "pending")
+    .eq("pitches.moderation_state", MODERATION_STATE.APPROVED)
+    .limit(AWARD_BATCH_SIZE * 4);
+
+  if (error) return { skipped: error.message };
+
+  const pitchIds = Array.from(new Set((data || []).map((row) => row.pitch_id)))
+    .slice(0, AWARD_BATCH_SIZE);
+
+  const results = [];
+  for (const pitchId of pitchIds) {
+    try {
+      results.push({ pitchId, ...(await evaluateAwardEligibility(pitchId)) });
+    } catch (err) {
+      results.push({ pitchId, error: err.message });
+    }
+  }
+  return { picked_up: pitchIds.length, results };
+}
 
 function isAuthorized(request) {
   const cfg = getModerationConfig();
@@ -125,9 +157,12 @@ async function handle(request) {
     }
   }
 
+  const awardTracks = await reconcileAwardTracks(supabase);
+
   return NextResponse.json({
     processed: results.length,
     picked_up: pitchIds.length,
     results,
+    award_tracks: awardTracks,
   });
 }
