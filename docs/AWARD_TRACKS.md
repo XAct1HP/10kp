@@ -77,7 +77,24 @@ is actually still in); **Outreach** filters accounts by award track and by
 tag, and both the CSV export and the broadcast follow whatever is filtered.
 The pitch CSV gained `Award Tracks` and `Award Tracks Removed` columns.
 
+## Intake layout constraint
+
+Floor 4 carries both tags and awards, which is more than fits. The elevator
+background is `bg-cover` on the page shell, so a shell that grows with its
+content scales the image up and pushes the elevator's button panel out of
+frame. The shell is therefore pinned to exactly one viewport (`.intake-shell`
+in `app/globals.css`) and every floor scrolls inside the glass column instead.
+
+Tags sit in a capped pane (`clamp(76px, 9vh, 120px)`); awards get `flex-1` and
+absorb whatever is left, with a 132px floor. Both hide their scrollbar and show
+a bottom fade only while there is more to scroll. Measured in a headless
+browser: no nested scrolling at 1440x800 and up, page never scrolls at any
+size, and Back / Next Floor stay visible throughout.
+
+Do not put `min-h-` back on that shell.
+
 ## Migration
+
 
 `migrations/20260825_award_tracks.sql`. Safe to re-run. It also widens the
 `moderation_audit` action check constraint — without that, award overrides

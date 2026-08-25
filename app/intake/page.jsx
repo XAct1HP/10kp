@@ -7,6 +7,57 @@ import Image from "next/image";
 import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
 
+// Scrollable pane with the scrollbar hidden and a bottom fade that only
+// appears while there is more to scroll to. Mirrors the admin page's
+// ScrollPane — with no scrollbar to look at, the fade is the only cue that
+// the list continues.
+function ScrollPane({ children, className = "", wrapperClassName = "", style, fadeHeight = 28 }) {
+  const scrollRef = useRef(null);
+  const [showFade, setShowFade] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const update = () => {
+      setShowFade(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+
+    // Watch the pane and its content: the pane is sized in viewport units, and
+    // tags / awards arrive from the network after the first paint.
+    let observer;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(update);
+      observer.observe(el);
+      if (el.firstElementChild) observer.observe(el.firstElementChild);
+    }
+
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className={`relative ${wrapperClassName}`}>
+      <div ref={scrollRef} className={`overflow-y-auto no-scrollbar ${className}`} style={style}>
+        {children}
+      </div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 left-0 right-0 transition-opacity duration-200"
+        style={{
+          height: fadeHeight,
+          background: "linear-gradient(to bottom, rgba(11,26,59,0) 0%, rgba(11,26,59,0.85) 100%)",
+          opacity: showFade ? 1 : 0,
+        }}
+      />
+    </div>
+  );
+}
+
 const ACCEPTED_FILE_TYPES = [
   // Text/Document
   "application/pdf",
@@ -962,45 +1013,53 @@ export default function IntakePage() {
     </div>
   );
 
+  // The page is pinned to one viewport so the elevator background never
+  // rescales, which gives this floor a fixed budget. Rather than guess at it in
+  // viewport units, the layout divides it: the headings and the tag pane take
+  // what they need, and the award pane absorbs whatever is left. Measured on a
+  // 1440x900 window the headings cost ~270px, leaving ~325px for the two panes.
+  const TAG_PANE_HEIGHT = "clamp(76px, 9vh, 120px)"; // ~2 rows of chips + a peek
+  const AWARD_PANE_MIN_HEIGHT = 132;                 // ~1.5 cards; floor for short windows
+
   const renderTags = () => (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-1">Floor 4 — Tags &amp; Awards</h2>
-      <p className="text-white/50 text-sm mb-6">
-        Categorize your pitch, then tell us which awards it should compete for.
-      </p>
+    <div className="flex flex-col h-full min-h-0">
+      <h2 className="text-2xl font-bold text-white mb-4 flex-shrink-0">
+        Floor 4 — Tags &amp; Awards
+      </h2>
 
       {/* ── Tags: descriptive only ───────────────────────────────── */}
-      <div className="mb-8">
+      <div className="mb-4 flex-shrink-0">
         <div className="flex items-baseline justify-between gap-3 mb-1">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tags</h3>
           <span className="text-[11px] text-white/30">Optional</span>
         </div>
-        <p className="text-white/40 text-xs mb-4 leading-relaxed">
-          The categories your pitch belongs to. Tags help people find your pitch in
-          the gallery — they don&rsquo;t affect which awards you&rsquo;re considered for.
+        <p className="text-white/40 text-xs mb-2 leading-relaxed">
+          How your pitch is categorized in the gallery. Tags don&rsquo;t affect awards.
         </p>
         {availableTags.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {availableTags.map((tag) => {
-              const on = selectedTags.includes(tag.id);
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => toggleTag(tag.id)}
-                  aria-pressed={on}
-                  className="px-4 py-2 text-sm rounded-full transition-all duration-200"
-                  style={{
-                    border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
-                    background: on ? "rgba(255,203,5,0.15)" : "transparent",
-                    color: on ? "#FFCB05" : "rgba(255,255,255,0.6)",
-                  }}
-                >
-                  {tag.name}
-                </button>
-              );
-            })}
-          </div>
+          <ScrollPane style={{ maxHeight: TAG_PANE_HEIGHT }}>
+            <div className="flex flex-wrap gap-2 pb-2">
+              {availableTags.map((tag) => {
+                const on = selectedTags.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => toggleTag(tag.id)}
+                    aria-pressed={on}
+                    className="px-4 py-2 text-sm rounded-full transition-all duration-200"
+                    style={{
+                      border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
+                      background: on ? "rgba(255,203,5,0.15)" : "transparent",
+                      color: on ? "#FFCB05" : "rgba(255,255,255,0.6)",
+                    }}
+                  >
+                    {tag.name}
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollPane>
         ) : (
           <p className="text-white/40 text-sm italic">No tags available yet.</p>
         )}
@@ -1008,89 +1067,93 @@ export default function IntakePage() {
 
       {/* ── Award tracks: what the pitch competes for ─────────────── */}
       {availableAwards.length > 0 && (
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} className="pt-6">
-          <div className="flex items-baseline justify-between gap-3 mb-1">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              Awards
-            </h3>
+        <div
+          style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}
+          className="pt-3 flex-1 min-h-0 flex flex-col"
+        >
+          <div className="flex items-baseline justify-between gap-3 mb-1 flex-shrink-0">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Awards</h3>
             <span className="text-[11px] font-semibold" style={{ color: "#FFCB05" }}>
               Highly encouraged
             </span>
           </div>
-          <p className="text-white/40 text-xs mb-4 leading-relaxed">
-            Pick every award your pitch genuinely fits. After your pitch is reviewed,
-            we check its content against each award&rsquo;s criteria — pick ones that
-            don&rsquo;t match and your pitch is simply dropped from those, so there&rsquo;s
-            no advantage to selecting everything.
+          <p className="text-white/40 text-xs mb-2 leading-relaxed flex-shrink-0">
+            Pick every award your pitch genuinely fits — we check each pick against the
+            award&rsquo;s criteria after review, so extra picks gain you nothing.
             {raffleAward && (
               <>
                 {" "}
-                Every approved pitch is automatically entered in the{" "}
-                <span className="text-white/60 font-semibold">{raffleAward.name}</span> —
-                you don&rsquo;t need to select anything for that.
+                The <span className="text-white/60 font-semibold">{raffleAward.name}</span> is
+                automatic.
               </>
             )}
           </p>
 
-          <div className="space-y-2">
-            {availableAwards.map((award) => {
-              const on = selectedAwards.includes(award.id);
-              return (
-                <button
-                  key={award.id}
-                  type="button"
-                  onClick={() => toggleAward(award.id)}
-                  aria-pressed={on}
-                  className="w-full text-left rounded-xl p-4 transition-all duration-200 flex items-start gap-3"
-                  style={{
-                    border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
-                    background: on ? "rgba(255,203,5,0.1)" : "rgba(255,255,255,0.03)",
-                  }}
-                >
-                  <span
-                    className="mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+          <ScrollPane
+            wrapperClassName="flex-1 min-h-0"
+            className="h-full"
+            style={{ minHeight: AWARD_PANE_MIN_HEIGHT }}
+          >
+            <div className="space-y-2 pb-3">
+              {availableAwards.map((award) => {
+                const on = selectedAwards.includes(award.id);
+                return (
+                  <button
+                    key={award.id}
+                    type="button"
+                    onClick={() => toggleAward(award.id)}
+                    aria-pressed={on}
+                    className="w-full text-left rounded-xl p-3.5 transition-all duration-200 flex items-start gap-3"
                     style={{
-                      border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.25)",
-                      background: on ? "#FFCB05" : "transparent",
+                      border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+                      background: on ? "rgba(255,203,5,0.1)" : "rgba(255,255,255,0.03)",
                     }}
-                    aria-hidden="true"
                   >
-                    {on && (
-                      <svg className="w-3 h-3" viewBox="0 0 20 20" fill="#0B1A3B">
-                        <path
-                          fillRule="evenodd"
-                          d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
                     <span
-                      className="block text-sm font-bold"
-                      style={{ color: on ? "#FFCB05" : "rgba(255,255,255,0.85)" }}
+                      className="mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                      style={{
+                        border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.25)",
+                        background: on ? "#FFCB05" : "transparent",
+                      }}
+                      aria-hidden="true"
                     >
-                      {award.name}
+                      {on && (
+                        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="#0B1A3B">
+                          <path
+                            fillRule="evenodd"
+                            d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
                     </span>
-                    {award.prize && (
-                      <span className="block text-[11px] font-semibold text-maize/70 mt-0.5">
-                        {award.prize}
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="block text-sm font-bold"
+                        style={{ color: on ? "#FFCB05" : "rgba(255,255,255,0.85)" }}
+                      >
+                        {award.name}
                       </span>
-                    )}
-                    {award.description && (
-                      <span className="block text-xs text-white/45 mt-1 leading-relaxed">
-                        {award.description}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                      {award.prize && (
+                        <span className="block text-[11px] font-semibold text-maize/70 mt-0.5">
+                          {award.prize}
+                        </span>
+                      )}
+                      {award.description && (
+                        <span className="block text-xs text-white/45 mt-1 leading-relaxed">
+                          {award.description}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollPane>
 
-          <p className="text-[11px] text-white/30 mt-3">
+          <p className="text-[11px] text-white/30 mt-2 flex-shrink-0">
             {selectedAwards.length === 0
-              ? "No awards selected — your pitch will still appear in the gallery."
+              ? "None selected — your pitch still appears in the gallery."
               : `${selectedAwards.length} award${selectedAwards.length === 1 ? "" : "s"} selected.`}
           </p>
         </div>
@@ -1352,7 +1415,7 @@ export default function IntakePage() {
 
   return (
     <ProtectedRoute>
-      <div className="relative min-h-[calc(100vh-5rem)] flex overflow-hidden">
+      <div className="intake-shell relative flex overflow-hidden">
         {/* Background images with crossfade */}
         <div className="absolute inset-0">
           {backgroundLayers.map((layer) => (
@@ -1369,9 +1432,9 @@ export default function IntakePage() {
         </div>
 
         {/* Glass card on the left */}
-        <div className="relative z-10 w-full lg:w-[520px] flex flex-col min-h-[calc(100vh-5rem)]">
+        <div className="relative z-10 w-full lg:w-[520px] flex flex-col h-full min-h-0">
           <div
-            className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-10"
+            className="flex-1 min-h-0 flex flex-col px-8 lg:px-12 py-10"
             style={{
               background: "rgba(11, 26, 59, 0.82)",
               backdropFilter: "blur(20px)",
@@ -1380,7 +1443,7 @@ export default function IntakePage() {
           >
             {/* Floor indicator */}
             {floor > 0 && !submitted && (
-              <div className="mb-8">
+              <div className="mb-8 flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
                   {[1, 2, 3, 4, 5, 6, 7].map((f) => (
                     <div
@@ -1415,14 +1478,21 @@ export default function IntakePage() {
               </div>
             )}
 
-            {/* Content */}
-            <div className={`transition-opacity duration-300 ${transitioning ? "opacity-0" : "opacity-100"}`}>
-              {renderFloor()}
+            {/* Content — the only part of the column that scrolls. `safe center`
+                keeps short floors visually centered while leaving tall ones
+                (Schools, Review) reachable from the top. */}
+            <div
+              className={`flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col transition-opacity duration-300 ${transitioning ? "opacity-0" : "opacity-100"}`}
+              style={{ justifyContent: "safe center" }}
+            >
+              <div className={`w-full flex-shrink-0 ${floor === 4 ? "h-full min-h-0" : ""}`}>
+                {renderFloor()}
+              </div>
             </div>
 
             {/* Navigation buttons */}
             {floor > 0 && floor <= 7 && !submitted && (
-              <div className="flex gap-3 mt-8">
+              <div className="flex gap-3 mt-8 flex-shrink-0">
                 <button
                   onClick={prevFloor}
                   className="flex items-center gap-2 px-5 py-3 text-sm font-medium rounded-xl transition-all duration-200"
