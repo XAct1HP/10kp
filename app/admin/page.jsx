@@ -1771,7 +1771,13 @@ export default function AdminPage() {
                   </div>
                 </GlassCard>
 
-                <GlassCard noPad className="xl:col-span-3 flex flex-col min-h-0">
+                {/* The grid row is sized by the Outreach card alone: this wrapper holds
+                    an absolutely-positioned card, so its content never pushes the row
+                    taller. The card then fills the wrapper exactly, ending level with
+                    the "Send winner alert" button, and the two lists inside scroll to
+                    fit. Below xl the columns stack and it all reverts to normal flow. */}
+                <div className="xl:col-span-3 xl:relative">
+                <GlassCard noPad className="flex flex-col xl:absolute xl:inset-0">
                   <div className="px-5 py-4 border-b border-white/[0.04] flex-shrink-0">
                     <h2 className="text-lg font-bold text-white">Matching Accounts</h2>
                     <p className="text-xs text-white/30 mt-1">
@@ -1780,7 +1786,7 @@ export default function AdminPage() {
                   </div>
 
                   {outreachLoading ? (
-                    <div className="h-64 xl:h-auto xl:flex-1 flex items-center justify-center">
+                    <div className="h-64 xl:h-auto xl:flex-1 xl:min-h-0 flex items-center justify-center">
                       <svg className="animate-spin h-6 w-6 text-maize" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                     </div>
                   ) : outreach.accounts.length === 0 ? (
@@ -1791,7 +1797,7 @@ export default function AdminPage() {
                     // fills the height the Outreach card sets beside it; stacked
                     // below xl it falls back to a fixed cap.
                     <ScrollPane
-                      className="xl:flex-1 xl:min-h-[14rem]"
+                      className="xl:flex-1 xl:min-h-0"
                       innerClassName="max-h-[26rem] xl:max-h-none xl:h-full"
                     >
                       <table className="w-full text-sm">
@@ -1849,8 +1855,8 @@ export default function AdminPage() {
                     </ScrollPane>
                   )}
 
-                  <div className="border-t border-white/[0.04] flex-shrink-0">
-                    <div className="px-5 py-4">
+                  <div className="border-t border-white/[0.04] flex-shrink-0 xl:flex xl:flex-col xl:min-h-0 xl:max-h-[45%]">
+                    <div className="px-5 py-4 flex-shrink-0">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-semibold text-white">Outreach History</h3>
@@ -1873,7 +1879,8 @@ export default function AdminPage() {
                       </p>
                     ) : (
                       <ScrollPane
-                        innerClassName="max-h-[20rem] divide-y divide-white/[0.03]"
+                        className="xl:flex-1 xl:min-h-0"
+                        innerClassName="max-h-[20rem] xl:max-h-none xl:h-full divide-y divide-white/[0.03]"
                         fadeClassName="h-8"
                       >
                         {broadcastHistory.map((item) => (
@@ -1904,6 +1911,7 @@ export default function AdminPage() {
                     )}
                   </div>
                 </GlassCard>
+                </div>
               </div>
             </div>
           )}
