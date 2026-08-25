@@ -85,11 +85,20 @@ content scales the image up and pushes the elevator's button panel out of
 frame. The shell is therefore pinned to exactly one viewport (`.intake-shell`
 in `app/globals.css`) and every floor scrolls inside the glass column instead.
 
-Tags sit in a capped pane (`clamp(76px, 9vh, 120px)`); awards get `flex-1` and
-absorb whatever is left, with a 132px floor. Both hide their scrollbar and show
-a bottom fade only while there is more to scroll. Measured in a headless
-browser: no nested scrolling at 1440x800 and up, page never scrolls at any
-size, and Back / Next Floor stay visible throughout.
+There are three scroll surfaces, all with hidden bars and a bottom fade that
+appears only while there is more to reach:
+
+* Tags pane — `clamp(140px, 20vh, 224px)`, roughly 3-4 rows of chips.
+* Awards pane — `clamp(190px, 28vh, 380px)`, roughly 2-3 cards.
+* The column itself, which absorbs whatever the two panes add up to beyond the
+  viewport. The floor indicator and the Back / Next Floor buttons sit outside
+  it and never move.
+
+The panes are sized for what each list is worth to read, not to fit the
+viewport budget — the column scroll is what makes that affordable. Measured in
+a headless browser: the page never scrolls at any size, Next Floor stays
+visible, and the column scrolls 81px at 1440x900, 181px on a 390x844 phone, and
+not at all at 1920x1080.
 
 Do not put `min-h-` back on that shell.
 

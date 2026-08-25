@@ -1013,22 +1013,20 @@ export default function IntakePage() {
     </div>
   );
 
-  // The page is pinned to one viewport so the elevator background never
-  // rescales, which gives this floor a fixed budget. Rather than guess at it in
-  // viewport units, the layout divides it: the headings and the tag pane take
-  // what they need, and the award pane absorbs whatever is left. Measured on a
-  // 1440x900 window the headings cost ~270px, leaving ~325px for the two panes.
-  const TAG_PANE_HEIGHT = "clamp(76px, 9vh, 120px)"; // ~2 rows of chips + a peek
-  const AWARD_PANE_MIN_HEIGHT = 132;                 // ~1.5 cards; floor for short windows
+  // The shell stays pinned to one viewport so the elevator background never
+  // rescales — see .intake-shell in globals.css. That leaves this floor more
+  // content than fits, which is fine: the column scrolls (hidden bar + fade)
+  // and each pane scrolls inside it. The pane heights below are what the two
+  // lists are worth relative to each other, not an attempt to fit the budget.
+  const TAG_PANE_HEIGHT = "clamp(140px, 20vh, 224px)";   // ~3-4 rows of chips
+  const AWARD_PANE_HEIGHT = "clamp(190px, 28vh, 380px)"; // ~2-3 award cards
 
   const renderTags = () => (
-    <div className="flex flex-col h-full min-h-0">
-      <h2 className="text-2xl font-bold text-white mb-4 flex-shrink-0">
-        Floor 4 — Tags &amp; Awards
-      </h2>
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-4">Floor 4 — Tags &amp; Awards</h2>
 
       {/* ── Tags: descriptive only ───────────────────────────────── */}
-      <div className="mb-4 flex-shrink-0">
+      <div className="mb-4">
         <div className="flex items-baseline justify-between gap-3 mb-1">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tags</h3>
           <span className="text-[11px] text-white/30">Optional</span>
@@ -1067,17 +1065,14 @@ export default function IntakePage() {
 
       {/* ── Award tracks: what the pitch competes for ─────────────── */}
       {availableAwards.length > 0 && (
-        <div
-          style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}
-          className="pt-3 flex-1 min-h-0 flex flex-col"
-        >
-          <div className="flex items-baseline justify-between gap-3 mb-1 flex-shrink-0">
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} className="pt-3">
+          <div className="flex items-baseline justify-between gap-3 mb-1">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Awards</h3>
             <span className="text-[11px] font-semibold" style={{ color: "#FFCB05" }}>
               Highly encouraged
             </span>
           </div>
-          <p className="text-white/40 text-xs mb-2 leading-relaxed flex-shrink-0">
+          <p className="text-white/40 text-xs mb-2 leading-relaxed">
             Pick every award your pitch genuinely fits — we check each pick against the
             award&rsquo;s criteria after review, so extra picks gain you nothing.
             {raffleAward && (
@@ -1089,11 +1084,7 @@ export default function IntakePage() {
             )}
           </p>
 
-          <ScrollPane
-            wrapperClassName="flex-1 min-h-0"
-            className="h-full"
-            style={{ minHeight: AWARD_PANE_MIN_HEIGHT }}
-          >
+          <ScrollPane style={{ maxHeight: AWARD_PANE_HEIGHT }}>
             <div className="space-y-2 pb-3">
               {availableAwards.map((award) => {
                 const on = selectedAwards.includes(award.id);
@@ -1151,7 +1142,7 @@ export default function IntakePage() {
             </div>
           </ScrollPane>
 
-          <p className="text-[11px] text-white/30 mt-2 flex-shrink-0">
+          <p className="text-[11px] text-white/30 mt-2">
             {selectedAwards.length === 0
               ? "None selected — your pitch still appears in the gallery."
               : `${selectedAwards.length} award${selectedAwards.length === 1 ? "" : "s"} selected.`}
@@ -1478,17 +1469,19 @@ export default function IntakePage() {
               </div>
             )}
 
-            {/* Content — the only part of the column that scrolls. `safe center`
-                keeps short floors visually centered while leaving tall ones
-                (Schools, Review) reachable from the top. */}
-            <div
-              className={`flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col transition-opacity duration-300 ${transitioning ? "opacity-0" : "opacity-100"}`}
+            {/* Content — scrolls as a whole, with its own hidden-bar + fade
+                treatment. `safe center` keeps short floors visually centered
+                while leaving tall ones reachable from the top. The panes inside
+                Floor 4 scroll independently; this is the outer one that absorbs
+                whatever they don't. */}
+            <ScrollPane
+              wrapperClassName="flex-1 min-h-0 flex flex-col"
+              className={`h-full flex flex-col transition-opacity duration-300 ${transitioning ? "opacity-0" : "opacity-100"}`}
               style={{ justifyContent: "safe center" }}
+              fadeHeight={36}
             >
-              <div className={`w-full flex-shrink-0 ${floor === 4 ? "h-full min-h-0" : ""}`}>
-                {renderFloor()}
-              </div>
-            </div>
+              <div className="w-full flex-shrink-0">{renderFloor()}</div>
+            </ScrollPane>
 
             {/* Navigation buttons */}
             {floor > 0 && floor <= 7 && !submitted && (
