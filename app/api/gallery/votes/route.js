@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
+import { fingerprintFromHeaders } from "../../../../lib/voteFingerprint";
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -77,12 +78,20 @@ export async function POST(request) {
       );
     }
 
+    // Coarse, hashed request fingerprint. The ballot is open on purpose,
+    // so this is the only handle the integrity detector has on "is this
+    // the same person again?" — see lib/voteFingerprint.js for what is
+    // (and isn't) stored. Every field is nullable and a missing header
+    // must never cost someone their vote.
+    const fingerprint = fingerprintFromHeaders(request.headers);
+
     const { error: voteError } = await supabaseAdmin.from("pitch_votes").insert({
       pitch_id: pitchId,
       user_id: null,
       voter_name: String(voterName).trim(),
       voter_email: normalizedEmail,
       voter_key: normalizedEmail,
+      ...fingerprint,
     });
 
     if (voteError) {

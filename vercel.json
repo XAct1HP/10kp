@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/moderation-reconcile",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/vote-integrity",
+      "schedule": "0 * * * *"
     }
   ]
 }

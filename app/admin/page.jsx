@@ -139,7 +139,6 @@ function useCountdown(targetDate) {
 }
 
 const PITCHES_PER_PAGE = 12;
-const VOTES_PER_PAGE = 12;
 
 // Render `text` with <mark> spans around each moderation flag's char range.
 // `flags` is an array of { start_char, end_char, source, reason, category }.
@@ -641,6 +640,239 @@ function ModerationNoteEditor({ pitch, onSave, saving }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────
+// ─── Vote integrity ───────────────────────────────────────────────────
+// Triage UI for lib/voteIntegrity.js. Every card here is a *lead*, not a
+// verdict: the gallery ballot is open by design, so the detector groups
+// identities that look like one person and a human decides what, if
+// anything, to do about it. Nothing on this screen changes a tally except
+// the explicit "Void" action.
+
+const SEVERITY_STYLE = {
+  high: { dot: "#F87171", text: "text-red-300", bg: "rgba(248,113,113,0.12)", border: "rgba(248,113,113,0.3)", label: "High" },
+  medium: { dot: "#FBBF24", text: "text-amber-300", bg: "rgba(251,191,36,0.12)", border: "rgba(251,191,36,0.3)", label: "Medium" },
+  low: { dot: "#60A5FA", text: "text-blue-300", bg: "rgba(96,165,250,0.12)", border: "rgba(96,165,250,0.3)", label: "Low" },
+};
+
+const CLUSTER_TYPE_LABEL = {
+  stem: "Same inbox",
+  ip: "Same address",
+  subnet_ua: "Same network + browser",
+  name: "Same name",
+  self: "Self-vote",
+};
+
+const SIGNAL_LABEL = {
+  shared_ip: "Shared IP",
+  shared_subnet_ua: "Shared subnet + browser",
+  email_stem: "Collapsing addresses",
+  sequential_locals: "Numbered addresses",
+  name_reuse: "Reused display name",
+  disposable_domain: "Throwaway email",
+  self_vote: "Self-vote",
+  single_target: "One target pitch",
+  burst: "Burst of votes",
+  identical_ballots: "Identical ballots",
+  single_purpose: "Single-purpose identities",
+  regular_cadence: "Machine-like timing",
+  group_size: "Group size",
+  dispersed: "Spread across pitches",
+};
+
+function SignalPill({ signal }) {
+  const negative = signal.weight < 0;
+  return (
+    <span
+      title={signal.detail}
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold ${negative ? "text-emerald-300" : "text-white/70"}`}
+      style={{
+        background: negative ? "rgba(52,211,153,0.1)" : "rgba(255,255,255,0.05)",
+        border: `1px solid ${negative ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.08)"}`,
+      }}
+    >
+      {SIGNAL_LABEL[signal.code] || signal.code}
+      <span className="tabular-nums opacity-50">{negative ? "" : "+"}{signal.weight}</span>
+    </span>
+  );
+}
+
+function EvidenceList({ title, items }) {
+  if (!items?.length) return null;
+  return (
+    <div>
+      <p className="text-[9px] uppercase tracking-[0.18em] text-white/25 mb-1.5">{title}</p>
+      <div className="space-y-1">{items}</div>
+    </div>
+  );
+}
+
+function VoteFlagCard({ flag, expanded, onToggle, onAction, busy }) {
+  const sev = SEVERITY_STYLE[flag.severity] || SEVERITY_STYLE.low;
+  const [confirmVoid, setConfirmVoid] = useState(false);
+  const evidence = flag.evidence || {};
+  const signals = Array.isArray(flag.signals) ? flag.signals : [];
+
+  return (
+    <div
+      className="rounded-xl transition-colors"
+      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      <button
+        onClick={onToggle}
+        className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-white/[0.02] transition-colors rounded-xl"
+      >
+        <span
+          className="mt-1.5 h-2 w-2 rounded-full flex-shrink-0"
+          style={{ background: sev.dot }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-white truncate">
+              {CLUSTER_TYPE_LABEL[flag.cluster_type] || flag.cluster_type}
+            </span>
+            <span className="text-xs text-white/40 truncate">{flag.anchor_label}</span>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${sev.text}`}
+              style={{ background: sev.bg, border: `1px solid ${sev.border}` }}
+            >
+              {sev.label} · {flag.score}
+            </span>
+            {flag.status !== "open" && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-white/40"
+                style={{ background: "rgba(255,255,255,0.05)" }}>
+                {flag.status}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-white/40 mt-1">
+            {flag.voter_count} identities · {flag.vote_count} votes
+            {flag.pitch_title ? <> · target: <span className="text-white/60">{flag.pitch_title}</span></> : null}
+          </p>
+        </div>
+        <svg className={`w-4 h-4 text-white/25 flex-shrink-0 mt-1 transition-transform ${expanded ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-4" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="flex flex-wrap gap-1.5 pt-3">
+            {signals.map((s, i) => <SignalPill key={`${s.code}-${i}`} signal={s} />)}
+          </div>
+
+          <div className="space-y-1.5">
+            {signals.map((s, i) => (
+              <p key={`d-${s.code}-${i}`} className="text-xs text-white/45 leading-relaxed">
+                <span className="text-white/70 font-medium">{SIGNAL_LABEL[s.code] || s.code}</span>
+                {" — "}{s.detail}
+              </p>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            <EvidenceList
+              title={`Identities (${flag.voter_keys?.length || 0})`}
+              items={(flag.voter_keys || []).slice(0, 20).map((k) => (
+                <p key={k} className="text-xs text-white/55 font-mono truncate">{k}</p>
+              ))}
+            />
+            <EvidenceList
+              title="Pitches voted for"
+              items={(evidence.pitches || []).map((p) => (
+                <p key={p.id} className="text-xs text-white/55 truncate">
+                  <span className="tabular-nums text-maize mr-1.5">{p.votes}×</span>{p.title}
+                </p>
+              ))}
+            />
+            <EvidenceList
+              title="Display names"
+              items={(evidence.names || []).map((n) => (
+                <p key={n.name} className="text-xs text-white/55 truncate">
+                  <span className="tabular-nums text-white/30 mr-1.5">{n.count}×</span>{n.name || "—"}
+                </p>
+              ))}
+            />
+            <EvidenceList
+              title="Domains"
+              items={(evidence.domains || []).map((d) => (
+                <p key={d.domain} className="text-xs text-white/55 truncate">
+                  <span className="tabular-nums text-white/30 mr-1.5">{d.count}×</span>{d.domain}
+                </p>
+              ))}
+            />
+          </div>
+
+          {evidence.window && (
+            <p className="text-[11px] text-white/30">
+              First vote {new Date(evidence.window.first).toLocaleString()} · last{" "}
+              {new Date(evidence.window.last).toLocaleString()} · span {evidence.window.spanMinutes} min
+            </p>
+          )}
+
+          {(evidence.countries || []).length > 0 && (
+            <p className="text-[11px] text-white/30">
+              Origin: {evidence.countries.map((c) => `${c.code} (${c.count})`).join(", ")}
+            </p>
+          )}
+
+          {flag.review_note && (
+            <p className="text-[11px] text-white/40 italic">
+              {flag.review_note}
+              {flag.reviewed_by ? ` — ${flag.reviewed_by}` : ""}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              disabled={busy}
+              onClick={() => onAction("dismissed")}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white/60 hover:text-white transition-colors disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              Not suspicious
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => onAction("confirmed")}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-amber-300 hover:text-amber-200 transition-colors disabled:opacity-40"
+              style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.25)" }}
+            >
+              Confirm, keep votes
+            </button>
+            {confirmVoid ? (
+              <span className="flex items-center gap-2">
+                <button
+                  disabled={busy}
+                  onClick={() => { setConfirmVoid(false); onAction("void"); }}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white transition-colors disabled:opacity-40"
+                  style={{ background: "rgba(239,68,68,0.85)" }}
+                >
+                  {busy ? "Voiding..." : `Yes, delete ${flag.vote_count} vote(s)`}
+                </button>
+                <button
+                  onClick={() => setConfirmVoid(false)}
+                  className="text-[11px] text-white/40 hover:text-white/70 transition-colors"
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                disabled={busy || flag.status === "actioned"}
+                onClick={() => setConfirmVoid(true)}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-red-300 hover:text-red-200 transition-colors disabled:opacity-40"
+                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}
+              >
+                Void these votes
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin, adminChecked } = useAuth();
   const router = useRouter();
@@ -659,7 +891,19 @@ export default function AdminPage() {
   // "<awardId>:<action>" while an override request is in flight.
   const [awardActionKey, setAwardActionKey] = useState(null);
   const [votes, setVotes] = useState([]);
-  const [votePage, setVotePage] = useState(1);
+  // Votes tab has two views: the raw audit trail, and the integrity queue
+  // fed by the hourly /api/cron/vote-integrity sweep.
+  const [voteView, setVoteView] = useState("trail"); // trail | integrity
+  const [voteFlags, setVoteFlags] = useState([]);
+  const [voteFlagFilter, setVoteFlagFilter] = useState("open");
+  const [voteFlagsLoading, setVoteFlagsLoading] = useState(false);
+  const [voteFlagsLoaded, setVoteFlagsLoaded] = useState(false);
+  const [expandedFlagId, setExpandedFlagId] = useState(null);
+  const [flagBusyId, setFlagBusyId] = useState(null);
+  // Badge on the Integrity sub-tab. Tracked separately from voteFlags so
+  // it stays correct while the admin is filtering by another status.
+  const [openFlagCount, setOpenFlagCount] = useState(0);
+  const [voteFlagsError, setVoteFlagsError] = useState("");
   const [announcements, setAnnouncements] = useState([]);
   const [outreach, setOutreach] = useState({
     accounts: [],
@@ -785,8 +1029,6 @@ export default function AdminPage() {
 
   const pitchTotalPages = Math.max(1, Math.ceil(filteredPitches.length / PITCHES_PER_PAGE));
   const paginatedPitches = filteredPitches.slice((pitchPage - 1) * PITCHES_PER_PAGE, pitchPage * PITCHES_PER_PAGE);
-  const voteTotalPages = Math.max(1, Math.ceil(votes.length / VOTES_PER_PAGE));
-  const paginatedVotes = votes.slice((votePage - 1) * VOTES_PER_PAGE, votePage * VOTES_PER_PAGE);
 
   // Reset page when filters change
   useEffect(() => { setPitchPage(1); }, [searchQuery, filterTag, filterAward, filterType]);
@@ -801,6 +1043,29 @@ export default function AdminPage() {
   // track" picker. A failure just leaves those pickers empty.
   const fetchAwards = useCallback(async () => { try { setAwards(await apiFetch("/api/admin/awards")); } catch {} }, []);
   const fetchVotes = useCallback(async () => { try { setVotes(await apiFetch("/api/admin/votes")); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
+  const fetchVoteFlags = useCallback(async () => {
+    setVoteFlagsLoading(true);
+    try {
+      const flags = await apiFetch(`/api/admin/vote-flags?status=${voteFlagFilter}`);
+      setVoteFlags(flags);
+      setVoteFlagsError("");
+      setVoteFlagsLoaded(true);
+      // Only these two views actually see every open flag; the others
+      // would report a misleading zero, so leave the badge alone there.
+      if (voteFlagFilter === "open" || voteFlagFilter === "all") {
+        setOpenFlagCount(flags.filter((f) => f.status === "open").length);
+      }
+    } catch (e) {
+      // Before migrations/20260826_vote_integrity.sql has been applied the
+      // vote_flags table doesn't exist yet. That's a setup state, not an
+      // error worth a red banner across the dashboard — show it inline.
+      setVoteFlags([]);
+      setVoteFlagsError(e.message);
+      setVoteFlagsLoaded(true);
+    } finally {
+      setVoteFlagsLoading(false);
+    }
+  }, [voteFlagFilter]);
   const fetchAnnouncements = useCallback(async () => {
     try {
       setAnnouncements(await apiFetch("/api/admin/announcements"));
@@ -939,7 +1204,48 @@ export default function AdminPage() {
   }, [selectedPitch?.id]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(""), 4000); return () => clearTimeout(t); } }, [success]);
 
+  // Integrity queue loads lazily the first time the view is opened, then
+  // refetches whenever the status filter changes.
+  useEffect(() => {
+    // Fetched on entering the Votes tab (not just the Integrity view) so
+    // the badge is accurate before the admin ever opens the queue.
+    if (activeTab !== "votes") return;
+    fetchVoteFlags();
+  }, [activeTab, voteFlagFilter, fetchVoteFlags]);
+
   // ── Handlers ──
+
+  // Triage a vote-integrity flag. "void" is the only destructive path and
+  // deletes exactly the votes the detector attributed to that cluster —
+  // the API refuses ids that don't belong to the flag. Tallies elsewhere
+  // in the dashboard are refetched so counts don't go stale.
+  const handleFlagAction = async (flag, action) => {
+    setError("");
+    setFlagBusyId(flag.id);
+    try {
+      if (action === "void") {
+        const res = await apiFetch("/api/admin/vote-flags", {
+          method: "POST",
+          body: JSON.stringify({ id: flag.id }),
+        });
+        setSuccess(`Voided ${res.voided} vote(s).`);
+        fetchVotes();
+        fetchPitches();
+      } else {
+        await apiFetch("/api/admin/vote-flags", {
+          method: "PATCH",
+          body: JSON.stringify({ id: flag.id, status: action }),
+        });
+        setSuccess(action === "dismissed" ? "Flag dismissed." : "Flag confirmed.");
+      }
+      await fetchVoteFlags();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setFlagBusyId(null);
+    }
+  };
+
   const handleSaveDate = async () => {
     setError(""); if (!dateInput) return;
     try { const d = await apiFetch("/api/admin/competition-date", { method: "POST", body: JSON.stringify({ competition_date: new Date(dateInput).toISOString() }) }); setCompetitionDate(d.competition_date); setEditingDate(false); setSuccess("Competition date updated."); } catch (e) { setError(e.message); }
@@ -1739,16 +2045,72 @@ export default function AdminPage() {
 
           {/* ═══ VOTES ═══ */}
           {activeTab === "votes" && (
-            <GlassCard noPad className="flex-1 flex flex-col min-h-0">
-              <div className="px-5 py-4 border-b border-white/[0.04] flex-shrink-0">
-                <h2 className="text-lg font-bold text-white">Votes Audit Trail</h2>
+            <GlassCard noPad className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="px-5 py-3 border-b border-white/[0.04] flex-shrink-0 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-1">
+                  {[
+                    { id: "trail", label: "Audit Trail" },
+                    { id: "integrity", label: "Integrity" },
+                  ].map((view) => {
+                    const active = voteView === view.id;
+                    return (
+                      <button
+                        key={view.id}
+                        onClick={() => setVoteView(view.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${active ? "text-navy" : "text-white/40 hover:text-white/70"}`}
+                        style={active ? { background: "#F2B517" } : { background: "rgba(255,255,255,0.04)" }}
+                      >
+                        {view.label}
+                        {view.id === "integrity" && openFlagCount > 0 && (
+                          <span
+                            className={`ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums ${active ? "bg-navy/20 text-navy" : "text-red-300"}`}
+                            style={active ? undefined : { background: "rgba(248,113,113,0.15)" }}
+                          >
+                            {openFlagCount}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {voteView === "trail" ? (
+                  votes.length > 0 && (
+                    <span className="text-[11px] text-white/30 tabular-nums">Most recent {votes.length.toLocaleString()}</span>
+                  )
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    {["open", "confirmed", "actioned", "dismissed", "all"].map((status) => {
+                      const active = voteFlagFilter === status;
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => { setVoteFlagFilter(status); setExpandedFlagId(null); }}
+                          className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${active ? "text-maize" : "text-white/30 hover:text-white/60"}`}
+                          style={active ? { background: "rgba(242,181,23,0.12)" } : undefined}
+                        >
+                          {status}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={fetchVoteFlags}
+                      disabled={voteFlagsLoading}
+                      className="ml-1 px-2 py-1 rounded-md text-[10px] font-semibold text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+                      style={{ background: "rgba(255,255,255,0.04)" }}
+                    >
+                      {voteFlagsLoading ? "..." : "Refresh"}
+                    </button>
+                  </div>
+                )}
               </div>
-              {loadingState.votes ? <p className="text-white/30 text-sm p-5">Loading...</p> : votes.length === 0 ? <p className="text-white/30 text-sm p-5">No votes yet.</p> : (
-                <>
-                  <div className="flex-1 overflow-hidden">
+
+              {voteView === "trail" ? (
+                loadingState.votes ? <p className="text-white/30 text-sm p-5">Loading...</p> : votes.length === 0 ? <p className="text-white/30 text-sm p-5">No votes yet.</p> : (
+                  <ScrollPane className="flex-1 min-h-0 flex flex-col" innerClassName="flex-1 min-h-0">
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-white/25 border-b border-white/[0.04]">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="text-[10px] uppercase tracking-wider text-white/25"
+                          style={{ background: "rgba(9,20,45,0.94)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", boxShadow: "inset 0 -1px 0 rgba(255,255,255,0.04)" }}>
                           <th className="text-left px-5 py-2.5 font-semibold">Voter</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Pitch</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Submitter</th>
@@ -1756,7 +2118,7 @@ export default function AdminPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.03]">
-                        {paginatedVotes.map((v) => (
+                        {votes.map((v) => (
                           <tr key={v.id} className="hover:bg-white/[0.02] transition-colors">
                             <td className="px-5 py-2.5 text-white/50">{v.voter_name ? `${v.voter_name} (${v.voter_email || ""})` : v.voter_email || "Unknown"}</td>
                             <td className="px-5 py-2.5 text-white font-medium">{v.pitch_title}</td>
@@ -1766,13 +2128,45 @@ export default function AdminPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
-                  {voteTotalPages > 1 && (
-                    <div className="px-5 pb-3 flex-shrink-0">
-                      <Paginator page={votePage} total={voteTotalPages} onPrev={() => setVotePage((p) => p - 1)} onNext={() => setVotePage((p) => p + 1)} />
-                    </div>
+                  </ScrollPane>
+                )
+              ) : voteFlagsLoading && !voteFlagsLoaded ? (
+                <p className="text-white/30 text-sm p-5">Scanning...</p>
+              ) : voteFlags.length === 0 ? (
+                <div className="p-5">
+                  <p className="text-white/30 text-sm">
+                    {voteFlagsError
+                      ? "Integrity data isn't available yet."
+                      : voteFlagFilter === "open"
+                        ? "Nothing flagged. The hourly sweep re-scans the last 45 days of votes."
+                        : "No flags with this status."}
+                  </p>
+                  {voteFlagsError && (
+                    <p className="text-amber-300/70 text-xs mt-2 font-mono">
+                      {voteFlagsError} — run migrations/20260826_vote_integrity.sql in Supabase.
+                    </p>
                   )}
-                </>
+                  <p className="text-white/20 text-xs mt-2 max-w-xl leading-relaxed">
+                    The gallery ballot is open to anyone, so the detector groups voter identities that
+                    share an inbox, a network, a browser or a name and scores how much they look like
+                    one person. Every flag is a lead for review — no vote is ever removed automatically.
+                  </p>
+                </div>
+              ) : (
+                <ScrollPane className="flex-1 min-h-0 flex flex-col" innerClassName="flex-1 min-h-0 px-4 py-4">
+                  <div className="space-y-2">
+                    {voteFlags.map((flag) => (
+                      <VoteFlagCard
+                        key={flag.id}
+                        flag={flag}
+                        expanded={expandedFlagId === flag.id}
+                        onToggle={() => setExpandedFlagId((cur) => (cur === flag.id ? null : flag.id))}
+                        onAction={(action) => handleFlagAction(flag, action)}
+                        busy={flagBusyId === flag.id}
+                      />
+                    ))}
+                  </div>
+                </ScrollPane>
               )}
             </GlassCard>
           )}

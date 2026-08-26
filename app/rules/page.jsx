@@ -296,6 +296,18 @@ export default function RulesPage() {
               , U-M&rsquo;s custom AI pitch coach, to brainstorm, draft, and
               refine their 60-second video pitches prior to submission.
             </Item>
+            <Item label="Questions &amp; Help">
+              For help with submissions, account or login issues, or any general
+              questions about the competition, email the 10,000 Pitches team at{" "}
+              <a
+                href="mailto:10k.pitches@umich.edu"
+                className="underline underline-offset-4 transition-colors"
+                style={{ color: "#FFCB05" }}
+              >
+                10k.pitches@umich.edu
+              </a>
+              .
+            </Item>
           </SectionCard>
 
           <SectionCard title="Awards">
