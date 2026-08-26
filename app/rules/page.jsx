@@ -287,7 +287,7 @@ export default function RulesPage() {
             <Item label="Maizey AI Pitch Coach">
               Participants can use{" "}
               <a
-                href="https://maizey.umich.edu"
+                href="https://umgpt.umich.edu/maizey"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-4 transition-colors"
