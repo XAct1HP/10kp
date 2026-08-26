@@ -205,7 +205,7 @@ export default function RulesPage() {
             The 10,000 Pitches (10KP) competition, co-hosted by the Center for
             Entrepreneurship (CFE) and the Zell Lurie Institute (ZLI), invites
             the U-M community to share creative, impactful ideas through
-            60-second video pitches.
+            short-form pitches.
           </p>
         </header>
 
@@ -233,7 +233,7 @@ export default function RulesPage() {
             </Item>
           </SectionCard>
 
-          <SectionCard title="Pitch Video Guidelines">
+          <SectionCard title="Pitch Guidelines">
             <Item label="Length & Format">
               You may submit text-only pitches, audio-only pitches, or video
               pitches. Pitches should be 60 seconds or less, but that is not a
@@ -296,7 +296,7 @@ export default function RulesPage() {
                 Maizey
               </a>
               , U-M&rsquo;s custom AI pitch coach, to brainstorm, draft, and
-              refine their 60-second video pitches prior to submission.
+              refine their short-form pitches prior to submission.
             </Item>
             <Item label="Questions &amp; Help">
               For help with submissions, account or login issues, or any general
