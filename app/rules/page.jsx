@@ -50,8 +50,10 @@ function Item({ label, children }) {
 
 function AwardCard({ award }) {
   return (
+    // `break-inside-avoid` keeps a card whole when the column wraps, and the
+    // bottom margin replaces the grid gap — see the CSS-columns note below.
     <div
-      className="rounded-xl p-4 sm:p-5"
+      className="break-inside-avoid mb-3 rounded-xl p-4 sm:p-5"
       style={{
         background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(255,255,255,0.08)",
@@ -334,7 +336,12 @@ export default function RulesPage() {
                 </span>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              // CSS columns, not grid: a grid forces every card in a row to
+              // the height of the tallest one, so a long description on the
+              // left leaves a matching slab of dead space on the right. Columns
+              // let each card size to its own content and simply stack.
+              // The negative bottom margin cancels the last card's mb-3.
+              <div className="columns-1 md:columns-2 gap-3 -mb-3">
                 {awards.map((award) => (
                   <AwardCard key={award.id} award={award} />
                 ))}
