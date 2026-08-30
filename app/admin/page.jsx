@@ -2058,7 +2058,7 @@ export default function AdminPage() {
                         key={view.id}
                         onClick={() => setVoteView(view.id)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${active ? "text-navy" : "text-white/40 hover:text-white/70"}`}
-                        style={active ? { background: "#F2B517" } : { background: "rgba(255,255,255,0.04)" }}
+                        style={active ? { background: "#FFCB05" } : { background: "rgba(255,255,255,0.04)" }}
                       >
                         {view.label}
                         {view.id === "integrity" && openFlagCount > 0 && (
@@ -2086,7 +2086,7 @@ export default function AdminPage() {
                           key={status}
                           onClick={() => { setVoteFlagFilter(status); setExpandedFlagId(null); }}
                           className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${active ? "text-maize" : "text-white/30 hover:text-white/60"}`}
-                          style={active ? { background: "rgba(242,181,23,0.12)" } : undefined}
+                          style={active ? { background: "rgba(255,203,5,0.12)" } : undefined}
                         >
                           {status}
                         </button>
