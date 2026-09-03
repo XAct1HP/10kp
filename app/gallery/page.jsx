@@ -10,6 +10,29 @@ const GALLERY_PAGE_SIZE = 200;
 const CARDS_PER_PAGE = 36; // 6 cols x 6 rows on desktop; wraps naturally on smaller screens
 const TOP_COUNT = 3;
 
+function pitchSharePath(pitchId) {
+  return `/gallery?pitch=${encodeURIComponent(pitchId)}`;
+}
+
+function pitchShareUrl(pitchId) {
+  if (typeof window === "undefined") return pitchSharePath(pitchId);
+  return `${window.location.origin}${pitchSharePath(pitchId)}`;
+}
+
+function readPitchIdFromUrl() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("pitch");
+}
+
+function writePitchIdToUrl(pitchId) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (pitchId) url.searchParams.set("pitch", pitchId);
+  else url.searchParams.delete("pitch");
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, "", next);
+}
+
 const RANK_BADGES = [
   { label: "1ST PLACE", short: "1ST", gradient: "linear-gradient(135deg, #FFCB05 0%, #FFD876 50%, #FFCB05 100%)", shadow: "0 0 28px rgba(255,203,5,0.6)", textColor: "#0B1A3B", ring: "rgba(255,203,5,0.4)" },
   { label: "2ND PLACE", short: "2ND", gradient: "linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 50%, #A8A8A8 100%)", shadow: "0 0 20px rgba(192,192,192,0.35)", textColor: "#1a1a2e", ring: "rgba(192,192,192,0.3)" },
@@ -118,6 +141,8 @@ export default function GalleryPage() {
   const [hoveredPitchId, setHoveredPitchId] = useState(null);
 
   const [shuffleSeed] = useState(() => Math.random());
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [deepLinkMissing, setDeepLinkMissing] = useState(false);
 
   // ── Auto-fill voter from auth ──
   useEffect(() => {
@@ -221,6 +246,69 @@ export default function GalleryPage() {
     const updated = allSubmissions.find((p) => p.id === selectedPitch.id);
     if (updated) setSelectedPitch(updated);
   }, [allSubmissions]);
+
+  const openPitch = (pitch) => {
+    if (!pitch) return;
+    setSelectedPitch(pitch);
+    setDeepLinkMissing(false);
+    setLinkCopied(false);
+    if (pitch.is_seed) {
+      setGalleryLane("winners");
+      const year = winnerYearOf(pitch);
+      if (year != null) setActiveWinnerYear(year);
+    } else {
+      setGalleryLane("current");
+    }
+    writePitchIdToUrl(pitch.id);
+  };
+
+  const closePitch = () => {
+    setSelectedPitch(null);
+    setLinkCopied(false);
+    writePitchIdToUrl(null);
+  };
+
+  const copyPitchLink = async (pitchId) => {
+    const url = pitchShareUrl(pitchId);
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers / insecure contexts
+      window.prompt("Copy this pitch link:", url);
+    }
+  };
+
+  // Deep link: /gallery?pitch=<id> opens that pitch once submissions are loaded.
+  useEffect(() => {
+    if (loading) return;
+    const pitchId = readPitchIdFromUrl();
+    if (!pitchId) {
+      setDeepLinkMissing(false);
+      return;
+    }
+    if (selectedPitch?.id === pitchId) return;
+    const pitch = allSubmissions.find((p) => p.id === pitchId);
+    if (pitch) {
+      openPitch(pitch);
+      return;
+    }
+    // Submissions finished loading but id isn't in the public gallery.
+    setDeepLinkMissing(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, allSubmissions, selectedPitch?.id]);
+
+  // Escape closes the detail modal (and clears the deep link).
+  useEffect(() => {
+    if (!selectedPitch) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closePitch();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPitch?.id]);
 
   // ── Lane datasets: live cohort vs archived winners (seed pitches) ──
   const currentCohort = useMemo(
@@ -550,6 +638,23 @@ export default function GalleryPage() {
           </div>
         )}
 
+        {deepLinkMissing && !loading && (
+          <div className="mx-6 sm:mx-10 mt-2 rounded-xl p-3 text-sm flex-shrink-0 flex items-center justify-between gap-3"
+            style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}>
+            <span>That pitch link isn&apos;t available in the gallery (removed, unapproved, or invalid).</span>
+            <button
+              type="button"
+              onClick={() => {
+                setDeepLinkMissing(false);
+                writePitchIdToUrl(null);
+              }}
+              className="text-amber-300/70 hover:text-amber-200 text-lg leading-none"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {/* ═══ DUAL-LANE TOGGLE — lives outside the results block so an
              empty lane can always be switched away from ═══ */}
         {!loading && !error && allSubmissions.length > 0 && hasWinnersLane && (
@@ -704,7 +809,7 @@ export default function GalleryPage() {
 
                 return (
                   <button key={pitch.id}
-                    onClick={() => setSelectedPitch(pitch)}
+                    onClick={() => openPitch(pitch)}
                     onMouseEnter={() => setHoveredPitchId(pitch.id)}
                     onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
                     className={`relative group rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] w-full ${isPulsing ? `ring-2 ${lane.ringClass}` : ""}`}
@@ -952,7 +1057,7 @@ export default function GalleryPage() {
 
                   return (
                     <button key={pitch.id}
-                      onClick={() => setSelectedPitch(pitch)}
+                      onClick={() => openPitch(pitch)}
                       onMouseEnter={() => setHoveredPitchId(pitch.id)}
                       onMouseLeave={() => setHoveredPitchId((id) => (id === pitch.id ? null : id))}
                       className={`relative block w-full overflow-hidden bg-[#0a0e18] group ${isPulsing ? `ring-2 ring-inset ${lane.ringClass}` : ""}`}
@@ -1064,7 +1169,7 @@ export default function GalleryPage() {
         {selectedPitch && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
             style={{ background: "rgba(0,0,0,0.88)" }}
-            onClick={() => setSelectedPitch(null)}>
+            onClick={closePitch}>
             <div className="relative w-full max-w-6xl max-h-[92vh] sm:max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
               {/* Floating custom thumbnail — overlaps top-left corner (desktop only; hidden on mobile to avoid clipping) */}
               {(getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") && selectedPitch.thumbnail_path && (
@@ -1159,7 +1264,7 @@ export default function GalleryPage() {
 
               {/* Right: Info */}
               <div className="w-full md:w-96 flex-shrink-0 flex flex-col p-5 sm:p-6 max-h-[45vh] md:max-h-none overflow-y-auto md:overflow-visible" style={{ borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
-                <button onClick={() => setSelectedPitch(null)}
+                <button onClick={closePitch}
                   className="self-end p-1.5 rounded-lg text-white/20 hover:text-white hover:bg-white/5 transition-colors mb-3">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
@@ -1224,7 +1329,24 @@ export default function GalleryPage() {
                 )}
 
                 <h2 className="text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
-                <p className="text-xs text-white/35 mb-4">by {selectedPitch.name}</p>
+                <p className="text-xs text-white/35 mb-3">by {selectedPitch.name}</p>
+
+                <button
+                  type="button"
+                  onClick={() => copyPitchLink(selectedPitch.id)}
+                  className="self-start mb-4 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: linkCopied ? "#FFCB05" : "rgba(255,255,255,0.55)",
+                  }}
+                  title={pitchShareUrl(selectedPitch.id)}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  {linkCopied ? "Link copied" : "Copy pitch link"}
+                </button>
 
                 <div className="flex-1 min-h-0 overflow-y-auto mb-4">
                   <p className="text-sm text-white/45 leading-relaxed">{selectedPitch.description}</p>

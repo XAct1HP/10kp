@@ -862,7 +862,24 @@ export default function AdminPage() {
     }
   };
   const handleExportCSV = () => {
-    const rows = filteredPitches.map((p) => ({ Name: p.name, Title: p.title, Description: (p.description || "").replace(/[\n\r]+/g, " "), Role: p.role || "", Schools: (p.schools || []).join("; "), Tags: (p.tags || []).map((t) => t.name).join("; "), "File Type": p.file_type || "file", "File Name": p.file_name || "", Votes: p.vote_count || 0, "Submitted At": p.created_at ? new Date(p.created_at).toLocaleString() : "", "Mux Status": p.mux_status || "" }));
+    const origin =
+      (typeof window !== "undefined" && window.location.origin) ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "";
+    const rows = filteredPitches.map((p) => ({
+      Name: p.name,
+      Title: p.title,
+      Description: (p.description || "").replace(/[\n\r]+/g, " "),
+      Role: p.role || "",
+      Schools: (p.schools || []).join("; "),
+      Tags: (p.tags || []).map((t) => t.name).join("; "),
+      "File Type": p.file_type || "file",
+      "File Name": p.file_name || "",
+      Votes: p.vote_count || 0,
+      "Submitted At": p.created_at ? new Date(p.created_at).toLocaleString() : "",
+      "Mux Status": p.mux_status || "",
+      "Gallery Link": p.id ? `${origin}/gallery?pitch=${encodeURIComponent(p.id)}` : "",
+    }));
     if (!rows.length) { setError("No pitches to export."); return; }
     const h = Object.keys(rows[0]);
     const csv = [h.join(","), ...rows.map((r) => h.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
