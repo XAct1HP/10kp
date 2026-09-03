@@ -452,6 +452,13 @@ export default function AdminPage() {
   const [newTagName, setNewTagName] = useState("");
   const [votes, setVotes] = useState([]);
   const [votePage, setVotePage] = useState(1);
+  const [voteFilter, setVoteFilter] = useState("all"); // all | suspicious | dismissed | clear
+  const [voteCounts, setVoteCounts] = useState({ all: 0, review: 0, dismissed: 0, clear: 0 });
+  const [voteRiskReady, setVoteRiskReady] = useState(true);
+  const [voteActionId, setVoteActionId] = useState(null);
+  const [voteRescoring, setVoteRescoring] = useState(false);
+  const voteFilterRef = useRef(voteFilter);
+  voteFilterRef.current = voteFilter;
   const [announcements, setAnnouncements] = useState([]);
   const [outreach, setOutreach] = useState({
     accounts: [],
@@ -576,6 +583,7 @@ export default function AdminPage() {
 
   // Reset page when filters change
   useEffect(() => { setPitchPage(1); }, [searchQuery, filterTag, filterType]);
+  useEffect(() => { setVotePage(1); }, [voteFilter]);
 
   // ── Fetchers ──
   const fetchDate = useCallback(async () => {
@@ -583,7 +591,80 @@ export default function AdminPage() {
   }, []);
   const fetchPitches = useCallback(async () => { try { setPitches(await apiFetch("/api/admin/pitches")); } catch {} finally { setLoadingState((s) => ({ ...s, pitches: false })); } }, []);
   const fetchTags = useCallback(async () => { try { setTags(await apiFetch("/api/admin/tags")); } catch {} finally { setLoadingState((s) => ({ ...s, tags: false })); } }, []);
-  const fetchVotes = useCallback(async () => { try { setVotes(await apiFetch("/api/admin/votes")); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
+  const fetchVotes = useCallback(async () => {
+    try {
+      const filter = voteFilterRef.current;
+      const statusParam =
+        filter === "suspicious" ? "suspicious" : filter === "all" ? "all" : filter;
+      const data = await apiFetch(`/api/admin/votes?status=${statusParam}`);
+      if (Array.isArray(data)) {
+        setVotes(data);
+        setVoteRiskReady(false);
+        setVoteCounts({ all: data.length, review: 0, dismissed: 0, clear: 0 });
+      } else {
+        setVotes(Array.isArray(data.votes) ? data.votes : []);
+        setVoteRiskReady(data.riskReady !== false);
+        setVoteCounts({
+          all: data.counts?.all ?? 0,
+          review: data.counts?.review ?? 0,
+          dismissed: data.counts?.dismissed ?? 0,
+          clear: data.counts?.clear ?? 0,
+        });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingState((s) => ({ ...s, votes: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user && isAdmin) fetchVotes();
+  }, [voteFilter, user, isAdmin, fetchVotes]);
+
+  const updateVoteRiskStatus = async (voteId, vote_risk_status) => {
+    setVoteActionId(voteId);
+    try {
+      await apiFetch("/api/admin/votes", {
+        method: "PATCH",
+        body: JSON.stringify({ id: voteId, vote_risk_status }),
+      });
+      setSuccess(
+        vote_risk_status === "dismissed"
+          ? "Flag dismissed."
+          : vote_risk_status === "review"
+            ? "Marked for review."
+            : "Marked clear."
+      );
+      await fetchVotes();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVoteActionId(null);
+    }
+  };
+
+  const rescoreVotes = async () => {
+    setVoteRescoring(true);
+    try {
+      const result = await apiFetch("/api/admin/votes", {
+        method: "POST",
+        body: JSON.stringify({ limit: 200 }),
+      });
+      if (result?.skipped) {
+        setError("Vote risk columns missing — run migrations/20260825_vote_risk_scoring.sql");
+      } else {
+        setSuccess(
+          `Rescored ${result.processed || 0} vote(s); ${result.flagged || 0} flagged for review.`
+        );
+        await fetchVotes();
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVoteRescoring(false);
+    }
+  };
   const fetchAnnouncements = useCallback(async () => {
     try {
       setAnnouncements(await apiFetch("/api/admin/announcements"));
@@ -1460,30 +1541,175 @@ export default function AdminPage() {
           {/* ═══ VOTES ═══ */}
           {activeTab === "votes" && (
             <GlassCard noPad className="flex-1 flex flex-col min-h-0">
-              <div className="px-5 py-4 border-b border-white/[0.04] flex-shrink-0">
-                <h2 className="text-lg font-bold text-white">Votes Audit Trail</h2>
+              <div className="px-5 py-4 border-b border-white/[0.04] flex-shrink-0 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Votes Audit Trail</h2>
+                    <p className="text-xs text-white/40 mt-0.5">
+                      Deterministic risk scoring flags burst votes, near-duplicate emails, self-votes, and similar patterns.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={rescoreVotes}
+                    disabled={voteRescoring || !voteRiskReady}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/80 hover:text-white transition-colors disabled:opacity-40"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                  >
+                    {voteRescoring ? "Rescoring…" : "Rescore recent"}
+                  </button>
+                </div>
+                {!voteRiskReady && (
+                  <p className="text-[11px] text-amber-300/90">
+                    Risk columns not in the database yet. Run{" "}
+                    <code className="text-[10px]">migrations/20260825_vote_risk_scoring.sql</code> in Supabase.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "all", label: "All", count: voteCounts.all },
+                    { id: "suspicious", label: "Suspicious", count: voteCounts.review },
+                    { id: "dismissed", label: "Dismissed", count: voteCounts.dismissed },
+                    { id: "clear", label: "Clear", count: voteCounts.clear },
+                  ].map((chip) => {
+                    const active = voteFilter === chip.id;
+                    return (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => setVoteFilter(chip.id)}
+                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors"
+                        style={{
+                          background: active
+                            ? chip.id === "suspicious"
+                              ? "rgba(248,113,113,0.2)"
+                              : "rgba(255,203,5,0.18)"
+                            : "rgba(255,255,255,0.04)",
+                          color: active
+                            ? chip.id === "suspicious"
+                              ? "#fca5a5"
+                              : "#FFCB05"
+                            : "rgba(255,255,255,0.55)",
+                          border: `1px solid ${
+                            active
+                              ? chip.id === "suspicious"
+                                ? "rgba(248,113,113,0.45)"
+                                : "rgba(255,203,5,0.4)"
+                              : "rgba(255,255,255,0.08)"
+                          }`,
+                        }}
+                      >
+                        {chip.label}
+                        <span className="ml-1.5 tabular-nums opacity-70">{chip.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              {loadingState.votes ? <p className="text-white/30 text-sm p-5">Loading...</p> : votes.length === 0 ? <p className="text-white/30 text-sm p-5">No votes yet.</p> : (
+              {loadingState.votes ? (
+                <p className="text-white/30 text-sm p-5">Loading...</p>
+              ) : votes.length === 0 ? (
+                <p className="text-white/30 text-sm p-5">
+                  {voteFilter === "suspicious"
+                    ? "No suspicious votes in the review queue."
+                    : "No votes yet."}
+                </p>
+              ) : (
                 <>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-[10px] uppercase tracking-wider text-white/25 border-b border-white/[0.04]">
+                          <th className="text-left px-5 py-2.5 font-semibold">Risk</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Voter</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Pitch</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Submitter</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Voted At</th>
+                          <th className="text-left px-5 py-2.5 font-semibold">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.03]">
-                        {paginatedVotes.map((v) => (
-                          <tr key={v.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-5 py-2.5 text-white/50">{v.voter_name ? `${v.voter_name} (${v.voter_email || ""})` : v.voter_email || "Unknown"}</td>
-                            <td className="px-5 py-2.5 text-white font-medium">{v.pitch_title}</td>
-                            <td className="px-5 py-2.5 text-white/40">{v.pitch_submitter}</td>
-                            <td className="px-5 py-2.5 text-white/30 tabular-nums">{new Date(v.created_at).toLocaleString()}</td>
-                          </tr>
-                        ))}
+                        {paginatedVotes.map((v) => {
+                          const reasons = Array.isArray(v.vote_risk_reasons) ? v.vote_risk_reasons : [];
+                          const score = v.vote_risk_score || 0;
+                          const status = v.vote_risk_status || "clear";
+                          const riskColor =
+                            status === "review" || score >= 40
+                              ? "#f87171"
+                              : score > 0
+                                ? "#fbbf24"
+                                : "rgba(255,255,255,0.35)";
+                          return (
+                            <tr key={v.id} className="hover:bg-white/[0.02] transition-colors align-top">
+                              <td className="px-5 py-2.5">
+                                <p className="text-sm font-bold tabular-nums" style={{ color: riskColor }}>
+                                  {score}
+                                </p>
+                                <p className="text-[10px] uppercase tracking-wide text-white/35 mt-0.5">
+                                  {status}
+                                </p>
+                                {reasons.length > 0 && (
+                                  <ul className="mt-1 space-y-0.5 max-w-[200px]">
+                                    {reasons.slice(0, 3).map((r) => (
+                                      <li
+                                        key={`${v.id}-${r.code}`}
+                                        className="text-[10px] text-white/45 truncate"
+                                        title={r.detail || r.code}
+                                      >
+                                        {r.code}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </td>
+                              <td className="px-5 py-2.5 text-white/50">
+                                {v.voter_name ? `${v.voter_name} (${v.voter_email || ""})` : v.voter_email || "Unknown"}
+                              </td>
+                              <td className="px-5 py-2.5 text-white font-medium">{v.pitch_title}</td>
+                              <td className="px-5 py-2.5 text-white/40">{v.pitch_submitter}</td>
+                              <td className="px-5 py-2.5 text-white/30 tabular-nums whitespace-nowrap">
+                                {new Date(v.created_at).toLocaleString()}
+                              </td>
+                              <td className="px-5 py-2.5">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {status !== "dismissed" && (
+                                    <button
+                                      type="button"
+                                      disabled={voteActionId === v.id || !voteRiskReady}
+                                      onClick={() => updateVoteRiskStatus(v.id, "dismissed")}
+                                      className="px-2 py-1 rounded text-[10px] font-semibold text-white/70 hover:text-white disabled:opacity-40"
+                                      style={{ background: "rgba(255,255,255,0.06)" }}
+                                    >
+                                      Dismiss
+                                    </button>
+                                  )}
+                                  {status !== "review" && (
+                                    <button
+                                      type="button"
+                                      disabled={voteActionId === v.id || !voteRiskReady}
+                                      onClick={() => updateVoteRiskStatus(v.id, "review")}
+                                      className="px-2 py-1 rounded text-[10px] font-semibold text-red-300/90 hover:text-red-200 disabled:opacity-40"
+                                      style={{ background: "rgba(248,113,113,0.12)" }}
+                                    >
+                                      Flag
+                                    </button>
+                                  )}
+                                  {status !== "clear" && (
+                                    <button
+                                      type="button"
+                                      disabled={voteActionId === v.id || !voteRiskReady}
+                                      onClick={() => updateVoteRiskStatus(v.id, "clear")}
+                                      className="px-2 py-1 rounded text-[10px] font-semibold text-green-300/90 hover:text-green-200 disabled:opacity-40"
+                                      style={{ background: "rgba(74,222,128,0.12)" }}
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

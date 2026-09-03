@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
+import { scoreAndPersistVote } from "../../../../lib/votes/risk";
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -77,13 +78,17 @@ export async function POST(request) {
       );
     }
 
-    const { error: voteError } = await supabaseAdmin.from("pitch_votes").insert({
-      pitch_id: pitchId,
-      user_id: null,
-      voter_name: String(voterName).trim(),
-      voter_email: normalizedEmail,
-      voter_key: normalizedEmail,
-    });
+    const { data: inserted, error: voteError } = await supabaseAdmin
+      .from("pitch_votes")
+      .insert({
+        pitch_id: pitchId,
+        user_id: null,
+        voter_name: String(voterName).trim(),
+        voter_email: normalizedEmail,
+        voter_key: normalizedEmail,
+      })
+      .select("id")
+      .single();
 
     if (voteError) {
       if (voteError.code === "23505") {
@@ -101,6 +106,15 @@ export async function POST(request) {
       }
 
       return NextResponse.json({ error: voteError.message }, { status: 500 });
+    }
+
+    // Best-effort risk scoring — never block a successful vote.
+    if (inserted?.id) {
+      try {
+        await scoreAndPersistVote(supabaseAdmin, inserted.id);
+      } catch (err) {
+        console.error("[gallery/votes] risk scoring failed", err?.message || err);
+      }
     }
 
     const summary = await getVotingSummary(supabaseAdmin, normalizedEmail, pitchId);
