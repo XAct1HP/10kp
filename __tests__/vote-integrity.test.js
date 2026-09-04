@@ -278,3 +278,206 @@ test("cluster keys are stable as a cluster grows", () => {
   assert.equal(before.clusterKey, after.clusterKey);
   assert.ok(after.score > before.score, "a bigger ring should score higher");
 });
+
+// ── The 2026-09-04 incident, and the holes it exposed ────────────────────
+//
+// Twelve votes from mziaulh+mark@, mziaulh+omair@, mziaulh+braden@ … onto
+// a pitch submitted by mziaulh, inside eight minutes, and the Integrity
+// queue stayed empty. Replaying it showed the scoring was never the
+// problem — but probing around it found two ways to walk straight past
+// the detector, and those are what the next few tests pin down.
+
+const ALIASES = [
+  "mark", "omair", "braden", "ali", "rahat", "mahnoor",
+  "shah", "judy", "edward", "kelvin", "phd", "285",
+];
+
+function aliasVotes({ pitchIds = ["pitch-a"], spacingMs = 45_000 } = {}) {
+  return ALIASES.map((tag, i) => ({
+    id: `alias-${i}`,
+    pitch_id: pitchIds[i % pitchIds.length],
+    voter_key: `mziaulh+${tag}@umich.edu`,
+    voter_name: tag,
+    created_at: new Date(T0 + i * spacingMs).toISOString(),
+    ip_hash: null,
+    ip_prefix_hash: null,
+    user_agent_hash: null,
+    geo_country: null,
+  }));
+}
+
+test("canonicalInbox strips only what cannot change delivery", async () => {
+  const { canonicalInbox } = await import("../lib/voteIntegrity.js");
+  assert.equal(canonicalInbox("mziaulh+mark@umich.edu"), "mziaulh@umich.edu");
+  assert.equal(canonicalInbox("J.Smith+x@GoogleMail.com"), "jsmith@gmail.com");
+  assert.equal(canonicalInbox("  Mziaulh@UMICH.edu "), "mziaulh@umich.edu");
+  // Trailing digits are NOT stripped here, unlike the scoring stem. This
+  // value gates a real person's vote budget, so it may only collapse
+  // addresses that provably share a mailbox.
+  assert.equal(canonicalInbox("mark2@umich.edu"), "mark2@umich.edu");
+  assert.equal(canonicalInbox("a.b@umich.edu"), "a.b@umich.edu");
+  assert.equal(canonicalInbox("not-an-email"), null);
+});
+
+test("the incident: twelve aliases on the submitter's own pitch", () => {
+  const result = analyzeVotes(aliasVotes(), {
+    pitches: [{ id: "pitch-a", title: "Overturned", uniqname: "mziaulh" }],
+  });
+
+  const cluster = clusterOfType(result, "stem");
+  assert.ok(cluster, "the mailbox cluster must be found");
+  assert.equal(cluster.score, 100);
+  assert.equal(cluster.severity, "high");
+
+  const codes = cluster.signals.map((s) => s.code);
+  assert.ok(codes.includes("plus_alias"), "sub-addressing is the headline signal");
+  assert.ok(codes.includes("self_vote"));
+  assert.ok(codes.includes("single_target"));
+
+  // The self-vote detector reports it separately too, because a submitter
+  // voting for their own pitch is worth seeing on its own terms.
+  assert.ok(clusterOfType(result, "self"));
+});
+
+test("aliases stay high-severity when spread across many pitches", () => {
+  // The original scoring applied the shared-network dispersion penalty to
+  // mailbox clusters, so the same twelve identities scored 49 (medium)
+  // once they stopped piling onto one pitch. Spreading out is not an
+  // innocent explanation for one inbox holding twelve ballots.
+  const result = analyzeVotes(
+    aliasVotes({ pitchIds: ["pitch-a", "pitch-b", "pitch-c", "pitch-d", "pitch-e"] })
+  );
+
+  const cluster = clusterOfType(result, "stem");
+  assert.ok(cluster);
+  assert.ok(
+    cluster.score >= HIGH_SCORE,
+    `dispersed aliases should stay high severity, got ${cluster.score}`
+  );
+  assert.ok(!cluster.signals.some((s) => s.code === "dispersed"));
+});
+
+test("digit variants keep the weaker signal and the dispersion penalty", () => {
+  // mark1@ and mark2@ might be two real people, so they must NOT get the
+  // provable-mailbox treatment above.
+  const votes = ["1", "2", "3", "4", "5", "6"].map((n, i) => ({
+    id: `dig-${i}`,
+    pitch_id: ["pitch-a", "pitch-b", "pitch-c", "pitch-d", "pitch-e"][i % 5],
+    voter_key: `mark${n}@umich.edu`,
+    voter_name: `Mark ${n}`,
+    created_at: new Date(T0 + i * 3_600_000).toISOString(),
+  }));
+
+  const cluster = clusterOfType(analyzeVotes(votes), "stem");
+  if (cluster) {
+    const codes = cluster.signals.map((s) => s.code);
+    assert.ok(!codes.includes("plus_alias"), "digits are not proof of one mailbox");
+    assert.ok(codes.includes("dispersed"), "spread-out digit variants stay discounted");
+  }
+});
+
+// ── Pitch velocity ───────────────────────────────────────────────────────
+
+const REAL_NAMES = [
+  ["Priya Raman", "praman"], ["Ben Okafor", "bokafor"], ["Chloe Tan", "ctan"],
+  ["Diego Ruiz", "druiz"], ["Emma Novak", "enovak"], ["Farid Haddad", "fhaddad"],
+  ["Grace Lin", "glin"], ["Hana Sato", "hsato"], ["Ivan Petrov", "ipetrov"],
+  ["Julia Meyer", "jmeyer"], ["Kwame Asante", "kasante"], ["Lena Hoff", "lhoff"],
+];
+
+test("a wave with no shared anchor at all is still caught", () => {
+  // Vary the inbox, the address, the name, and lose the fingerprint, and
+  // the clustering pass has nothing to group on — this scenario returned
+  // zero findings before the velocity detector existed.
+  const votes = REAL_NAMES.map(([name, local], i) => ({
+    id: `wave-${i}`,
+    pitch_id: "pitch-a",
+    voter_key: `${local}${2020 + i}@outlook.com`,
+    voter_name: name,
+    created_at: new Date(T0 + i * 47_000).toISOString(),
+  }));
+
+  const result = analyzeVotes(votes);
+  const cluster = clusterOfType(result, "pitch_burst");
+  assert.ok(cluster, "an anchorless burst must still surface");
+  assert.ok(cluster.score >= HIGH_SCORE);
+  assert.equal(cluster.pitchId, "pitch-a");
+  assert.equal(cluster.voteIds.length, votes.length, "every vote in the wave is actionable");
+});
+
+test("a pitch shared to a group chat does not flag", () => {
+  // The innocent twin of the test above: nine people arrive together
+  // inside twelve minutes, but they behave like people — they spend more
+  // than one of their five votes. That is the whole discriminator, and if
+  // this test ever fails the queue has started crying wolf.
+  const votes = [];
+  REAL_NAMES.slice(0, 9).forEach(([name, local], p) => {
+    const key = `${local}@gmail.com`;
+    votes.push({ id: `gc-${p}-0`, pitch_id: "pitch-a", voter_key: key, voter_name: name,
+      created_at: new Date(T0 + p * 80_000).toISOString() });
+    votes.push({ id: `gc-${p}-1`, pitch_id: `pitch-${"bcdef"[p % 5]}`, voter_key: key, voter_name: name,
+      created_at: new Date(T0 + p * 80_000 + 130_000).toISOString() });
+    votes.push({ id: `gc-${p}-2`, pitch_id: `pitch-${"defgh"[p % 5]}`, voter_key: key, voter_name: name,
+      created_at: new Date(T0 + p * 80_000 + 280_000).toISOString() });
+  });
+
+  const result = analyzeVotes(votes);
+  assert.equal(clusterOfType(result, "pitch_burst"), undefined);
+  assert.equal(result.clusters.length, 0, "nine ordinary voters are not a finding");
+});
+
+test("a genuinely popular pitch does not flag", () => {
+  // Twelve distinct people over six hours, most of whom vote for
+  // something else too. Popular is not suspicious.
+  const votes = [];
+  REAL_NAMES.forEach(([name, local], p) => {
+    const key = `${local}@umich.edu`;
+    votes.push({ id: `pop-${p}-0`, pitch_id: "pitch-a", voter_key: key, voter_name: name,
+      created_at: new Date(T0 + p * 29 * 60_000).toISOString() });
+    if (p % 4 !== 0) {
+      votes.push({ id: `pop-${p}-1`, pitch_id: `pitch-${"bcdefg"[p % 6]}`, voter_key: key, voter_name: name,
+        created_at: new Date(T0 + p * 29 * 60_000 + 400_000).toISOString() });
+    }
+  });
+
+  assert.equal(analyzeVotes(votes).clusters.length, 0);
+});
+
+test("campus NAT is still not a ring", () => {
+  // Ten real people behind one shared address, each spending three votes
+  // across eight pitches. The dispersion penalty exists for exactly this,
+  // and narrowing it to mailbox clusters must not have broken it.
+  const votes = [];
+  REAL_NAMES.slice(0, 10).forEach(([name, local], p) => {
+    for (let k = 0; k < 3; k += 1) {
+      votes.push({
+        id: `nat-${p}-${k}`,
+        pitch_id: `pitch-${"abcdefgh"[(p + k * 3) % 8]}`,
+        voter_key: `${local}@umich.edu`,
+        voter_name: name,
+        created_at: new Date(T0 + (p * 7 + k * 13) * 60_000).toISOString(),
+        ip_hash: "campus", ip_prefix_hash: "campus-24", user_agent_hash: `ua-${p % 5}`,
+      });
+    }
+  });
+
+  assert.equal(analyzeVotes(votes).clusters.length, 0);
+});
+
+test("velocity does not re-report a ring the clustering pass already has", () => {
+  // One ring, one row in the queue. A burst that is already explained by
+  // a shared address should not also arrive as a second, near-identical
+  // flag for the admin to triage twice.
+  const votes = REAL_NAMES.map(([name, local], i) => ({
+    id: `dup-${i}`,
+    pitch_id: "pitch-a",
+    voter_key: `${local}${2020 + i}@outlook.com`,
+    voter_name: name,
+    created_at: new Date(T0 + i * 47_000).toISOString(),
+    ip_hash: "one-address", ip_prefix_hash: "one-24", user_agent_hash: "one-ua",
+  }));
+
+  const result = analyzeVotes(votes);
+  assert.ok(clusterOfType(result, "ip"), "the address cluster is the right home for this");
+  assert.equal(clusterOfType(result, "pitch_burst"), undefined);
+});

@@ -21,6 +21,9 @@ export async function GET(request) {
       supabaseAdmin
         .from("pitch_votes")
         .select("id, pitch_id, voter_email, voter_key, created_at")
+        // Voided votes are removed from every count, exactly like the
+        // deleted rows they replaced.
+        .is("voided_at", null)
         .order("created_at", { ascending: true }),
       supabaseAdmin
         .from("pitch_tags")

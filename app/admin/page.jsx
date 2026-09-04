@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
@@ -770,6 +770,68 @@ function ModerationNoteEditor({ pitch, onSave, saving }) {
 
 // ─── Main ─────────────────────────────────────────────────────────
 // ─── Vote integrity ───────────────────────────────────────────────────
+function formatAge(ms) {
+  if (ms === null || ms === undefined) return "never";
+  const mins = Math.round(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} hr ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+// When the detector last ran, and whether that is a problem.
+//
+// This strip is the direct fix for how the first incident was missed. An
+// empty Integrity queue reads as "all clear", but it reads exactly the
+// same when the sweep has never executed — a Vercel Hobby project quietly
+// downgrades an hourly cron to daily, and an unset CRON_SECRET turns
+// every invocation into a 401 nobody sees. So the queue now always says
+// when it was last filled, and complains loudly when it wasn't.
+function SweepStatusBar({ status, busy, onRun }) {
+  const never = status?.never;
+  const stale = status?.stale;
+  const failed = status?.last && !status.last.ok;
+  const alarm = !status || never || stale || failed;
+
+  const message = !status
+    ? "Sweep history unavailable — run migrations/20260904_vote_integrity_v2.sql to start recording runs."
+    : never
+      ? "The scheduled sweep has never completed. Check that CRON_SECRET is set in Vercel and that the plan allows hourly crons — Hobby silently downgrades them to daily."
+      : failed
+        ? `Last run failed: ${status.last.error || "unknown error"}`
+        : stale
+          ? `Last successful sweep ${formatAge(status.ageMs)} — the schedule is hourly, so this is overdue.`
+          : `Last swept ${formatAge(status.ageMs)} · ${status.lastOk.votes_analyzed?.toLocaleString?.() ?? 0} votes · ${status.lastOk.clusters_found ?? 0} cluster(s)`;
+
+  return (
+    <div
+      className="px-5 py-2.5 flex items-center justify-between gap-3 flex-wrap flex-shrink-0"
+      style={{
+        background: alarm ? "rgba(248,113,113,0.10)" : "rgba(255,255,255,0.03)",
+        boxShadow: "inset 0 -1px 0 rgba(255,255,255,0.04)",
+      }}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          style={{ background: alarm ? "#F87171" : "#4ADE80" }}
+        />
+        <span className={`text-[11px] leading-relaxed ${alarm ? "text-red-200/90" : "text-white/40"}`}>
+          {message}
+        </span>
+      </div>
+      <button
+        onClick={onRun}
+        disabled={busy}
+        className="px-2.5 py-1 rounded-md text-[10px] font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-40 flex-shrink-0"
+      >
+        {busy ? "Sweeping..." : "Run sweep now"}
+      </button>
+    </div>
+  );
+}
+
 // Triage UI for lib/voteIntegrity.js. Every card here is a *lead*, not a
 // verdict: the gallery ballot is open by design, so the detector groups
 // identities that look like one person and a human decides what, if
@@ -976,7 +1038,7 @@ function VoteFlagCard({ flag, expanded, onToggle, onAction, busy }) {
                   className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white transition-colors disabled:opacity-40"
                   style={{ background: "rgba(239,68,68,0.85)" }}
                 >
-                  {busy ? "Voiding..." : `Yes, delete ${flag.vote_count} vote(s)`}
+                  {busy ? "Voiding..." : `Yes, void ${flag.vote_count} vote(s)`}
                 </button>
                 <button
                   onClick={() => setConfirmVoid(false)}
@@ -984,6 +1046,9 @@ function VoteFlagCard({ flag, expanded, onToggle, onAction, busy }) {
                 >
                   Cancel
                 </button>
+                <span className="text-[10px] text-white/30">
+                  Reversible — the votes stay in the audit trail.
+                </span>
               </span>
             ) : (
               <button
@@ -1033,6 +1098,17 @@ export default function AdminPage() {
   // it stays correct while the admin is filtering by another status.
   const [openFlagCount, setOpenFlagCount] = useState(0);
   const [voteFlagsError, setVoteFlagsError] = useState("");
+  // Audit-trail controls: scope, the void-reason draft for one row, and
+  // the id currently in flight.
+  const [trailScope, setTrailScope] = useState("all"); // all | live | voided
+  const [voidDraft, setVoidDraft] = useState(null); // { id, reason }
+  const [voteBusyId, setVoteBusyId] = useState(null);
+  // When the detector last actually ran. The Integrity tab used to render
+  // an identical "Nothing flagged" whether the sweep found nothing or had
+  // never once executed — which is precisely how twelve alias votes went
+  // unnoticed. This is the difference between those two states.
+  const [sweepStatus, setSweepStatus] = useState(null);
+  const [sweepBusy, setSweepBusy] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [outreach, setOutreach] = useState({
     accounts: [],
@@ -1171,7 +1247,19 @@ export default function AdminPage() {
   // Award list drives the track filter, the outreach filter, and the "add to
   // track" picker. A failure just leaves those pickers empty.
   const fetchAwards = useCallback(async () => { try { setAwards(await apiFetch("/api/admin/awards")); } catch {} }, []);
-  const fetchVotes = useCallback(async () => { try { setVotes(await apiFetch("/api/admin/votes")); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
+  // Scope is an argument rather than a dependency: baking trailScope into
+  // the callback identity would make the big mount effect below re-run
+  // every time the admin flips the trail filter.
+  const fetchVotes = useCallback(async (scope = "all") => { try { setVotes(await apiFetch(`/api/admin/votes?scope=${scope}`)); } catch {} finally { setLoadingState((s) => ({ ...s, votes: false })); } }, []);
+  const fetchSweepStatus = useCallback(async () => {
+    try {
+      setSweepStatus(await apiFetch("/api/admin/vote-flags/sweep"));
+    } catch {
+      // Same setup case as the flags fetch: before the v2 migration the
+      // vote_sweeps table doesn't exist. Leave it null and say nothing.
+      setSweepStatus(null);
+    }
+  }, []);
   const fetchVoteFlags = useCallback(async () => {
     setVoteFlagsLoading(true);
     try {
@@ -1340,14 +1428,87 @@ export default function AdminPage() {
     // the badge is accurate before the admin ever opens the queue.
     if (activeTab !== "votes") return;
     fetchVoteFlags();
-  }, [activeTab, voteFlagFilter, fetchVoteFlags]);
+    fetchSweepStatus();
+  }, [activeTab, voteFlagFilter, fetchVoteFlags, fetchSweepStatus]);
+
+  // The trail is scoped server-side so a voided-only view isn't limited to
+  // whatever happened to fit in the last 500 rows.
+  useEffect(() => {
+    if (activeTab !== "votes") return;
+    fetchVotes(trailScope);
+  }, [activeTab, trailScope, fetchVotes]);
 
   // ── Handlers ──
 
-  // Triage a vote-integrity flag. "void" is the only destructive path and
-  // deletes exactly the votes the detector attributed to that cluster —
-  // the API refuses ids that don't belong to the flag. Tallies elsewhere
-  // in the dashboard are refetched so counts don't go stale.
+  // Void a single vote straight from the audit trail, with a reason.
+  //
+  // This exists because triage from the Integrity queue only works for
+  // votes the detector already grouped. When you are looking at twelve
+  // obvious alias votes on screen, needing the detector's permission to
+  // act on them is the wrong way round.
+  //
+  // Soft: the row stays in the trail, struck through, and can be restored.
+  const handleVoidVote = async (vote, reason) => {
+    setError("");
+    setVoteBusyId(vote.id);
+    try {
+      await apiFetch("/api/admin/votes", {
+        method: "PATCH",
+        body: JSON.stringify({ voteIds: [vote.id], action: "void", reason }),
+      });
+      setVoidDraft(null);
+      setSuccess("Vote voided. It no longer counts toward any tally.");
+      await fetchVotes(trailScope);
+      fetchPitches();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVoteBusyId(null);
+    }
+  };
+
+  const handleRestoreVote = async (vote) => {
+    setError("");
+    setVoteBusyId(vote.id);
+    try {
+      await apiFetch("/api/admin/votes", {
+        method: "PATCH",
+        body: JSON.stringify({ voteIds: [vote.id], action: "restore" }),
+      });
+      setSuccess("Vote restored.");
+      await fetchVotes(trailScope);
+      fetchPitches();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setVoteBusyId(null);
+    }
+  };
+
+  // Force a full sweep now rather than waiting for the top of the hour.
+  // Also the fastest way to find out whether the scheduled one is broken:
+  // if this works and the hourly runs never appear, the cron is the
+  // problem, not the detector.
+  const handleRunSweep = async () => {
+    setError("");
+    setSweepBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/vote-flags/sweep", { method: "POST" });
+      setSuccess(
+        `Swept ${res.stats?.votesAnalyzed ?? 0} votes — ${res.stats?.clustersFound ?? 0} cluster(s) flagged.`
+      );
+      await Promise.all([fetchVoteFlags(), fetchSweepStatus()]);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSweepBusy(false);
+    }
+  };
+
+  // Triage a vote-integrity flag. "void" is the only path that changes a
+  // tally, and it voids exactly the votes the detector attributed to that
+  // cluster — the API refuses ids that don't belong to the flag. Tallies
+  // elsewhere in the dashboard are refetched so counts don't go stale.
   const handleFlagAction = async (flag, action) => {
     setError("");
     setFlagBusyId(flag.id);
@@ -1358,7 +1519,7 @@ export default function AdminPage() {
           body: JSON.stringify({ id: flag.id }),
         });
         setSuccess(`Voided ${res.voided} vote(s).`);
-        fetchVotes();
+        fetchVotes(trailScope);
         fetchPitches();
       } else {
         await apiFetch("/api/admin/vote-flags", {
@@ -2203,9 +2364,24 @@ export default function AdminPage() {
                   })}
                 </div>
                 {voteView === "trail" ? (
-                  votes.length > 0 && (
-                    <span className="text-[11px] text-white/30 tabular-nums">Most recent {votes.length.toLocaleString()}</span>
-                  )
+                  <div className="flex items-center gap-1.5">
+                    {["all", "live", "voided"].map((scope) => {
+                      const active = trailScope === scope;
+                      return (
+                        <button
+                          key={scope}
+                          onClick={() => { setTrailScope(scope); setVoidDraft(null); }}
+                          className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${active ? "text-maize" : "text-white/30 hover:text-white/60"}`}
+                          style={active ? { background: "rgba(255,203,5,0.12)" } : undefined}
+                        >
+                          {scope}
+                        </button>
+                      );
+                    })}
+                    {votes.length > 0 && (
+                      <span className="ml-1 text-[11px] text-white/30 tabular-nums">{votes.length.toLocaleString()} shown</span>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5">
                     {["open", "confirmed", "actioned", "dismissed", "all"].map((status) => {
@@ -2243,23 +2419,133 @@ export default function AdminPage() {
                           <th className="text-left px-5 py-2.5 font-semibold">Voter</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Pitch</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Submitter</th>
+                          <th className="text-left px-5 py-2.5 font-semibold">Origin</th>
                           <th className="text-left px-5 py-2.5 font-semibold">Voted At</th>
+                          <th className="text-right px-5 py-2.5 font-semibold"> </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.03]">
-                        {votes.map((v) => (
-                          <tr key={v.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-5 py-2.5 text-white/50">{v.voter_name ? `${v.voter_name} (${v.voter_email || ""})` : v.voter_email || "Unknown"}</td>
-                            <td className="px-5 py-2.5 text-white font-medium">{v.pitch_title}</td>
-                            <td className="px-5 py-2.5 text-white/40">{v.pitch_submitter}</td>
-                            <td className="px-5 py-2.5 text-white/30 tabular-nums">{new Date(v.created_at).toLocaleString()}</td>
-                          </tr>
-                        ))}
+                        {votes.map((v) => {
+                          const voided = Boolean(v.voided_at);
+                          const drafting = voidDraft?.id === v.id;
+                          const busy = voteBusyId === v.id;
+                          return (
+                            <Fragment key={v.id}>
+                              <tr className={`hover:bg-white/[0.02] transition-colors ${voided ? "opacity-45" : ""}`}>
+                                <td className={`px-5 py-2.5 text-white/50 ${voided ? "line-through" : ""}`}>
+                                  <span>{v.voter_name ? `${v.voter_name} (${v.voter_email || ""})` : v.voter_email || "Unknown"}</span>
+                                  {/* An address that is a sub-address of another mailbox is
+                                      the single loudest tell there is, so it is stated on the
+                                      row rather than left for the detector to find. */}
+                                  {v.is_alias && (
+                                    <span
+                                      className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-amber-300 align-middle"
+                                      style={{ background: "rgba(251,191,36,0.14)" }}
+                                      title={`Same mailbox as ${v.voter_inbox}`}
+                                    >
+                                      alias
+                                    </span>
+                                  )}
+                                  {v.inbox_votes_in_window > 1 && (
+                                    <span
+                                      className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums text-red-300 align-middle"
+                                      style={{ background: "rgba(248,113,113,0.15)" }}
+                                      title={`${v.inbox_votes_in_window} votes in this view come from ${v.voter_inbox}`}
+                                    >
+                                      ×{v.inbox_votes_in_window}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={`px-5 py-2.5 text-white font-medium ${voided ? "line-through" : ""}`}>{v.pitch_title}</td>
+                                <td className="px-5 py-2.5 text-white/40">{v.pitch_submitter}</td>
+                                <td className="px-5 py-2.5 text-white/30">
+                                  <span className="font-mono text-[11px]">{v.ip_address || "—"}</span>
+                                  {(v.geo_city || v.geo_country) && (
+                                    <span className="ml-1.5 text-[10px] text-white/25">
+                                      {[v.geo_city, v.geo_country].filter(Boolean).join(", ")}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-5 py-2.5 text-white/30 tabular-nums">{new Date(v.created_at).toLocaleString()}</td>
+                                <td className="px-5 py-2.5 text-right whitespace-nowrap">
+                                  {voided ? (
+                                    <button
+                                      onClick={() => handleRestoreVote(v)}
+                                      disabled={busy}
+                                      className="px-2 py-1 rounded-md text-[10px] font-semibold text-white/40 hover:text-white/80 transition-colors disabled:opacity-40"
+                                      style={{ background: "rgba(255,255,255,0.05)" }}
+                                    >
+                                      {busy ? "..." : "Restore"}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => setVoidDraft(drafting ? null : { id: v.id, reason: "" })}
+                                      disabled={busy}
+                                      className="px-2 py-1 rounded-md text-[10px] font-semibold text-red-300/80 hover:text-red-300 transition-colors disabled:opacity-40"
+                                      style={{ background: "rgba(248,113,113,0.12)" }}
+                                    >
+                                      {drafting ? "Cancel" : "Void"}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* Voiding asks for a reason before it will proceed. A vote
+                                  removed without one is indistinguishable later from a vote
+                                  removed by mistake. */}
+                              {drafting && (
+                                <tr style={{ background: "rgba(248,113,113,0.06)" }}>
+                                  <td colSpan={6} className="px-5 py-3">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={voidDraft.reason}
+                                        onChange={(e) => setVoidDraft({ id: v.id, reason: e.target.value })}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter" && voidDraft.reason.trim()) handleVoidVote(v, voidDraft.reason.trim());
+                                          if (e.key === "Escape") setVoidDraft(null);
+                                        }}
+                                        placeholder="Why is this vote being voided? (recorded in the trail)"
+                                        className="flex-1 min-w-[240px] px-3 py-2 rounded-lg text-xs text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"
+                                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                                      />
+                                      <button
+                                        onClick={() => handleVoidVote(v, voidDraft.reason.trim())}
+                                        disabled={busy || !voidDraft.reason.trim()}
+                                        className="px-3 py-2 rounded-lg text-xs font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-40"
+                                      >
+                                        {busy ? "Voiding..." : "Void vote"}
+                                      </button>
+                                    </div>
+                                    <p className="text-[10px] text-white/25 mt-2">
+                                      The vote stops counting immediately and stays here, struck through, with your name against it. You can restore it later.
+                                    </p>
+                                  </td>
+                                </tr>
+                              )}
+
+                              {voided && (
+                                <tr>
+                                  <td colSpan={6} className="px-5 pb-2.5 -mt-1">
+                                    <span className="text-[10px] text-red-300/60">
+                                      Voided {new Date(v.voided_at).toLocaleString()} by {v.voided_by || "admin"}
+                                      {v.void_reason ? ` — ${v.void_reason}` : ""}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </ScrollPane>
                 )
-              ) : voteFlagsLoading && !voteFlagsLoaded ? (
+              ) : (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <SweepStatusBar status={sweepStatus} busy={sweepBusy} onRun={handleRunSweep} />
+                  {voteFlagsLoading && !voteFlagsLoaded ? (
                 <p className="text-white/30 text-sm p-5">Scanning...</p>
               ) : voteFlags.length === 0 ? (
                 <div className="p-5">
@@ -2267,12 +2553,12 @@ export default function AdminPage() {
                     {voteFlagsError
                       ? "Integrity data isn't available yet."
                       : voteFlagFilter === "open"
-                        ? "Nothing flagged. The hourly sweep re-scans the last 45 days of votes."
+                        ? "No open flags. Check the line above for when the detector last actually ran — an empty queue only means something if it was recently filled."
                         : "No flags with this status."}
                   </p>
                   {voteFlagsError && (
                     <p className="text-amber-300/70 text-xs mt-2 font-mono">
-                      {voteFlagsError} — run migrations/20260826_vote_integrity.sql in Supabase.
+                      {voteFlagsError} — run migrations/20260826_vote_integrity.sql and migrations/20260904_vote_integrity_v2.sql in Supabase.
                     </p>
                   )}
                   <p className="text-white/20 text-xs mt-2 max-w-xl leading-relaxed">
@@ -2296,6 +2582,8 @@ export default function AdminPage() {
                     ))}
                   </div>
                 </ScrollPane>
+              )}
+                </div>
               )}
             </GlassCard>
           )}

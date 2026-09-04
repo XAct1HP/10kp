@@ -87,7 +87,7 @@ function buildPitchColumns({ uniqnames = true, awards = true } = {}) {
            )`,
         ]
       : []),
-    "pitch_votes ( user_id, voter_name, voter_email, created_at )",
+    "pitch_votes ( user_id, voter_name, voter_email, created_at, voided_at )",
   ].join(",\n        ");
 }
 
@@ -184,8 +184,10 @@ export async function GET(request) {
         submitter_email: emailMap.get(pitch.user_id) || null,
         tags: pitch.pitch_tags?.map((pt) => pt.tags).filter(Boolean) || [],
         ...decorateAwardTracks(pitch),
-        votes: pitch.pitch_votes || [],
-        vote_count: pitch.pitch_votes?.length || 0,
+        // Voided votes stay on the row so the trail is legible, but they
+        // are not part of anyone's tally.
+        votes: (pitch.pitch_votes || []).filter((v) => !v.voided_at),
+        vote_count: (pitch.pitch_votes || []).filter((v) => !v.voided_at).length,
         pitch_tags: undefined,
         pitch_awards: undefined,
         pitch_votes: undefined,

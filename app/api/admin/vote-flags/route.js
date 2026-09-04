@@ -10,8 +10,8 @@ export const revalidate = 0;
 //
 //   GET    — list flagged clusters (newest sweep first)
 //   PATCH  — record a human decision on a cluster
-//   POST   — void the votes behind a cluster (the only destructive action,
-//            and it is never taken automatically)
+//   POST   — void the votes behind a cluster (the only action that changes
+//            a tally, and it is never taken automatically)
 //
 // The detector itself lives in lib/voteIntegrity.js and runs hourly from
 // /api/cron/vote-integrity. Nothing there touches a tally — a vote only
@@ -104,10 +104,15 @@ export async function PATCH(request) {
   }
 }
 
-// Void the votes behind a cluster. Destructive and deliberate: the caller
-// passes the flag id, optionally narrowing to a subset of vote ids so an
-// admin can keep the votes they believe are genuine. The flag is then
-// marked `actioned` with a note recording exactly how many votes went.
+// Void the votes behind a cluster. Deliberate, and now reversible: the
+// caller passes the flag id, optionally narrowing to a subset of vote ids
+// so an admin can keep the votes they believe are genuine. The flag is
+// then marked `actioned` with a note recording exactly how many went.
+//
+// Soft-void, matching /api/admin/votes: the rows stay in the audit trail
+// carrying who voided them and why, and stop counting everywhere a tally
+// is computed. They used to be deleted, which erased the evidence at the
+// moment somebody had just decided it mattered.
 export async function POST(request) {
   const auth = await verifyAdmin(request);
   if (auth.error) {
@@ -146,19 +151,27 @@ export async function POST(request) {
       return NextResponse.json({ error: "No votes to void" }, { status: 400 });
     }
 
-    const { data: deleted, error: deleteError } = await supabaseAdmin
-      .from("pitch_votes")
-      .delete()
-      .in("id", targets)
-      .select("id");
-
-    if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
-    }
-
-    const voidedCount = deleted?.length || 0;
     const stamp = new Date().toISOString();
     const actor = auth.user?.email || "admin";
+
+    const { data: voided, error: voidError } = await supabaseAdmin
+      .from("pitch_votes")
+      .update({
+        voided_at: stamp,
+        voided_by: actor,
+        void_reason:
+          String(reviewNote || "").trim() ||
+          "Voided from the Integrity queue.",
+      })
+      .in("id", targets)
+      .is("voided_at", null)
+      .select("id");
+
+    if (voidError) {
+      return NextResponse.json({ error: voidError.message }, { status: 500 });
+    }
+
+    const voidedCount = voided?.length || 0;
 
     await supabaseAdmin
       .from("vote_flags")

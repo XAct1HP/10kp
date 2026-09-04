@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
+import { canonicalInbox } from "../../../../lib/voteIntegrity";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -124,7 +125,8 @@ export async function GET(request) {
       const { data: voteRows } = await supabaseAdmin
         .from("pitch_votes")
         .select("pitch_id")
-        .in("pitch_id", pitchIds);
+        .in("pitch_id", pitchIds)
+        .is("voided_at", null);
 
       (voteRows || []).forEach((row) => {
         voteCountsByPitch[row.pitch_id] = (voteCountsByPitch[row.pitch_id] || 0) + 1;
@@ -132,7 +134,10 @@ export async function GET(request) {
     }
 
     const voterEmail = normalizeEmail(searchParams.get("voterEmail"));
-    const voterKey = voterEmail || null;
+    // Match the ballot: one mailbox, one allowance. Looking this up by
+    // the raw address would show an alias a full five votes and an empty
+    // "already voted" list.
+    const voterKey = voterEmail ? canonicalInbox(voterEmail) || voterEmail : null;
 
     let userVotedPitchIds = new Set();
     let userVoteCount = 0;
@@ -141,15 +146,17 @@ export async function GET(request) {
       const { data: userVotes } = await supabaseAdmin
         .from("pitch_votes")
         .select("pitch_id")
-        .eq("voter_key", voterKey)
-        .in("pitch_id", pitchIds);
+        .eq("voter_inbox", voterKey)
+        .in("pitch_id", pitchIds)
+        .is("voided_at", null);
 
       userVotedPitchIds = new Set((userVotes || []).map((row) => row.pitch_id));
 
       const { count: voteCount } = await supabaseAdmin
         .from("pitch_votes")
         .select("id", { count: "exact", head: true })
-        .eq("voter_key", voterKey);
+        .eq("voter_inbox", voterKey)
+        .is("voided_at", null);
       userVoteCount = voteCount || 0;
     }
 

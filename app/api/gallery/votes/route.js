@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { fingerprintFromHeaders } from "../../../../lib/voteFingerprint";
+import { canonicalInbox } from "../../../../lib/voteIntegrity";
+import { checkVoteOnWrite } from "../../../../lib/voteRealtime";
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -10,16 +12,25 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// The vote budget is enforced per MAILBOX, not per address string.
+// mziaulh+mark@ and mziaulh+omair@ are the same inbox — that is how mail
+// delivery works, not a guess — so they share one allowance. Counting by
+// voter_key instead is what let one person cast twelve votes with five
+// as the stated limit.
 async function getVotingSummary(supabaseAdmin, voterKey, pitchId) {
+  const inbox = canonicalInbox(voterKey) || voterKey;
+
   const { count: pitchVoteCount } = await supabaseAdmin
     .from("pitch_votes")
     .select("id", { count: "exact", head: true })
-    .eq("pitch_id", pitchId);
+    .eq("pitch_id", pitchId)
+    .is("voided_at", null);
 
   const { count: userVoteCount } = await supabaseAdmin
     .from("pitch_votes")
     .select("id", { count: "exact", head: true })
-    .eq("voter_key", voterKey);
+    .eq("voter_inbox", inbox)
+    .is("voided_at", null);
 
   const { data: settings } = await supabaseAdmin
     .from("competition_settings")
@@ -85,12 +96,32 @@ export async function POST(request) {
     // must never cost someone their vote.
     const fingerprint = fingerprintFromHeaders(request.headers);
 
+    // The mailbox behind the address. Stored so the budget, the duplicate
+    // check and the detector all agree on who "one person" is.
+    const voterInbox = canonicalInbox(normalizedEmail) || normalizedEmail;
+
+    // Enforced here as well as by the unique index and the DB trigger,
+    // because this is the only layer that can explain itself to the
+    // voter. A same-mailbox alias hitting the ceiling gets told what
+    // happened rather than a bare 500.
+    const preflight = await getVotingSummary(supabaseAdmin, normalizedEmail, pitchId);
+    if (preflight.remainingVotes <= 0) {
+      return NextResponse.json(
+        {
+          error: `You have used all ${preflight.maxVotesPerUser} of your votes.`,
+          ...preflight,
+        },
+        { status: 400 }
+      );
+    }
+
     const { error: voteError } = await supabaseAdmin.from("pitch_votes").insert({
       pitch_id: pitchId,
       user_id: null,
       voter_name: String(voterName).trim(),
       voter_email: normalizedEmail,
       voter_key: normalizedEmail,
+      voter_inbox: voterInbox,
       ...fingerprint,
     });
 
@@ -111,6 +142,17 @@ export async function POST(request) {
 
       return NextResponse.json({ error: voteError.message }, { status: 500 });
     }
+
+    // Score this vote against its own neighbourhood before answering, so
+    // a ring is in the Integrity queue within seconds instead of waiting
+    // for the next hourly sweep. Bounded by its own time budget and
+    // incapable of failing the vote — see lib/voteRealtime.js.
+    await checkVoteOnWrite(supabaseAdmin, {
+      pitchId,
+      voterInbox,
+      voterKey: normalizedEmail,
+      ipHash: fingerprint.ip_hash,
+    });
 
     const summary = await getVotingSummary(supabaseAdmin, normalizedEmail, pitchId);
 
@@ -137,11 +179,15 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "A valid voterEmail is required" }, { status: 400 });
     }
 
+    // Scoped to live votes on purpose: a voided vote is an admin
+    // decision, and letting the voter delete the row would quietly free
+    // up the slot it was voided for.
     const { data: deletedRows, error: deleteError } = await supabaseAdmin
       .from("pitch_votes")
       .delete()
       .eq("pitch_id", pitchId)
       .eq("voter_key", normalizedEmail)
+      .is("voided_at", null)
       .select("id");
 
     if (deleteError) {
