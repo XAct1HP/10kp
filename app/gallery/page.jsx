@@ -116,6 +116,7 @@ export default function GalleryPage() {
   const previousVotesRef = useRef({});
 
   const [hoveredPitchId, setHoveredPitchId] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [shuffleSeed] = useState(() => Math.random());
 
@@ -414,23 +415,50 @@ export default function GalleryPage() {
   const paginatedGallery = orderedGallery.slice((galleryPage - 1) * CARDS_PER_PAGE, galleryPage * CARDS_PER_PAGE);
 
   // ── Helpers ──
+  // Audio submissions are Mux-backed too (Mux is what generates their
+  // transcript), so a playback id no longer implies "video". file_type is set
+  // at upload time and is the source of truth; the filename is only a fallback
+  // for pre-Mux audio uploads.
+  const getPitchType = (p) => {
+    if (p.file_type === "audio") return "audio";
+    if (p.file_type === "video") return "video";
+    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "audio";
+    if (p.mux_playback_id) return "video";
+    return "text";
+  };
+
+  // A tile is showing a Mux-rendered frame — which keeps the source video's own
+  // aspect ratio — only when no custom thumbnail was uploaded over it. Those get
+  // letterboxed rather than cropped, so hover can't rescale the picture.
+  const usesMuxFrame = (pitch) =>
+    !pitch?.thumbnail_path &&
+    Boolean(pitch?.mux_playback_id) &&
+    getPitchType(pitch) === "video";
+
   const getThumbnail = (pitch) => {
     if (pitch.thumbnail_path) return pitch.thumbnail_path;
-    if (pitch.mux_playback_id) return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=640&height=360&fit_mode=smartcrop`;
-    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return defaultThumbnails.audioThumbnail || "/placeholder.png";
+    const type = getPitchType(pitch);
+    // Height only: Mux derives the width and keeps the source framing, so a
+    // phone-shot vertical clip stays vertical instead of being smartcropped
+    // into the middle of someone's face.
+    if (type === "video" && pitch.mux_playback_id) {
+      return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&height=360`;
+    }
+    // Audio-only Mux assets carry no video track, so image.mux.com has nothing
+    // to render — they fall through to the admin-configured audio placeholder.
+    if (type === "audio") return defaultThumbnails.audioThumbnail || "/placeholder.png";
     if (pitch.text_content || /\.(txt|pdf|doc|docx)$/i.test(pitch.file_name || "")) return defaultThumbnails.textThumbnail || "/placeholder.png";
     return "/placeholder.png";
   };
 
   const getAnimatedThumbnail = (pitch) => {
     if (!pitch?.mux_playback_id) return null;
-    return `https://image.mux.com/${pitch.mux_playback_id}/animated.gif?width=640&height=360&fps=15`;
-  };
-
-  const getPitchType = (p) => {
-    if (p.file_type === "video" || p.mux_playback_id) return "video";
-    if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "audio";
-    return "text";
+    if (getPitchType(pitch) !== "video") return null;
+    // Height only, again: passing width AND height makes Mux stretch a vertical
+    // clip to fill a 16:9 box, which is what made hover previews look squished.
+    // Mux caps animated GIFs at 640px per side, so 360 tall is safe in any
+    // orientation.
+    return `https://image.mux.com/${pitch.mux_playback_id}/animated.gif?height=360&fps=15`;
   };
 
   // ── Voting ──
@@ -486,6 +514,45 @@ export default function GalleryPage() {
       await submitVoteRequest(pid, profile);
     }
   };
+
+  // ── Share link ──
+  // The gallery already opens ?pitch=<id> straight into the modal (that's the
+  // link the admin CSV export carries), so a shareable address for a pitch is
+  // just the address of the modal the visitor is looking at. Professors ask
+  // students to hand in a link to their pitch, so it has to be one click.
+  const pitchShareUrl = (pitch) => {
+    if (!pitch?.id || typeof window === "undefined") return "";
+    return `${window.location.origin}/gallery?pitch=${encodeURIComponent(pitch.id)}`;
+  };
+
+  const handleCopyPitchLink = async (pitch) => {
+    const url = pitchShareUrl(pitch);
+    if (!url) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // No async clipboard on insecure origins or older mobile browsers.
+        const scratch = document.createElement("textarea");
+        scratch.value = url;
+        scratch.setAttribute("readonly", "");
+        scratch.style.position = "fixed";
+        scratch.style.top = "-1000px";
+        scratch.style.opacity = "0";
+        document.body.appendChild(scratch);
+        scratch.select();
+        document.execCommand("copy");
+        document.body.removeChild(scratch);
+      }
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy the link automatically — it's in the address bar once you open this pitch.");
+    }
+  };
+
+  // A newly opened pitch starts with the button back in its resting state.
+  useEffect(() => { setLinkCopied(false); }, [selectedPitch?.id]);
 
   // ═══════════════════════════════════════════════
   //  RENDER
@@ -728,6 +795,11 @@ export default function GalleryPage() {
 
                 const animatedSrc = getAnimatedThumbnail(pitch);
                 const isHovered = hoveredPitchId === pitch.id;
+                // Mux frames keep the source aspect ratio, so they're letterboxed
+                // rather than cropped — and the ken-burns hover zoom is dropped
+                // for them so swapping in the GIF doesn't also change the scale.
+                const muxFrame = usesMuxFrame(pitch);
+                const frameFit = muxFrame ? "object-contain" : "object-cover";
 
                 return (
                   <button key={pitch.id}
@@ -743,10 +815,12 @@ export default function GalleryPage() {
                       animationDelay: `${displayIdx * 0.12}s`,
                     }}>
                     <img src={getThumbnail(pitch)} alt={pitch.title}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                      className={`absolute inset-0 w-full h-full ${frameFit} transition-transform duration-700 ${muxFrame ? "" : "group-hover:scale-110"}`}
+                      style={muxFrame ? { background: "#000" } : undefined} loading="lazy" />
                     {animatedSrc && isHovered && (
                       <img src={animatedSrc} alt=""
-                        className="absolute inset-0 w-full h-full object-cover" aria-hidden="true" />
+                        className={`absolute inset-0 w-full h-full ${frameFit}`}
+                        style={{ background: "#000" }} aria-hidden="true" />
                     )}
 
                     <div className="absolute inset-0"
@@ -973,6 +1047,8 @@ export default function GalleryPage() {
                   const isPulsing = pulsingVoteIds.includes(pitch.id);
                   const animatedSrc = getAnimatedThumbnail(pitch);
                   const isHovered = hoveredPitchId === pitch.id;
+                  const muxFrame = usesMuxFrame(pitch);
+                  const frameFit = muxFrame ? "object-contain" : "object-cover";
                   const awardName = isWinnersLane
                     ? (pitch.winner_award?.name || "").trim()
                     : "";
@@ -989,10 +1065,12 @@ export default function GalleryPage() {
                         animationDelay: `${i * 0.025}s`,
                       }}>
                       <img src={getThumbnail(pitch)} alt={pitch.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                        className={`w-full h-full ${frameFit} transition-transform duration-500 ${muxFrame ? "" : "group-hover:scale-110"}`}
+                        style={muxFrame ? { background: "#000" } : undefined} loading="lazy" />
                       {animatedSrc && isHovered && (
                         <img src={animatedSrc} alt=""
-                          className="absolute inset-0 w-full h-full object-cover" aria-hidden="true" />
+                          className={`absolute inset-0 w-full h-full ${frameFit}`}
+                          style={{ background: "#000" }} aria-hidden="true" />
                       )}
 
                       {/* Hover overlay */}
@@ -1135,11 +1213,13 @@ export default function GalleryPage() {
               <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden no-scrollbar">
 
               {/* Left: Media / Content */}
-              <div className="flex-shrink-0 md:flex-1 md:flex-shrink min-w-0 flex items-center justify-center" style={{ background: selectedPitch.mux_playback_id ? "#000" : (getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") ? "#0a0f1e" : "#000" }}>
+              <div className="flex-shrink-0 md:flex-1 md:flex-shrink min-w-0 flex items-center justify-center" style={{ background: (getPitchType(selectedPitch) === "text" || getPitchType(selectedPitch) === "audio") ? "#0a0f1e" : "#000" }}>
                 <style>{`.text-pitch-scroll::-webkit-scrollbar { display: none; }`}</style>
-                {selectedPitch.mux_playback_id ? (
+                {getPitchType(selectedPitch) === "video" && selectedPitch.mux_playback_id ? (
+                  // contain, not cover: a portrait phone recording is shown whole
+                  // with black margins rather than cropped in on the speaker.
                   <MuxPlayer playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05"
-                    style={{ width: "100%", aspectRatio: "16/9" }} />
+                    style={{ width: "100%", aspectRatio: "16/9", "--media-object-fit": "contain" }} />
                 ) : getPitchType(selectedPitch) === "audio" ? (
                   <div className="w-full flex flex-col md:h-full md:max-h-[80vh]">
                     {/* Audio player */}
@@ -1157,16 +1237,26 @@ export default function GalleryPage() {
                           style={{ border: "1px solid rgba(255,255,255,0.08)" }}
                         />
                       )}
-                      {selectedPitch.file_path && (
+                      {selectedPitch.mux_playback_id ? (
+                        // Mux hosts audio too, and its audio-mode player is the
+                        // same playback bar the admin panel uses — plus the
+                        // auto-generated captions track.
+                        <MuxPlayer
+                          playbackId={selectedPitch.mux_playback_id}
+                          accentColor="#FFCB05"
+                          audio
+                          style={{ width: "100%" }}
+                        />
+                      ) : selectedPitch.file_path ? (
                         <audio controls className="w-full" style={{ filter: "invert(1) hue-rotate(180deg)", opacity: 0.7 }}>
                           <source src={`/api/gallery/stream-audio?path=${encodeURIComponent(selectedPitch.file_path)}`} />
                         </audio>
-                      )}
+                      ) : null}
                     </div>
                     {/* Description text below player */}
-                    {(extractedText || selectedPitch.text_content || selectedPitch.description) && (
+                    {(extractedText || selectedPitch.text_content) && (
                       <div className="w-full md:flex-1 md:overflow-y-auto text-pitch-scroll px-5 sm:px-8 pb-6 sm:pb-8" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                        <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content || selectedPitch.description}</p>
+                        <p className="text-sm text-white/70 leading-relaxed">{extractedText || selectedPitch.text_content}</p>
                       </div>
                     )}
                   </div>
@@ -1277,7 +1367,38 @@ export default function GalleryPage() {
                 )}
 
                 <h2 className="text-2xl md:text-xl font-bold text-white leading-tight mb-1">{selectedPitch.title}</h2>
-                <p className="text-xs text-white/35 mb-4">by {selectedPitch.name}</p>
+                <p className="text-xs text-white/35 mb-3">by {selectedPitch.name}</p>
+
+                <div className="flex-shrink-0 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPitchLink(selectedPitch)}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-150"
+                    style={{
+                      background: linkCopied ? "rgba(255,203,5,0.14)" : "rgba(255,255,255,0.05)",
+                      border: `1px solid ${linkCopied ? "rgba(255,203,5,0.4)" : "rgba(255,255,255,0.12)"}`,
+                      color: linkCopied ? "#FFCB05" : "rgba(255,255,255,0.6)",
+                    }}
+                    aria-label="Copy a shareable link to this pitch"
+                  >
+                    {linkCopied ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Link copied
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
+                        </svg>
+                        Copy link
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 {/* Mobile: flows into the sheet's single scroll. Desktop: its own
                     scroll area so a long description can't push the vote bar off. */}

@@ -16,7 +16,7 @@ export async function GET(request) {
     const [pitchesRes, votesRes, tagsRes] = await Promise.all([
       supabaseAdmin
         .from("pitches")
-        .select("id, title, name, file_type, file_name, text_content, schools, mux_asset_id, mux_playback_id, created_at")
+        .select("id, title, name, file_type, file_name, text_content, schools, mux_asset_id, mux_playback_id, created_at, is_seed")
         .order("created_at", { ascending: true }),
       supabaseAdmin
         .from("pitch_votes")
@@ -27,12 +27,19 @@ export async function GET(request) {
         .select("pitch_id, tag_id, tags ( id, name )")
     ]);
 
-    const pitches = pitchesRes.data || [];
-    const votes = votesRes.data || [];
-    const tagAssociations = tagsRes.data || [];
+    // Seed pitches are last year's winners, preloaded by an admin so the
+    // gallery isn't empty on day one. They aren't submissions to this
+    // competition, so counting them flattens the growth curve and inflates
+    // every total — analytics covers the live cohort only.
+    const allPitches = pitchesRes.data || [];
+    const pitches = allPitches.filter((p) => !p.is_seed);
+    const livePitchIds = new Set(pitches.map((p) => p.id));
+    const votes = (votesRes.data || []).filter((v) => livePitchIds.has(v.pitch_id));
+    const tagAssociations = (tagsRes.data || []).filter((ta) => livePitchIds.has(ta.pitch_id));
 
     // ── Pitch type classification ──
     const classifyType = (p) => {
+      if (p.file_type === "audio") return "audio";
       if (p.file_type === "video") return "video";
       if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(p.file_name || "")) return "audio";
       return "text";
