@@ -33,6 +33,9 @@ export async function GET(request) {
       filters,
       resendConfigured: Boolean(resend.apiKey && resend.fromEmail),
       resendFromEmail: resend.fromEmail || null,
+      // Display name the recipient's inbox shows. Sent so the admin preview
+      // can render the sender exactly as it will arrive.
+      resendFromName: resend.fromName || null,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message || "Failed to load accounts." }, { status: 500 });

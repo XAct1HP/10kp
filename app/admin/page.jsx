@@ -4,7 +4,16 @@ import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from "rea
 import { useAuth } from "../../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
-import { buildAccountCsv, joinEmailList, parseEmailList, WINNER_SURVEY_URL } from "../../lib/outreach";
+import {
+  buildAccountCsv,
+  buildBroadcastHtml,
+  buildBroadcastText,
+  buildWinnerNotificationHtml,
+  buildWinnerNotificationText,
+  joinEmailList,
+  parseEmailList,
+  WINNER_SURVEY_URL,
+} from "../../lib/outreach";
 import { buildPitchCsv } from "../../lib/pitchExport";
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
@@ -13,6 +22,7 @@ import SettingsPanel from "../../components/admin/SettingsPanel";
 import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPanel";
 import SeedPitchesPanel from "../../components/admin/SeedPitchesPanel";
 import PodiumTogglePanel from "../../components/admin/PodiumTogglePanel";
+import OutreachPreviewOverlay from "../../components/admin/OutreachPreviewOverlay";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1115,6 +1125,7 @@ export default function AdminPage() {
     summary: null,
     resendConfigured: false,
     resendFromEmail: null,
+    resendFromName: null,
   });
   const [outreachLoading, setOutreachLoading] = useState(false);
   const [outreachLoaded, setOutreachLoaded] = useState(false);
@@ -1135,6 +1146,9 @@ export default function AdminPage() {
     note: "",
   });
   const [winnerSending, setWinnerSending] = useState(false);
+  // null | "broadcast" | "winner" — which composer the live email preview is
+  // showing. Only ever one at a time; the overlay sits over the account list.
+  const [outreachPreview, setOutreachPreview] = useState(null);
   const [broadcastHistory, setBroadcastHistory] = useState([]);
   const [broadcastHistoryLoading, setBroadcastHistoryLoading] = useState(false);
   const [broadcastHistoryEnabled, setBroadcastHistoryEnabled] = useState(true);
@@ -1308,6 +1322,7 @@ export default function AdminPage() {
         summary: data.summary || null,
         resendConfigured: Boolean(data.resendConfigured),
         resendFromEmail: data.resendFromEmail || null,
+        resendFromName: data.resendFromName || null,
       });
       setOutreachLoaded(true);
     } finally {
@@ -1324,6 +1339,7 @@ export default function AdminPage() {
         ...prev,
         resendConfigured: Boolean(data.resendConfigured),
         resendFromEmail: data.resendFromEmail || prev.resendFromEmail || null,
+        resendFromName: data.resendFromName || prev.resendFromName || null,
       }));
     } finally {
       setBroadcastHistoryLoading(false);
@@ -1966,6 +1982,34 @@ export default function AdminPage() {
   const outreachTotalSummary = outreach.summary?.total || { count: 0, submitted: 0, no_pitch: 0, confirmed: 0, unconfirmed: 0, admins: 0 };
   const outreachFilteredSummary = outreach.summary?.filtered || { count: 0, submitted: 0, no_pitch: 0, confirmed: 0, unconfirmed: 0, admins: 0 };
   const winnerRecipientEmails = parseEmailList(winnerForm.recipients);
+  // The preview renders through the very same builders the send routes use, so
+  // what the admin sees is the exact markup Resend will deliver — not a
+  // lookalike that can drift from the template.
+  const outreachPreviewProps = useMemo(() => {
+    if (!outreachPreview) return null;
+    if (outreachPreview === "winner") {
+      return {
+        kind: "winner",
+        subject: winnerForm.subject,
+        html: buildWinnerNotificationHtml({ prizeLabel: winnerForm.prizeLabel, note: winnerForm.note }),
+        text: buildWinnerNotificationText({ prizeLabel: winnerForm.prizeLabel, note: winnerForm.note }),
+        snippetSource: `Congratulations! You've been selected as a winner for ${String(winnerForm.prizeLabel || "10KP").trim()}.`,
+        sampleRecipient: winnerRecipientEmails[0] || null,
+        recipientLabel: `${winnerRecipientEmails.length} winner${winnerRecipientEmails.length === 1 ? "" : "s"} queued`,
+        warning: winnerRecipientEmails.length === 0 ? "No winner emails queued yet — this send would be blocked." : "",
+      };
+    }
+    return {
+      kind: "broadcast",
+      subject: broadcastForm.subject,
+      html: buildBroadcastHtml(broadcastForm.message, { subject: broadcastForm.subject }),
+      text: buildBroadcastText(broadcastForm.message),
+      snippetSource: broadcastForm.message,
+      sampleRecipient: outreach.accounts?.[0]?.email || null,
+      recipientLabel: `${outreachFilteredSummary.count} matching account${outreachFilteredSummary.count === 1 ? "" : "s"}`,
+      warning: !String(broadcastForm.subject || "").trim() ? "A subject is required before this can send." : "",
+    };
+  }, [outreachPreview, broadcastForm, winnerForm, winnerRecipientEmails, outreach.accounts, outreachFilteredSummary.count]);
   const tabs = [
     { id: "pitches", label: "Pitches", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /> },
     { id: "tags", label: "Tags", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /> },
@@ -2735,13 +2779,29 @@ export default function AdminPage() {
                     <p className="text-xs text-white/35">
                       This will target {outreachFilteredSummary.count} matching account{outreachFilteredSummary.count === 1 ? "" : "s"}.
                     </p>
-                    <button
-                      type="submit"
-                      disabled={broadcastSending || !outreach.resendConfigured || outreachFilteredSummary.count === 0}
-                      className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
-                    >
-                      {broadcastSending ? "Sending..." : "Send broadcast"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="submit"
+                        disabled={broadcastSending || !outreach.resendConfigured || outreachFilteredSummary.count === 0}
+                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
+                      >
+                        {broadcastSending ? "Sending..." : "Send broadcast"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOutreachPreview(outreachPreview === "broadcast" ? null : "broadcast")}
+                        className={`px-4 py-2.5 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition-colors ${
+                          outreachPreview === "broadcast" ? "text-maize bg-maize/10" : "text-white/65 hover:text-white"
+                        }`}
+                        style={{ border: `1px solid ${outreachPreview === "broadcast" ? "rgba(255,203,5,0.35)" : "rgba(255,255,255,0.12)"}` }}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        {outreachPreview === "broadcast" ? "Hide preview" : "Preview message"}
+                      </button>
+                    </div>
                   </form>
 
                   <div className="mt-6 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
@@ -2820,13 +2880,29 @@ export default function AdminPage() {
                       <p className="text-xs text-white/35">
                         {winnerRecipientEmails.length} winner{winnerRecipientEmails.length === 1 ? "" : "s"} queued. Each winner gets a private email with the survey link.
                       </p>
-                      <button
-                        type="submit"
-                        disabled={winnerSending || !outreach.resendConfigured || winnerRecipientEmails.length === 0}
-                        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
-                      >
-                        {winnerSending ? "Sending..." : "Send winner alert"}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="submit"
+                          disabled={winnerSending || !outreach.resendConfigured || winnerRecipientEmails.length === 0}
+                          className="px-5 py-2.5 rounded-xl text-sm font-semibold text-navy bg-maize hover:bg-yellow-400 transition-colors disabled:opacity-60"
+                        >
+                          {winnerSending ? "Sending..." : "Send winner alert"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOutreachPreview(outreachPreview === "winner" ? null : "winner")}
+                          className={`px-4 py-2.5 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition-colors ${
+                            outreachPreview === "winner" ? "text-maize bg-maize/10" : "text-white/65 hover:text-white"
+                          }`}
+                          style={{ border: `1px solid ${outreachPreview === "winner" ? "rgba(255,203,5,0.35)" : "rgba(255,255,255,0.12)"}` }}
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          {outreachPreview === "winner" ? "Hide preview" : "Preview message"}
+                        </button>
+                      </div>
                     </form>
                   </div>
                 </GlassCard>
@@ -2836,7 +2912,7 @@ export default function AdminPage() {
                     taller. The card then fills the wrapper exactly, ending level with
                     the "Send winner alert" button, and the two lists inside scroll to
                     fit. Below xl the columns stack and it all reverts to normal flow. */}
-                <div className="xl:col-span-3 xl:relative">
+                <div className="xl:col-span-3 relative">
                 <GlassCard noPad className="flex flex-col xl:absolute xl:inset-0">
                   <div className="px-5 py-4 border-b border-white/[0.04] flex-shrink-0">
                     <h2 className="text-lg font-bold text-white">Matching Accounts</h2>
@@ -2971,6 +3047,20 @@ export default function AdminPage() {
                     )}
                   </div>
                 </GlassCard>
+
+                {/* Sits inside this column only: it blurs the account list and
+                    outreach history behind it while the Community Outreach
+                    composer stays sharp and editable beside it, so the preview
+                    tracks the message as it is being written. */}
+                {outreachPreviewProps && (
+                  <OutreachPreviewOverlay
+                    open
+                    onClose={() => setOutreachPreview(null)}
+                    fromEmail={outreach.resendFromEmail}
+                    fromName={outreach.resendFromName}
+                    {...outreachPreviewProps}
+                  />
+                )}
                 </div>
               </div>
             </div>
