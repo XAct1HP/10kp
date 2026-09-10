@@ -1993,7 +1993,7 @@ export default function AdminPage() {
         subject: winnerForm.subject,
         html: buildWinnerNotificationHtml({ prizeLabel: winnerForm.prizeLabel, note: winnerForm.note }),
         text: buildWinnerNotificationText({ prizeLabel: winnerForm.prizeLabel, note: winnerForm.note }),
-        snippetSource: `Congratulations! You've been selected as a winner for ${String(winnerForm.prizeLabel || "10KP").trim()}.`,
+        snippetSource: `You've been selected as a winner for ${String(winnerForm.prizeLabel || "10KP").trim()}.`,
         sampleRecipient: winnerRecipientEmails[0] || null,
         recipientLabel: `${winnerRecipientEmails.length} winner${winnerRecipientEmails.length === 1 ? "" : "s"} queued`,
         warning: winnerRecipientEmails.length === 0 ? "No winner emails queued yet — this send would be blocked." : "",
