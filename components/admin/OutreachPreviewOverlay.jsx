@@ -16,8 +16,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 // The email template renders at a fixed 600px table width. Preview it at a
 // realistic client width and scale it down to whatever the column can give
-// us, rather than letting a 600px email overflow a 480px panel.
-const FRAME_WIDTHS = { desktop: 680, mobile: 390 };
+// us, rather than letting a 600px email overflow a 480px panel. There is no
+// phone variant on purpose: the template is a single fixed-width column, so a
+// narrow frame shows the same layout at a smaller size and tells you nothing.
+const FRAME_WIDTH = 680;
 
 // Scrollbars are hidden site-wide; the iframe is its own document, so the
 // rule has to be injected into it too.
@@ -79,7 +81,6 @@ export default function OutreachPreviewOverlay({
   recipientLabel,
   warning,
 }) {
-  const [device, setDevice] = useState("desktop");
   const [view, setView] = useState("rendered");
   const [box, setBox] = useState({ width: 0, height: 0 });
   const stageRef = useRef(null);
@@ -113,9 +114,8 @@ export default function OutreachPreviewOverlay({
 
   const sender = parseSender(fromEmail, fromName);
   const displaySubject = String(subject || "").trim() || "(no subject)";
-  const frameWidth = FRAME_WIDTHS[device];
-  const scale = box.width ? Math.min(1, box.width / frameWidth) : 1;
-  const offsetX = Math.max(0, (box.width - frameWidth * scale) / 2);
+  const scale = box.width ? Math.min(1, box.width / FRAME_WIDTH) : 1;
+  const offsetX = Math.max(0, (box.width - FRAME_WIDTH * scale) / 2);
   const frameHeight = box.height ? box.height / scale : 0;
   const clockLabel = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -169,25 +169,6 @@ export default function OutreachPreviewOverlay({
                 </button>
               ))}
             </div>
-            {view === "rendered" && (
-              <div className="hidden sm:flex rounded-lg p-0.5" style={{ background: "rgba(255,255,255,0.05)" }}>
-                {[
-                  { id: "desktop", label: "Desktop" },
-                  { id: "mobile", label: "Phone" },
-                ].map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setDevice(option.id)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                      device === option.id ? "bg-white/15 text-white" : "text-white/45 hover:text-white/75"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
             <button
               type="button"
               onClick={onClose}
@@ -258,7 +239,7 @@ export default function OutreachPreviewOverlay({
               <div
                 className="absolute top-0 left-0"
                 style={{
-                  width: frameWidth,
+                  width: FRAME_WIDTH,
                   height: frameHeight || "100%",
                   transform: `translateX(${offsetX}px) scale(${scale})`,
                   transformOrigin: "top left",
