@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import RecordWinnersModal from "./RecordWinnersModal";
 
 function GlassCard({ children, className = "" }) {
@@ -517,6 +517,8 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
   const [editing, setEditing] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [recordingFor, setRecordingFor] = useState(null); // award being announced
+  const [editingAward, setEditingAward] = useState(null); // { award, announcement } being edited
+  const formCardRef = useRef(null);
   const [listFilter, setListFilter] = useState("all"); // all | general | award | event
 
   const load = async () => {
@@ -562,11 +564,22 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
   const handleEdit = (a) => {
     const t = a.announcement_type || "general";
     if (t === "award") {
-      onError?.("Award announcements can't be edited directly — delete and re-announce winners instead.");
+      // Winner announcements edit in the same picker they were created in.
+      // The awards list only holds active awards, so fall back to the award
+      // embedded on the announcement (or a stub if it has since been deleted).
+      const award =
+        awards.find((x) => x.id === a.award_id) ||
+        a.award ||
+        { id: a.award_id, name: "Award", sponsors: [] };
+      setEditingAward({ award, announcement: a });
       return;
     }
     setEditing(a);
     setMode(t);
+    // The form sits above the list; bring it into view.
+    requestAnimationFrame(() =>
+      formCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
   };
 
   const modes = [
@@ -611,6 +624,7 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
       </GlassCard>
 
       {/* Mode-specific form */}
+      <div ref={formCardRef}>
       <GlassCard>
         {mode === "general" && (
           <>
@@ -702,6 +716,7 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
           </>
         )}
       </GlassCard>
+      </div>
 
       {/* All announcements list */}
       <GlassCard className="!p-0">
@@ -763,15 +778,13 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      {t !== "award" && (
-                        <button
-                          onClick={() => handleEdit(a)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 hover:text-white transition-colors"
-                          style={{ border: "1px solid rgba(255,255,255,0.12)" }}
-                        >
-                          Edit
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleEdit(a)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/70 hover:text-white transition-colors"
+                        style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                      >
+                        Edit
+                      </button>
                       <button
                         onClick={() => handleDelete(a)}
                         disabled={deletingId === a.id}
@@ -794,6 +807,19 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
           award={recordingFor}
           apiFetch={apiFetch}
           onClose={() => setRecordingFor(null)}
+          onError={onError}
+          onSuccess={onSuccess}
+          onCreated={async () => { await load(); }}
+        />
+      )}
+
+      {editingAward && (
+        <RecordWinnersModal
+          key={editingAward.announcement.id}
+          award={editingAward.award}
+          existing={editingAward.announcement}
+          apiFetch={apiFetch}
+          onClose={() => setEditingAward(null)}
           onError={onError}
           onSuccess={onSuccess}
           onCreated={async () => { await load(); }}

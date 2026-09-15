@@ -25,7 +25,9 @@ function pitchThumbUrl(pitch) {
 }
 
 /**
- * RecordWinnersModal — creates a new award-type announcement.
+ * RecordWinnersModal — creates a new award-type announcement, or edits an
+ * existing one when `existing` is passed (title, message, winners, order,
+ * published state).
  *
  * Each open of this modal produces one fresh announcement listing the
  * winners the admin picks. Previous announcements for the same award
@@ -33,6 +35,7 @@ function pitchThumbUrl(pitch) {
  *
  * Props:
  *   award: { id, name, prize?, sponsors?[] }
+ *   existing?: announcement row (with winners[]) to edit instead of create
  *   apiFetch: (url, opts?) => Promise
  *   onClose: () => void
  *   onCreated: (announcement) => void   — parent can toast + refresh
@@ -40,19 +43,23 @@ function pitchThumbUrl(pitch) {
  */
 export default function RecordWinnersModal({
   award,
+  existing = null,
   apiFetch,
   onClose,
   onCreated,
   onError,
   onSuccess,
 }) {
-  const [selected, setSelected] = useState([]); // array of pitch objects (ordered)
+  const isEdit = !!existing;
+  // array of pitch objects (ordered)
+  const [selected, setSelected] = useState(() => (existing?.winners || []).filter(Boolean));
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounced(query, 250);
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [title, setTitle] = useState(`${award.name} — Winner Announcement`);
-  const [content, setContent] = useState("");
+  const [title, setTitle] = useState(existing?.title ?? `${award.name} — Winner Announcement`);
+  const [content, setContent] = useState(existing?.content ?? "");
+  const [isPublished, setIsPublished] = useState(existing ? existing.is_published !== false : true);
   const [submitting, setSubmitting] = useState(false);
   const dialogRef = useRef(null);
 
@@ -113,22 +120,38 @@ export default function RecordWinnersModal({
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const payload = {
-        title: title.trim(),
-        content: content.trim(),
-        is_published: true,
-        announcement_type: "award",
-        award_id: award.id,
-        winner_pitch_ids: selected.map((p) => p.id),
-      };
-      const created = await apiFetch("/api/admin/announcements", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      onSuccess?.(
-        `Announced ${selected.length} winner${selected.length === 1 ? "" : "s"} for ${award.name}`
-      );
-      onCreated?.(created);
+      const winnerIds = selected.map((p) => p.id);
+      if (isEdit) {
+        const updated = await apiFetch("/api/admin/announcements", {
+          method: "PUT",
+          body: JSON.stringify({
+            id: existing.id,
+            title: title.trim(),
+            content: content.trim(),
+            is_published: isPublished,
+            winner_pitch_ids: winnerIds,
+          }),
+        });
+        onSuccess?.("Winner announcement updated");
+        onCreated?.(updated);
+      } else {
+        const payload = {
+          title: title.trim(),
+          content: content.trim(),
+          is_published: isPublished,
+          announcement_type: "award",
+          award_id: award.id,
+          winner_pitch_ids: winnerIds,
+        };
+        const created = await apiFetch("/api/admin/announcements", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        onSuccess?.(
+          `Announced ${selected.length} winner${selected.length === 1 ? "" : "s"} for ${award.name}`
+        );
+        onCreated?.(created);
+      }
       onClose?.();
     } catch (err) {
       onError?.(err.message);
@@ -162,7 +185,7 @@ export default function RecordWinnersModal({
         >
           <div>
             <p className="text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: "#FFCB05" }}>
-              Record Winners
+              {isEdit ? "Edit Winner Announcement" : "Record Winners"}
             </p>
             <h2 id="record-winners-title" className="text-lg font-bold text-white tracking-tight">
               {award.name}
@@ -192,7 +215,7 @@ export default function RecordWinnersModal({
                 placeholder="Search by title, name, or description..."
                 className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-maize"
                 style={inputStyle}
-                autoFocus
+                autoFocus={!isEdit}
               />
               <p className="mt-2 text-[10px] text-white/30">
                 Showing {results.length} result{results.length === 1 ? "" : "s"}. Seed pitches are excluded — only intake-form submissions are eligible.
@@ -348,6 +371,16 @@ export default function RecordWinnersModal({
                 </p>
               </div>
 
+              <label className="flex items-center gap-2 text-sm text-white/75 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isPublished}
+                  onChange={(e) => setIsPublished(e.target.checked)}
+                  className="w-4 h-4 accent-maize"
+                />
+                Published (show on Announcements page)
+              </label>
+
               {award.sponsors?.length > 0 && (
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
@@ -390,7 +423,13 @@ export default function RecordWinnersModal({
                 className="px-5 py-2 rounded-lg text-sm font-semibold text-black transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:hover:translate-y-0"
                 style={{ background: "#FFCB05" }}
               >
-                {submitting ? "Publishing..." : "Publish announcement"}
+                {submitting
+                  ? "Saving..."
+                  : isEdit
+                  ? "Save changes"
+                  : isPublished
+                  ? "Publish announcement"
+                  : "Save as draft"}
               </button>
             </div>
           </form>
