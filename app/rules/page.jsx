@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import PageBackground from "../../components/PageBackground";
 import rulesBg from "../../public/rules_bg.png";
+import { MIN_PITCH_WORDS } from "../../lib/pitchWords";
 
 function SectionCard({ title, children }) {
   return (
@@ -238,7 +239,10 @@ export default function RulesPage() {
               You may submit text-only pitches, audio-only pitches, or video
               pitches. Pitches should be 60 seconds or less, but that is not a
               hard cutoff. No slide decks or formal business plans are required,
-              but feel free to use them or be creative in other ways.
+              but feel free to use them or be creative in other ways. Every
+              pitch must be at least {MIN_PITCH_WORDS} words, whether typed,
+              in a document, or spoken in your audio or video. Shorter pitches
+              are rejected automatically.
             </Item>
             <div>
               <p className="font-semibold text-white mb-3">

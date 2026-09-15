@@ -7,7 +7,7 @@ import PageBackground from "../../components/PageBackground";
 import galleryHero from "../../public/gallery_hero.png";
 
 const GALLERY_PAGE_SIZE = 200;
-const CARDS_PER_PAGE = 36; // 6 cols x 6 rows on desktop; wraps naturally on smaller screens
+const CARDS_PER_PAGE = 102; // 6 cols x 17 rows on desktop (first multiple of 6 above 100); wraps naturally on smaller screens
 const TOP_COUNT = 3;
 
 const RANK_BADGES = [

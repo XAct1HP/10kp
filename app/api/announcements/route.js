@@ -8,7 +8,7 @@ export const revalidate = 0;
 const ANNOUNCEMENT_SELECT = `
   id, title, content, announcement_type, award_id,
   event_starts_at, event_ends_at, event_location_name, event_address,
-  event_registration_url, event_virtual_url,
+  event_registration_url, event_virtual_url, event_is_virtual,
   created_at, updated_at,
   award:awards ( id, name, description, prize,
     award_sponsors ( sort_order,

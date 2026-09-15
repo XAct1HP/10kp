@@ -6,6 +6,49 @@ import { supabase } from "../../lib/supabase";
 import Image from "next/image";
 import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { MIN_PITCH_WORDS, countWords } from "../../lib/pitchWords";
+
+// Shown above the file picker. Uploaded files are held to the same minimum
+// as typed pitches: the document text or the spoken transcript is counted
+// after upload, and anything short is rejected automatically.
+function MinWordsCallout() {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl px-4 py-3 mb-4"
+      style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.35)" }}
+      role="note"
+    >
+      <svg className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div className="text-xs leading-relaxed">
+        <p className="font-semibold" style={{ color: "#FFCB05" }}>Minimum {MIN_PITCH_WORDS} words</p>
+        <p className="text-white/65 mt-0.5">
+          We count the words in your document, or the spoken words in your video or audio.
+          Pitches under {MIN_PITCH_WORDS} words are rejected automatically and won&apos;t be posted.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Live counter under the text pitch box.
+function WordCounter({ count }) {
+  const met = count >= MIN_PITCH_WORDS;
+  const remaining = MIN_PITCH_WORDS - count;
+  return (
+    <div className="flex items-center justify-between gap-3 mt-2 text-xs" aria-live="polite">
+      <span style={{ color: met ? "#4ADE80" : "rgba(255,255,255,0.55)" }}>
+        {met
+          ? "Minimum length reached"
+          : `${remaining} more word${remaining === 1 ? "" : "s"} needed`}
+      </span>
+      <span className="tabular-nums font-semibold" style={{ color: met ? "#4ADE80" : "#FFCB05" }}>
+        {count} / {MIN_PITCH_WORDS} words
+      </span>
+    </div>
+  );
+}
 
 // Scrollable pane with the scrollbar hidden and a bottom fade that only
 // appears while there is more to scroll to. Mirrors the admin page's
@@ -187,6 +230,8 @@ export default function IntakePage() {
   // New: text pitch mode
   const [pitchMode, setPitchMode] = useState("file"); // "file" or "text"
   const [textContent, setTextContent] = useState("");
+  // Set when the server rejects a document pitch for being under the word minimum.
+  const [shortPitchRejection, setShortPitchRejection] = useState(null);
 
   // New: optional thumbnail upload
   const [thumbnail, setThumbnail] = useState(null);
@@ -456,6 +501,10 @@ export default function IntakePage() {
       case 5:
         if (pitchMode === "file" && !file) return "Please upload a pitch file.";
         if (pitchMode === "text" && !textContent.trim()) return "Please enter your pitch text.";
+        if (pitchMode === "text" && countWords(textContent) < MIN_PITCH_WORDS) {
+          const n = countWords(textContent);
+          return `Your pitch needs at least ${MIN_PITCH_WORDS} words. It has ${n} so far.`;
+        }
         return null;
       default:
         return null;
@@ -535,6 +584,11 @@ export default function IntakePage() {
 
   const handleSubmit = async () => {
     setError("");
+    if (pitchMode === "text" && countWords(textContent) < MIN_PITCH_WORDS) {
+      setError(`Your pitch needs at least ${MIN_PITCH_WORDS} words. Go back to Floor 5 to add more.`);
+      return;
+    }
+    setShortPitchRejection(null);
     setSubmitting(true);
     const isVideoUpload = file && VIDEO_FILE_TYPES.includes(file.type);
     const isAudioUpload = file && AUDIO_FILE_TYPES.includes(file.type);
@@ -677,6 +731,11 @@ export default function IntakePage() {
           });
           if (!moderationRes.ok) {
             console.warn("Initial moderation handoff failed", { pitchId: pitch.id, status: moderationRes.status });
+          } else {
+            const moderationData = await moderationRes.json().catch(() => null);
+            if (moderationData?.status === "rejected" && moderationData?.reason === "min_words") {
+              setShortPitchRejection({ wordCount: moderationData.wordCount ?? 0 });
+            }
           }
         }
       } catch {
@@ -1196,6 +1255,7 @@ export default function IntakePage() {
           <p className="text-white/40 text-xs mb-4">
             Video (MP4, MOV, WebM), Audio (MP3, WAV, OGG, AAC), or Document (PDF, DOCX, TXT). Max 500MB.
           </p>
+          <MinWordsCallout />
           <label
             htmlFor="file-upload"
             className="flex flex-col items-center justify-center w-full py-10 rounded-xl cursor-pointer transition-all duration-200 group"
@@ -1237,7 +1297,7 @@ export default function IntakePage() {
       ) : (
         <>
           <p className="text-white/40 text-xs mb-4">
-            Type or paste your pitch text below.
+            Type or paste your pitch text below. It must be at least {MIN_PITCH_WORDS} words.
           </p>
           <textarea
             placeholder="Type your pitch here..."
@@ -1247,6 +1307,7 @@ export default function IntakePage() {
             className="w-full px-4 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none resize-y"
             style={inputStyle()}
           />
+          <WordCounter count={countWords(textContent)} />
         </>
       )}
 
@@ -1374,7 +1435,25 @@ export default function IntakePage() {
     </div>
   );
 
-  const renderSuccess = () => (
+  const renderSuccess = () => shortPitchRejection ? (
+    <div className="text-center">
+      <h2 className="text-3xl font-bold text-white mb-3">Your Pitch Was Not Posted</h2>
+      <p className="text-white/60 text-sm mb-2">
+        We could only find {shortPitchRejection.wordCount} word{shortPitchRejection.wordCount === 1 ? "" : "s"} in your file.
+        Pitches must be at least {MIN_PITCH_WORDS} words, so this one was rejected automatically.
+      </p>
+      <p className="text-white/50 text-sm mb-10">
+        Expand your pitch and submit it again. If your document is a scan or an image, upload a version with selectable text.
+      </p>
+      <Link
+        href="/gallery"
+        className="inline-flex items-center justify-center px-8 py-4 text-sm font-semibold rounded-xl text-black"
+        style={{ background: "#FFCB05" }}
+      >
+        View the Gallery
+      </Link>
+    </div>
+  ) : (
     <div className="text-center">
       <svg className="w-20 h-20 mx-auto mb-6" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

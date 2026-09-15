@@ -264,10 +264,15 @@ function formatEventTimeRange(startIso, endIso) {
   return `${startStr} – ${endStr}`;
 }
 
+// Virtual is its own flag (the link can come later); a link always means virtual.
+function isVirtualEvent(a) {
+  return !!(a?.event_is_virtual || a?.event_virtual_url);
+}
+
 function EventNote({ announcement, rotate }) {
   // Only virtual events are still on the board after they start.
   const isLive =
-    !!announcement.event_virtual_url &&
+    isVirtualEvent(announcement) &&
     new Date(announcement.event_starts_at).getTime() <= Date.now();
   const mapSrc = announcement.event_address
     ? `https://www.google.com/maps?q=${encodeURIComponent(announcement.event_address)}&output=embed`
@@ -285,9 +290,12 @@ function EventNote({ announcement, rotate }) {
       <p className="text-xs font-semibold mt-1" style={{ color: "#1E3A8A" }}>
         {formatEventDate(announcement.event_starts_at)} · {formatEventTimeRange(announcement.event_starts_at, announcement.event_ends_at)}
       </p>
-      {announcement.event_virtual_url && (
+      {isVirtualEvent(announcement) && (
         <p className="text-xs mt-1" style={{ color: "#444" }}>
           💻 Virtual event
+          {!announcement.event_virtual_url && (
+            <span style={{ color: "#777" }}> · Join link coming soon</span>
+          )}
         </p>
       )}
       {(announcement.event_location_name || announcement.event_address) && (
@@ -432,7 +440,7 @@ export default function AnnouncementsPage() {
       .filter((a) => {
         if (a.announcement_type !== "event" || !a.event_starts_at) return false;
         const start = new Date(a.event_starts_at).getTime();
-        if (!a.event_virtual_url) return start > now;
+        if (!isVirtualEvent(a)) return start > now;
         const end = a.event_ends_at ? new Date(a.event_ends_at).getTime() : start + 60 * 60 * 1000;
         return Math.max(start, end) > now;
       })

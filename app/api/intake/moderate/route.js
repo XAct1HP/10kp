@@ -49,6 +49,14 @@ export async function POST(request) {
 
     try {
       const outcome = await runModeration(pitchId);
+      if (outcome?.rejectionCode === "min_words") {
+        return NextResponse.json({
+          status: "rejected",
+          reason: "min_words",
+          wordCount: outcome.wordCount,
+          message: outcome.summary,
+        });
+      }
       return NextResponse.json({
         status: outcome?.finalState || "processing",
         message: "Your pitch was submitted and reviewed. It will appear in the gallery once approved.",

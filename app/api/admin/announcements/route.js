@@ -8,7 +8,7 @@ import { normalizeMeetingUrl } from "../../../../lib/eventLinks";
 const ANNOUNCEMENT_SELECT = `
   id, title, content, is_published, announcement_type, award_id,
   event_starts_at, event_ends_at, event_location_name, event_address,
-  event_registration_url, event_virtual_url,
+  event_registration_url, event_virtual_url, event_is_virtual,
   created_at, updated_at,
   award:awards ( id, name, description, prize,
     award_sponsors ( sort_order,
@@ -238,6 +238,8 @@ export async function POST(request) {
       event_address: announcementType === "event" ? eventAddress : null,
       event_registration_url: announcementType === "event" ? eventRegistrationUrl : null,
       event_virtual_url: announcementType === "event" ? eventVirtualUrl : null,
+      // Virtual can be set before the link exists; a link always implies virtual.
+      event_is_virtual: announcementType === "event" ? Boolean(body.event_is_virtual) || Boolean(eventVirtualUrl) : false,
       created_at: now,
       updated_at: now,
     };
@@ -312,6 +314,9 @@ export async function PUT(request) {
     if (body.event_registration_url !== undefined) {
       patch.event_registration_url = body.event_registration_url ? String(body.event_registration_url).trim() : null;
     }
+    if (body.event_is_virtual !== undefined) {
+      patch.event_is_virtual = Boolean(body.event_is_virtual);
+    }
     if (body.event_virtual_url !== undefined) {
       try {
         patch.event_virtual_url = normalizeMeetingUrl(body.event_virtual_url);
@@ -319,6 +324,7 @@ export async function PUT(request) {
         return NextResponse.json({ error: linkErr.message }, { status: 400 });
       }
     }
+    if (patch.event_virtual_url) patch.event_is_virtual = true;
 
     const supabaseAdmin = getSupabaseAdmin();
     const { error } = await supabaseAdmin

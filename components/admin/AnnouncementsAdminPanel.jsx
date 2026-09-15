@@ -95,7 +95,7 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
         event_location_name: editing.event_location_name || "",
         event_address: editing.event_address || "",
         event_registration_url: editing.event_registration_url || "",
-        is_virtual: !!editing.event_virtual_url,
+        is_virtual: !!(editing.event_is_virtual || editing.event_virtual_url),
         event_virtual_url: editing.event_virtual_url || "",
         is_published: editing.is_published !== false,
         sponsor_ids: (editing.sponsors || []).map((s) => s.id),
@@ -133,8 +133,7 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
     !submitting &&
     form.title.trim() &&
     form.content.trim() &&
-    form.event_starts_at &&
-    (!form.is_virtual || form.event_virtual_url.trim());
+    form.event_starts_at;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -151,7 +150,9 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
         // Virtual events have no place; in-person events have no meeting link.
         event_location_name: form.is_virtual ? null : form.event_location_name.trim() || null,
         event_address: form.is_virtual ? null : form.event_address.trim() || null,
-        event_virtual_url: form.is_virtual ? form.event_virtual_url.trim() : null,
+        event_is_virtual: !!form.is_virtual,
+        // The link is optional: logistics may not be sorted when the event is posted.
+        event_virtual_url: form.is_virtual ? form.event_virtual_url.trim() || null : null,
         event_registration_url: form.event_registration_url.trim() || null,
         sponsor_ids: form.sponsor_ids,
       };
@@ -254,17 +255,16 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
         </div>
         {form.is_virtual ? (
           <div>
-            <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Meeting link</label>
+            <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Meeting link (optional)</label>
             <input
               value={form.event_virtual_url}
               onChange={(e) => setForm({ ...form, event_virtual_url: e.target.value })}
-              required
               inputMode="url"
               placeholder="https://umich.zoom.us/j/..."
               className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
               style={inputStyle}
             />
-            <p className="text-[11px] text-white/35 mt-1">Zoom, Teams, Meet, or any link. It shows as a Join button on the announcement.</p>
+            <p className="text-[11px] text-white/35 mt-1">Zoom, Teams, Meet, or any link. It shows as a Join button. Leave it blank if it isn't set yet and add it later by editing the event.</p>
           </div>
         ) : (
           <>
@@ -324,7 +324,7 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <p className="text-xs text-white/30 text-center px-4">
-                  {form.is_virtual ? "Virtual event: no map, attendees get a Join button" : "No address, so no map. That's fine."}
+                  {form.is_virtual ? "Virtual event: no map. The Join button appears once a link is added." : "No address, so no map. That's fine."}
                 </p>
               </div>
             )}
@@ -770,7 +770,7 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
                       <div className="flex items-center gap-3 mt-2 text-[10px] text-white/30">
                         <span>Updated {new Date(a.updated_at || a.created_at).toLocaleString()}</span>
                         {t === "event" && a.event_starts_at && (
-                          <span className="text-blue-300/70">📅 {formatEventTime(a.event_starts_at)}{a.event_virtual_url ? " · Virtual" : ""}</span>
+                          <span className="text-blue-300/70">📅 {formatEventTime(a.event_starts_at)}{a.event_is_virtual || a.event_virtual_url ? ` · Virtual${a.event_virtual_url ? "" : " (no link yet)"}` : ""}</span>
                         )}
                         {t === "award" && a.award?.name && (
                           <span className="text-maize/70">🏆 {a.award.name} · {a.winners?.length || 0} winner{a.winners?.length === 1 ? "" : "s"}</span>
