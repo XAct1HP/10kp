@@ -734,9 +734,9 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
           {sortedPitches.map((pitch) => {
             const s = statusLabel(pitch);
             const awardLabel = awardNameFor(pitch, awardsById);
-            // Match the 120×68 display box at 2× dpi (16:9).
+            // Height only (2x the 68px box) so vertical clips keep their shape.
             const thumb = pitch.mux_playback_id
-              ? `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=240&height=135&fit_mode=smartcrop`
+              ? `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&height=136`
               : null;
             const isEditing = editingId === pitch.id;
             return (
@@ -759,7 +759,7 @@ export default function SeedPitchesPanel({ apiFetch, onError, onSuccess, embedde
                     <img
                       src={thumb}
                       alt={pitch.title}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-contain bg-black"
                     />
                   ) : (
                     <svg

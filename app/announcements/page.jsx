@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
+import { meetingButtonLabel } from "../../lib/eventLinks";
 // The blue cork board background image the user is providing.
 // Drop the file at /public/bulletin_bg.png and it'll load automatically.
 import bulletinBg from "../../public/bulletin_bg.png";
@@ -138,17 +139,28 @@ function SponsorRow({ sponsors }) {
 }
 
 // ─── Pitch helpers ──────────────────────────────────────────────
+// file_type decides the media type. Audio is uploaded to Mux too, so a
+// playback id on its own does not mean video.
 function getPitchType(pitch) {
   if (!pitch) return "unknown";
-  if (pitch.file_type === "video" || pitch.mux_playback_id) return "video";
+  if (pitch.file_type === "audio") return "audio";
+  if (pitch.file_type === "video") return "video";
   if (/\.(mp3|wav|ogg|aac|m4a|webm)$/i.test(pitch.file_name || "")) return "audio";
+  if (pitch.mux_playback_id) return "video";
   return "text";
+}
+// True when the picture is a frame Mux pulled from the video itself, which
+// keeps the recording's own orientation and so must be letterboxed.
+function usesMuxFrame(pitch) {
+  return !pitch?.thumbnail_path && !!pitch?.mux_playback_id && getPitchType(pitch) === "video";
 }
 function getPitchThumbnail(pitch) {
   if (!pitch) return null;
   if (pitch.thumbnail_path) return pitch.thumbnail_path;
-  if (pitch.mux_playback_id) {
-    return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&width=480&fit_mode=smartcrop`;
+  if (usesMuxFrame(pitch)) {
+    // Height only: Mux derives the width from the source, so a vertical phone
+    // recording comes back vertical instead of smartcropped into the middle of the frame.
+    return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?time=1&height=360`;
   }
   return null;
 }
@@ -167,10 +179,17 @@ function WinnerPolaroid({ pitch, onOpen }) {
         boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
       }}
     >
-      <div className="aspect-video w-full overflow-hidden flex items-center justify-center" style={{ background: "#eee" }}>
+      <div
+        className="aspect-video w-full overflow-hidden flex items-center justify-center"
+        style={{ background: usesMuxFrame(pitch) ? "#000" : "#eee" }}
+      >
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt={pitch.title} className="w-full h-full object-cover" />
+          <img
+            src={thumb}
+            alt={pitch.title}
+            className={`w-full h-full ${usesMuxFrame(pitch) ? "object-contain" : "object-cover"}`}
+          />
         ) : (
           <span className="text-[10px] text-gray-500 uppercase tracking-wider">{getPitchType(pitch)}</span>
         )}
@@ -246,6 +265,10 @@ function formatEventTimeRange(startIso, endIso) {
 }
 
 function EventNote({ announcement, rotate }) {
+  // Only virtual events are still on the board after they start.
+  const isLive =
+    !!announcement.event_virtual_url &&
+    new Date(announcement.event_starts_at).getTime() <= Date.now();
   const mapSrc = announcement.event_address
     ? `https://www.google.com/maps?q=${encodeURIComponent(announcement.event_address)}&output=embed`
     : null;
@@ -256,12 +279,17 @@ function EventNote({ announcement, rotate }) {
   return (
     <Note type="event" rotate={rotate}>
       <p className="text-[10px] uppercase tracking-[0.22em] font-bold mb-2" style={{ color: "#1E3A8A" }}>
-        📅 Upcoming Event
+        {isLive ? "🔴 Happening now" : "📅 Upcoming Event"}
       </p>
       <h3 className="text-base font-bold" style={{ color: "#1a1a1a" }}>{announcement.title}</h3>
       <p className="text-xs font-semibold mt-1" style={{ color: "#1E3A8A" }}>
         {formatEventDate(announcement.event_starts_at)} · {formatEventTimeRange(announcement.event_starts_at, announcement.event_ends_at)}
       </p>
+      {announcement.event_virtual_url && (
+        <p className="text-xs mt-1" style={{ color: "#444" }}>
+          💻 Virtual event
+        </p>
+      )}
       {(announcement.event_location_name || announcement.event_address) && (
         <p className="text-xs mt-1" style={{ color: "#444" }}>
           📍 {announcement.event_location_name || announcement.event_address}
@@ -292,6 +320,17 @@ function EventNote({ announcement, rotate }) {
         </div>
       )}
       <div className="flex flex-wrap gap-2 mt-3">
+        {announcement.event_virtual_url && (
+          <a
+            href={announcement.event_virtual_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold"
+            style={{ background: "#1E3A8A", color: "#fff" }}
+          >
+            {meetingButtonLabel(announcement.event_virtual_url)} →
+          </a>
+        )}
         {announcement.event_registration_url && (
           <a
             href={announcement.event_registration_url}
@@ -384,16 +423,19 @@ export default function AnnouncementsPage() {
       );
   }, [announcements]);
 
-  // Column 2: upcoming events only (event_starts_at > now), soonest first.
+  // Column 2: upcoming events, soonest first. In-person events come down once
+  // they start. Virtual events stay up until they end (or an hour after the
+  // start when no end time is set) so the Join button is there when it's needed.
   const rightColumn = useMemo(() => {
     const now = Date.now();
     return announcements
-      .filter(
-        (a) =>
-          a.announcement_type === "event" &&
-          a.event_starts_at &&
-          new Date(a.event_starts_at).getTime() > now
-      )
+      .filter((a) => {
+        if (a.announcement_type !== "event" || !a.event_starts_at) return false;
+        const start = new Date(a.event_starts_at).getTime();
+        if (!a.event_virtual_url) return start > now;
+        const end = a.event_ends_at ? new Date(a.event_ends_at).getTime() : start + 60 * 60 * 1000;
+        return Math.max(start, end) > now;
+      })
       .slice()
       .sort((a, b) => new Date(a.event_starts_at) - new Date(b.event_starts_at));
   }, [announcements]);
@@ -510,14 +552,33 @@ export default function AnnouncementsPage() {
             </div>
 
             {getPitchType(selectedPitch) === "video" && selectedPitch.mux_playback_id && (
+              // contain, not cover: a vertical phone recording plays at full
+              // height with black margins instead of being cropped.
               <MuxPlayer
                 playbackId={selectedPitch.mux_playback_id}
                 accentColor="#FFCB05"
-                style={{ width: "100%", borderRadius: "0.75rem", overflow: "hidden" }}
+                style={{
+                  width: "100%",
+                  aspectRatio: "16/9",
+                  maxHeight: "70vh",
+                  background: "#000",
+                  borderRadius: "0.75rem",
+                  overflow: "hidden",
+                  "--media-object-fit": "contain",
+                }}
               />
             )}
 
-            {getPitchType(selectedPitch) === "audio" && selectedPitch.file_path && (
+            {getPitchType(selectedPitch) === "audio" && selectedPitch.mux_playback_id && (
+              <MuxPlayer
+                playbackId={selectedPitch.mux_playback_id}
+                accentColor="#FFCB05"
+                audio
+                style={{ width: "100%" }}
+              />
+            )}
+
+            {getPitchType(selectedPitch) === "audio" && !selectedPitch.mux_playback_id && selectedPitch.file_path && (
               <div className="space-y-3">
                 {getPitchThumbnail(selectedPitch) && (
                   // eslint-disable-next-line @next/next/no-img-element

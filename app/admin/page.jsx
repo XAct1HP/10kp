@@ -3643,8 +3643,11 @@ export default function AdminPage() {
             <div className="flex flex-col md:flex-row px-4 sm:px-7 pb-5 sm:pb-6 gap-4 md:gap-6">
               <div className="flex-1 flex flex-col min-w-0">
                 {selectedPitch.file_type === "video" && selectedPitch.mux_playback_id && (
-                  <div className="rounded-xl overflow-hidden flex-shrink-0 mb-4" style={{ maxHeight: "45vh" }}>
-                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05" style={{ width: "100%", maxHeight: "45vh" }} />
+                  // Fixed 16:9 box with contain: a vertical phone recording shows at
+                  // full height with black side margins instead of being cropped.
+                  <div className="rounded-xl overflow-hidden flex-shrink-0 mb-4" style={{ background: "#000" }}>
+                    <MuxPlayer ref={muxPlayerRef} playbackId={selectedPitch.mux_playback_id} accentColor="#FFCB05"
+                      style={{ width: "100%", aspectRatio: "16/9", maxHeight: "45vh", display: "block", "--media-object-fit": "contain" }} />
                   </div>
                 )}
                 {selectedPitch.file_type === "video" && !selectedPitch.mux_playback_id && (

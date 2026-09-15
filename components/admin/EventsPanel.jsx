@@ -65,6 +65,8 @@ const EMPTY_FORM = {
   event_location_name: "",
   event_address: "",
   event_registration_url: "",
+  is_virtual: false,
+  event_virtual_url: "",
   is_published: true,
   sponsor_ids: [],
 };
@@ -130,6 +132,8 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
       event_location_name: ev.event_location_name || "",
       event_address: ev.event_address || "",
       event_registration_url: ev.event_registration_url || "",
+      is_virtual: !!ev.event_virtual_url,
+      event_virtual_url: ev.event_virtual_url || "",
       is_published: ev.is_published !== false,
       sponsor_ids: (ev.sponsors || []).map((s) => s.id),
     });
@@ -160,7 +164,7 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.content.trim() || !form.event_starts_at || !form.event_address.trim()) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
       const payload = {
@@ -170,8 +174,9 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
         is_published: !!form.is_published,
         event_starts_at: localInputToIso(form.event_starts_at),
         event_ends_at: form.event_ends_at ? localInputToIso(form.event_ends_at) : null,
-        event_location_name: form.event_location_name.trim() || null,
-        event_address: form.event_address.trim(),
+        event_location_name: form.is_virtual ? null : form.event_location_name.trim() || null,
+        event_address: form.is_virtual ? null : form.event_address.trim() || null,
+        event_virtual_url: form.is_virtual ? form.event_virtual_url.trim() : null,
         event_registration_url: form.event_registration_url.trim() || null,
         sponsor_ids: form.sponsor_ids,
       };
@@ -216,9 +221,9 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
     form.title.trim() &&
     form.content.trim() &&
     form.event_starts_at &&
-    form.event_address.trim();
+    (!form.is_virtual || form.event_virtual_url.trim());
 
-  const mapPreview = mapEmbedSrc(form.event_address.trim());
+  const mapPreview = form.is_virtual ? null : mapEmbedSrc(form.event_address.trim());
 
   return (
     <div className="flex-1 flex flex-col min-h-0 gap-4 overflow-y-auto no-scrollbar pr-1">
@@ -311,27 +316,68 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Location name (optional)</label>
-                  <input
-                    value={form.event_location_name}
-                    onChange={(e) => setForm({ ...form, event_location_name: e.target.value })}
-                    placeholder="Ross School of Business, Room 1234"
-                    className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
-                    style={inputStyle}
-                  />
+                  <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Format</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[{ virtual: false, label: "In person" }, { virtual: true, label: "Virtual" }].map((opt) => {
+                      const active = form.is_virtual === opt.virtual;
+                      return (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => setForm({ ...form, is_virtual: opt.virtual })}
+                          aria-pressed={active}
+                          className="px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                          style={
+                            active
+                              ? { background: "rgba(255,203,5,0.12)", border: "1px solid rgba(255,203,5,0.45)", color: "#FFCB05" }
+                              : { ...inputStyle, color: "rgba(255,255,255,0.6)" }
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+                {form.is_virtual ? (
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Meeting link</label>
+                    <input
+                      value={form.event_virtual_url}
+                      onChange={(e) => setForm({ ...form, event_virtual_url: e.target.value })}
+                      required
+                      inputMode="url"
+                      placeholder="https://umich.zoom.us/j/..."
+                      className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                      style={inputStyle}
+                    />
+                    <p className="text-[11px] text-white/35 mt-1">Zoom, Teams, Meet, or any link. It shows as a Join button on the announcement.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Location name (optional)</label>
+                      <input
+                        value={form.event_location_name}
+                        onChange={(e) => setForm({ ...form, event_location_name: e.target.value })}
+                        placeholder="Ross School of Business, Room 1234"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                        style={inputStyle}
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Address (for the map)</label>
-                  <input
-                    value={form.event_address}
-                    onChange={(e) => setForm({ ...form, event_address: e.target.value })}
-                    required
-                    placeholder="701 Tappan Ave, Ann Arbor, MI 48109"
-                    className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
-                    style={inputStyle}
-                  />
-                </div>
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Address (optional, adds a map)</label>
+                      <input
+                        value={form.event_address}
+                        onChange={(e) => setForm({ ...form, event_address: e.target.value })}
+                        placeholder="701 Tappan Ave, Ann Arbor, MI 48109"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Registration URL (optional)</label>
@@ -375,7 +421,9 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <p className="text-xs text-white/30">Enter an address to preview</p>
+                        <p className="text-xs text-white/30 text-center px-4">
+                          {form.is_virtual ? "Virtual event: no map, attendees get a Join button" : "No address, so no map. That's fine."}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -512,6 +560,9 @@ export default function EventsPanel({ apiFetch, onError, onSuccess }) {
                     )}
                   </div>
                   <p className="text-xs text-maize font-medium">{formatEventTime(ev.event_starts_at)}</p>
+                  {ev.event_virtual_url && (
+                    <p className="text-xs text-white/60 mt-0.5">Virtual</p>
+                  )}
                   {ev.event_location_name && (
                     <p className="text-xs text-white/60 mt-0.5">{ev.event_location_name}</p>
                   )}

@@ -75,6 +75,8 @@ const EMPTY_EVENT = {
   event_location_name: "",
   event_address: "",
   event_registration_url: "",
+  is_virtual: false,
+  event_virtual_url: "",
   is_published: true,
   sponsor_ids: [],
 };
@@ -93,6 +95,8 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
         event_location_name: editing.event_location_name || "",
         event_address: editing.event_address || "",
         event_registration_url: editing.event_registration_url || "",
+        is_virtual: !!editing.event_virtual_url,
+        event_virtual_url: editing.event_virtual_url || "",
         is_published: editing.is_published !== false,
         sponsor_ids: (editing.sponsors || []).map((s) => s.id),
       });
@@ -130,7 +134,7 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
     form.title.trim() &&
     form.content.trim() &&
     form.event_starts_at &&
-    form.event_address.trim();
+    (!form.is_virtual || form.event_virtual_url.trim());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -144,8 +148,10 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
         is_published: !!form.is_published,
         event_starts_at: localInputToIso(form.event_starts_at),
         event_ends_at: form.event_ends_at ? localInputToIso(form.event_ends_at) : null,
-        event_location_name: form.event_location_name.trim() || null,
-        event_address: form.event_address.trim(),
+        // Virtual events have no place; in-person events have no meeting link.
+        event_location_name: form.is_virtual ? null : form.event_location_name.trim() || null,
+        event_address: form.is_virtual ? null : form.event_address.trim() || null,
+        event_virtual_url: form.is_virtual ? form.event_virtual_url.trim() : null,
         event_registration_url: form.event_registration_url.trim() || null,
         sponsor_ids: form.sponsor_ids,
       };
@@ -171,7 +177,7 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
     }
   };
 
-  const mapPreview = mapEmbedSrc(form.event_address.trim());
+  const mapPreview = form.is_virtual ? null : mapEmbedSrc(form.event_address.trim());
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -223,26 +229,67 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
           </div>
         </div>
         <div>
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Location name (optional)</label>
-          <input
-            value={form.event_location_name}
-            onChange={(e) => setForm({ ...form, event_location_name: e.target.value })}
-            placeholder="Ross School of Business, Room 1234"
-            className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
-            style={inputStyle}
-          />
+          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Format</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[{ virtual: false, label: "In person" }, { virtual: true, label: "Virtual" }].map((opt) => {
+              const active = form.is_virtual === opt.virtual;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setForm({ ...form, is_virtual: opt.virtual })}
+                  aria-pressed={active}
+                  className="px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  style={
+                    active
+                      ? { background: "rgba(255,203,5,0.12)", border: "1px solid rgba(255,203,5,0.45)", color: "#FFCB05" }
+                      : { ...inputStyle, color: "rgba(255,255,255,0.6)" }
+                  }
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Address (for the map)</label>
-          <input
-            value={form.event_address}
-            onChange={(e) => setForm({ ...form, event_address: e.target.value })}
-            required
-            placeholder="701 Tappan Ave, Ann Arbor, MI 48109"
-            className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
-            style={inputStyle}
-          />
-        </div>
+        {form.is_virtual ? (
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Meeting link</label>
+            <input
+              value={form.event_virtual_url}
+              onChange={(e) => setForm({ ...form, event_virtual_url: e.target.value })}
+              required
+              inputMode="url"
+              placeholder="https://umich.zoom.us/j/..."
+              className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+              style={inputStyle}
+            />
+            <p className="text-[11px] text-white/35 mt-1">Zoom, Teams, Meet, or any link. It shows as a Join button on the announcement.</p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Location name (optional)</label>
+              <input
+                value={form.event_location_name}
+                onChange={(e) => setForm({ ...form, event_location_name: e.target.value })}
+                placeholder="Ross School of Business, Room 1234"
+                className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Address (optional, adds a map)</label>
+              <input
+                value={form.event_address}
+                onChange={(e) => setForm({ ...form, event_address: e.target.value })}
+                placeholder="701 Tappan Ave, Ann Arbor, MI 48109"
+                className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
+                style={inputStyle}
+              />
+            </div>
+          </>
+        )}
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">Registration URL (optional)</label>
           <input
@@ -276,7 +323,9 @@ function EventForm({ apiFetch, sponsors, editing, onError, onSuccess, onDone }) 
               <iframe title="Map preview" src={mapPreview} className="w-full h-full" style={{ border: 0 }} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <p className="text-xs text-white/30">Enter an address to preview</p>
+                <p className="text-xs text-white/30 text-center px-4">
+                  {form.is_virtual ? "Virtual event: no map, attendees get a Join button" : "No address, so no map. That's fine."}
+                </p>
               </div>
             )}
           </div>
@@ -639,7 +688,7 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-sm font-bold text-white">{editing ? "Edit event announcement" : "New event announcement"}</h3>
-                <p className="text-xs text-white/40 mt-0.5">Workshops, info sessions, and other events. Includes an interactive map.</p>
+                <p className="text-xs text-white/40 mt-0.5">Workshops, info sessions, and other events. In person (address optional) or virtual with a join link.</p>
               </div>
             </div>
             <EventForm
@@ -706,7 +755,7 @@ export default function AnnouncementsAdminPanel({ apiFetch, onError, onSuccess }
                       <div className="flex items-center gap-3 mt-2 text-[10px] text-white/30">
                         <span>Updated {new Date(a.updated_at || a.created_at).toLocaleString()}</span>
                         {t === "event" && a.event_starts_at && (
-                          <span className="text-blue-300/70">📅 {formatEventTime(a.event_starts_at)}</span>
+                          <span className="text-blue-300/70">📅 {formatEventTime(a.event_starts_at)}{a.event_virtual_url ? " · Virtual" : ""}</span>
                         )}
                         {t === "award" && a.award?.name && (
                           <span className="text-maize/70">🏆 {a.award.name} · {a.winners?.length || 0} winner{a.winners?.length === 1 ? "" : "s"}</span>

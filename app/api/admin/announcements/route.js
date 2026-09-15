@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { verifyAdmin } from "../../../../lib/adminAuth";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { decorateSponsor } from "../../../../lib/sponsors";
+import { normalizeMeetingUrl } from "../../../../lib/eventLinks";
 
 // ── Nested select used everywhere we return announcements ────────────
 const ANNOUNCEMENT_SELECT = `
   id, title, content, is_published, announcement_type, award_id,
   event_starts_at, event_ends_at, event_location_name, event_address,
-  event_registration_url,
+  event_registration_url, event_virtual_url,
   created_at, updated_at,
   award:awards ( id, name, description, prize,
     award_sponsors ( sort_order,
@@ -188,6 +189,13 @@ export async function POST(request) {
     const eventLocationName = body.event_location_name ? String(body.event_location_name).trim() : null;
     const eventAddress = body.event_address ? String(body.event_address).trim() : null;
     const eventRegistrationUrl = body.event_registration_url ? String(body.event_registration_url).trim() : null;
+    // A virtual event carries a meeting link instead of (or without) a place.
+    let eventVirtualUrl = null;
+    try {
+      eventVirtualUrl = normalizeMeetingUrl(body.event_virtual_url);
+    } catch (linkErr) {
+      return NextResponse.json({ error: linkErr.message }, { status: 400 });
+    }
 
     if (!title) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -212,9 +220,7 @@ export async function POST(request) {
       if (!eventStartsAt) {
         return NextResponse.json({ error: "Event start time is required" }, { status: 400 });
       }
-      if (!eventAddress) {
-        return NextResponse.json({ error: "Event address is required (for the map)" }, { status: 400 });
-      }
+      // Location is optional: an address only adds the map and Directions.
     }
 
     const now = new Date().toISOString();
@@ -231,6 +237,7 @@ export async function POST(request) {
       event_location_name: announcementType === "event" ? eventLocationName : null,
       event_address: announcementType === "event" ? eventAddress : null,
       event_registration_url: announcementType === "event" ? eventRegistrationUrl : null,
+      event_virtual_url: announcementType === "event" ? eventVirtualUrl : null,
       created_at: now,
       updated_at: now,
     };
@@ -304,6 +311,13 @@ export async function PUT(request) {
     }
     if (body.event_registration_url !== undefined) {
       patch.event_registration_url = body.event_registration_url ? String(body.event_registration_url).trim() : null;
+    }
+    if (body.event_virtual_url !== undefined) {
+      try {
+        patch.event_virtual_url = normalizeMeetingUrl(body.event_virtual_url);
+      } catch (linkErr) {
+        return NextResponse.json({ error: linkErr.message }, { status: 400 });
+      }
     }
 
     const supabaseAdmin = getSupabaseAdmin();

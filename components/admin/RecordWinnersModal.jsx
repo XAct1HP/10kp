@@ -17,8 +17,9 @@ function useDebounced(value, ms = 300) {
 }
 
 function pitchThumbUrl(pitch) {
-  if (pitch?.mux_playback_id) {
-    return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?width=160&height=90&fit_mode=smartcrop`;
+  // Audio is Mux-hosted too but has no frames to render.
+  if (pitch?.mux_playback_id && pitch.file_type !== "audio") {
+    return `https://image.mux.com/${pitch.mux_playback_id}/thumbnail.jpg?height=90`;
   }
   return null;
 }
@@ -226,11 +227,11 @@ export default function RecordWinnersModal({
                     >
                       <div
                         className="w-16 h-10 rounded flex items-center justify-center flex-shrink-0 overflow-hidden"
-                        style={{ background: "rgba(0,0,0,0.3)" }}
+                        style={{ background: "#000" }}
                       >
                         {thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={thumb} alt="" className="w-full h-full object-cover" />
+                          <img src={thumb} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <span className="text-[9px] text-white/40 uppercase">{pitch.file_type || "text"}</span>
                         )}
