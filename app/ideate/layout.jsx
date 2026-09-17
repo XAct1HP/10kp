@@ -1,3 +1,5 @@
+import "./ideate.css";
+
 // /ideate is unlisted while it's being built: no navbar link, and search
 // engines are asked not to index it. Remove `robots` when it goes public.
 export const metadata = {
