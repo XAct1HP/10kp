@@ -36,6 +36,15 @@ export default function LoginPage() {
       return;
     }
 
+    // A protected page that sent us here (?next=/ideate) wins. Only same-site
+    // paths are honoured, so the parameter can't bounce anyone off-site.
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")) {
+      setLoading(false);
+      router.push(next);
+      return;
+    }
+
     // Ask the server whether this account is an admin (env-var list OR
     // admin_users table) so admins added through the Settings tab also
     // land on /admin instead of /intake.

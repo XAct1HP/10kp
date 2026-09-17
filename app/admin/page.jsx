@@ -1136,7 +1136,7 @@ export default function AdminPage() {
   const [outreachTag, setOutreachTag] = useState("");
   const [broadcastForm, setBroadcastForm] = useState({
     subject: "",
-    message: "Heads up, get your pitch in by 5PM Friday for the upcoming Weekly Raffle!",
+    message: "Heads up, get your pitch in by 5PM Friday for the upcoming Weekly Drawing!",
   });
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [winnerForm, setWinnerForm] = useState({
@@ -1769,8 +1769,8 @@ export default function AdminPage() {
       ...prev,
       id: null,
       title:
-        templateKey === "winner-weekly-raffle"
-          ? "Weekly Raffle Winner Announcement"
+        templateKey === "winner-weekly-drawing"
+          ? "Weekly Drawing Winner Announcement"
           : templateKey === "winner-pitch"
           ? "Pitch Competition Winner Announcement"
           : templateKey === "winner-monthly-grand"
@@ -1791,8 +1791,8 @@ export default function AdminPage() {
       winnerName: "",
       pitchTitle: "",
       prizeLabel:
-        templateKey === "winner-weekly-raffle"
-          ? "Weekly Raffle"
+        templateKey === "winner-weekly-drawing"
+          ? "Weekly Drawing"
           : templateKey === "winner-pitch"
           ? "Pitch Competition"
           : templateKey === "winner-monthly-grand"
@@ -1813,8 +1813,8 @@ export default function AdminPage() {
     }
 
     const templateLabel =
-      announcementTemplate === "winner-weekly-raffle"
-        ? "Weekly Raffle Winner"
+      announcementTemplate === "winner-weekly-drawing"
+        ? "Weekly Drawing Winner"
         : announcementTemplate === "winner-pitch"
         ? "Pitch Competition Winner"
         : announcementTemplate === "winner-monthly-grand"
@@ -2837,7 +2837,7 @@ export default function AdminPage() {
                       />
                       <input
                         type="text"
-                        placeholder="Prize label, raffle, or award name"
+                        placeholder="Prize label, drawing, or award name"
                         value={winnerForm.prizeLabel}
                         onChange={(e) => setWinnerForm((prev) => ({ ...prev, prizeLabel: e.target.value }))}
                         className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-maize/40"

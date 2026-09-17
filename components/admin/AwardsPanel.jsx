@@ -264,7 +264,7 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
-                  placeholder="Weekly Raffle Winner"
+                  placeholder="Weekly Drawing Winner"
                   className="w-full px-3 py-2.5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:border-maize"
                   style={inputStyle}
                 />
@@ -334,7 +334,7 @@ export default function AwardsPanel({ apiFetch, onError, onSuccess }) {
                     className="w-4 h-4 accent-maize mt-0.5 flex-shrink-0"
                   />
                   <span>
-                    Automatic entry (the Weekly Raffle)
+                    Automatic entry (the Weekly Drawing)
                     <span className="block text-[11px] text-white/40 mt-1 leading-relaxed">
                       Every approved pitch is entered. This award is hidden from the
                       submission form&rsquo;s award picker and skipped by the relevance

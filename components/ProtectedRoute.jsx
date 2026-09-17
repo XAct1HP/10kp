@@ -4,15 +4,17 @@ import { useAuth } from "../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, returnTo }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      // returnTo sends the student back here after signing in (opt-in, so
+      // existing pages keep the login page's default landing).
+      router.push(returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login");
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, returnTo]);
 
   if (loading) {
     return (

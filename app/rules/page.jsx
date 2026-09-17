@@ -225,7 +225,7 @@ export default function RulesPage() {
               Participants may submit as many unique pitch ideas as they like.
               You&rsquo;re highly encouraged to submit multiple pitches. All
               pitches submitted during that week are eligible for the weekly
-              raffles.
+              drawings.
             </Item>
             <Item label="Prize Eligibility">
               Most prizes are dedicated to student submissions, but it is

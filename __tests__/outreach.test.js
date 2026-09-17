@@ -91,10 +91,10 @@ test("joinEmailList appends unique emails", () => {
 
 test("buildWinnerNotificationText includes survey link", () => {
   const text = buildWinnerNotificationText({
-    prizeLabel: "Weekly Raffle",
+    prizeLabel: "Weekly Drawing",
     note: "Please complete this by Friday.",
   });
-  assert.match(text, /Weekly Raffle/);
+  assert.match(text, /Weekly Drawing/);
   assert.match(text, new RegExp(WINNER_SURVEY_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(text, /Friday/);
 });

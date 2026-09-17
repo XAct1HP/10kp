@@ -31,7 +31,7 @@ Admin → Settings → Awards.
   scored against. Be concrete about what qualifies and what doesn't; "must be
   a physical product, not an app" beats "innovative hardware". Blank criteria
   fall back to the description.
-* **Automatic entry** — the Weekly Raffle. Hidden from the intake picker,
+* **Automatic entry** — the Weekly Drawing. Hidden from the intake picker,
   never scored, every approved pitch is in it. Exactly one award can hold this
   flag; setting it on a second award clears the first (a partial unique index
   enforces it in the database too).
