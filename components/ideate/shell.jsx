@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Icon, StageArt } from "./art";
 import { CoachOrb } from "./Coach";
-import { PitchTimeline, formatClock } from "./stages";
+import { PitchTimeline, formatClock, pitchStatus } from "./stages";
 import { MAIZE, NAVY, STAGE_THEME, RATING_COLORS, BEAT_COLORS } from "./theme";
-import { GLASS, SUBTLE, PrimaryButton, GhostButton, ProgressRing, Avatar, personaName, accent, tint } from "./ui";
+import { GLASS, SUBTLE, PrimaryButton, GhostButton, ProgressRing, Avatar, AutoTextarea, personaName, accent, tint } from "./ui";
 import {
   STEPS,
   CHECK_RATINGS,
   PITCH_BEATS,
   DAILY_COACH_LIMIT,
+  SHORT_TEXT,
+  LONG_TEXT,
   OBJECTION_COUNT,
   stepReady,
   answeredRungs,
@@ -264,7 +266,7 @@ export function IdeaBoard({ data }) {
         <BoardItem stageId="stress" title={`Stress-tested · ${answered}/${OBJECTION_COUNT}`} ready={answered > 0 || filled(data.stress.assumption)} empty="Survive the skeptic">
           {filled(data.stress.assumption) ? data.stress.assumption : `${answered} objection${answered === 1 ? "" : "s"} answered`}
         </BoardItem>
-        <BoardItem stageId="pitch" title={`Pitch · ${formatClock(secs)}`} ready={anyPitch} empty="Your 60 seconds">
+        <BoardItem stageId="pitch" title={`Pitch · ${formatClock(secs)}`} ready={anyPitch} empty="Your pitch">
           <div className="pt-1"><PitchTimeline pitch={data.pitch} compact /></div>
         </BoardItem>
       </div>
@@ -373,7 +375,7 @@ export function Intro({ onStart }) {
             </span>
           </h1>
           <p className="mt-6 text-white/70 text-base sm:text-xl max-w-xl leading-relaxed">
-            Seven short stops take you from a rough idea to a real problem, a solution you&rsquo;ve stress-tested, and a one-minute pitch you can record. Your work saves as you go.
+            Seven short stops take you from a rough idea to a real problem, a solution you&rsquo;ve stress-tested, and a 60 to 90 second pitch you can record. Your work saves as you go.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <PrimaryButton onClick={onStart} className="px-7 py-4 text-base">
@@ -455,10 +457,29 @@ function Confetti() {
   );
 }
 
+// Text on the idea card that can be fixed in place: looks like plain text
+// until hovered or focused, then shows a soft field outline.
+function EditableText({ value, onChange, label, singleLine = false, maxLength = LONG_TEXT, className = "" }) {
+  return (
+    <AutoTextarea
+      bare
+      rows={1}
+      maxLength={maxLength}
+      value={value}
+      aria-label={label}
+      placeholder="Empty. Click to write something"
+      onChange={(v) => onChange(singleLine ? v.replace(/\n/g, " ") : v)}
+      onKeyDown={singleLine ? (e) => { if (e.key === "Enter") e.preventDefault(); } : undefined}
+      className={`ideate-editable block rounded-lg -mx-2 px-2 py-1 ${className}`}
+      style={{ width: "calc(100% + 1rem)" }}
+    />
+  );
+}
+
 function SummaryTile({ stageId, title, children }) {
   const t = STAGE_THEME[stageId];
   return (
-    <div className="break-inside-avoid mb-4 rounded-2xl p-5 relative overflow-hidden" style={{ background: `linear-gradient(150deg, rgba(${t.rgb}, 0.13), rgba(255,255,255,0.02) 60%)`, border: `1px solid rgba(${t.rgb}, 0.25)` }}>
+    <div className="rounded-2xl p-5 sm:p-6 relative overflow-hidden" style={{ background: `linear-gradient(150deg, rgba(${t.rgb}, 0.13), rgba(255,255,255,0.02) 60%)`, border: `1px solid rgba(${t.rgb}, 0.25)`, "--accent-rgb": t.rgb }}>
       <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] font-black" style={{ color: `rgb(${t.rgb})` }}>
         <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: `rgb(${t.rgb})`, color: NAVY }}>
           <Icon name={t.icon} className="w-3.5 h-3.5" strokeWidth={2.4} />
@@ -468,6 +489,10 @@ function SummaryTile({ stageId, title, children }) {
       <div className="mt-3 text-[15px] text-white/90 leading-relaxed">{children}</div>
     </div>
   );
+}
+
+function Connector({ children }) {
+  return <p className="text-xs italic text-white/40 my-0.5">{children}</p>;
 }
 
 export function ideaAsText(d) {
@@ -482,16 +507,19 @@ export function ideaAsText(d) {
     `RISKIEST ASSUMPTION: ${d.stress.assumption}`,
     `TEST THIS WEEK: ${d.stress.test}`,
     "",
-    "60-SECOND PITCH",
-    ...PITCH_BEATS.map((b) => `${b.label} (~${b.seconds}s): ${d.pitch[b.id]}`),
+    "PITCH OUTLINE (60 to 90 seconds)",
+    ...PITCH_BEATS.map((b) => `${b.label} (up to ${b.seconds}s): ${d.pitch[b.id]}`),
   ].join("\n");
 }
 
-export function Summary({ data, celebrate, onEdit, onReset }) {
+export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) {
   const [copied, setCopied] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const chosen = data.stretch.ideas[data.stretch.chosen];
+  const chosenIndex = data.stretch.chosen;
+  const chosen = data.stretch.ideas[chosenIndex];
   const coachNotes = Object.values(data.coach || {}).reduce((n, list) => n + list.length, 0);
+  const secs = pitchSeconds(data.pitch);
+  const status = pitchStatus(secs);
 
   const copy = async () => {
     try {
@@ -513,114 +541,171 @@ export function Summary({ data, celebrate, onEdit, onReset }) {
 
   let start = 0;
   return (
-    <div className="max-w-5xl mx-auto pb-12">
+    <div className="pb-12 pt-2 sm:pt-4">
       {celebrate && <Confetti />}
 
-      <header className="ideate-rise text-center pt-4 sm:pt-8">
-        <span className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] font-black" style={{ background: "rgba(255,203,5,0.14)", color: MAIZE, border: "1px solid rgba(255,203,5,0.35)" }}>
-          <Icon name="star" className="w-3.5 h-3.5" strokeWidth={2.4} /> Your idea card
-        </span>
-        <p className="mt-6 text-sm sm:text-base text-white/40">
-          Started as <span className="line-through decoration-white/30">&ldquo;{data.spark.idea}&rdquo;</span>
-        </p>
-        <Icon name="arrowDown" className="w-5 h-5 mx-auto mt-2 text-white/30 ideate-bob" />
-        <h1 className="mt-2 font-black tracking-tight leading-[1.02] max-w-4xl mx-auto" style={{ fontSize: "clamp(2.25rem, 6vw, 4.5rem)", background: "linear-gradient(100deg, #ffffff 20%, #FFCB05 55%, #F472B6 95%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
-          {chosen?.text || data.spark.idea}
-        </h1>
-      </header>
-
-      <div className="ideate-rise mt-8 flex flex-wrap justify-center gap-2" style={{ animationDelay: "120ms" }}>
-        {stats.map((s) => (
-          <span key={s.label} className="inline-flex items-center gap-2 rounded-full pl-1.5 pr-3.5 py-1.5 text-xs text-white/70" style={SUBTLE}>
-            <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: tint(s.rgb, 0.18), color: `rgb(${s.rgb})` }}>
-              <Icon name={s.icon} className="w-3.5 h-3.5" strokeWidth={2.2} />
-            </span>
-            <span className="font-black text-white tabular-nums">{s.value}</span> {s.label}
-          </span>
-        ))}
-      </div>
-
-      <section className="ideate-rise mt-10 md:columns-2 gap-4" style={{ animationDelay: "200ms" }}>
-        <SummaryTile stageId="dig" title="The problem">
-          <span className="font-semibold">{problemSentence(data)}</span>
-        </SummaryTile>
-        <SummaryTile stageId="who" title="The person">
-          <span className="flex items-start gap-3">
-            <Avatar text={data.who.person} size={44} rgb={STAGE_THEME.who.rgb} />
-            <span>
-              {data.who.person}
-              <span className="block text-sm text-white/55 mt-1.5">Today: {data.who.today}</span>
-            </span>
-          </span>
-        </SummaryTile>
-        <SummaryTile stageId="stretch" title="The solution">{data.stretch.solution}</SummaryTile>
-        <SummaryTile stageId="stress" title="Riskiest assumption">
-          {data.stress.assumption}
-          <span className="flex items-start gap-2 text-sm text-white/60 mt-2">
-            <Icon name="flask" className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#34D399" }} /> {data.stress.test}
-          </span>
-        </SummaryTile>
-      </section>
-
-      <section className="ideate-rise mt-2 rounded-3xl p-5 sm:p-8" style={{ ...GLASS, animationDelay: "260ms" }}>
-        <div className="flex items-end justify-between gap-4 mb-5">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] font-black" style={{ color: STAGE_THEME.pitch.accent }}>Your 60 seconds</p>
-            <p className="text-3xl sm:text-4xl font-black text-white tabular-nums mt-1">{formatClock(pitchSeconds(data.pitch))}</p>
-          </div>
-        </div>
-        <PitchTimeline pitch={data.pitch} />
-        <ol className="mt-6 grid gap-3">
-          {PITCH_BEATS.map((b) => {
-            const rgb = BEAT_COLORS[b.id];
-            const from = start;
-            start += b.seconds;
-            return (
-              <li key={b.id} className="grid grid-cols-1 sm:grid-cols-[180px_minmax(0,1fr)] gap-1 sm:gap-4 rounded-xl p-3.5 sm:p-4" style={{ background: `linear-gradient(90deg, ${tint(rgb, 0.1)}, transparent 60%)`, borderLeft: `3px solid rgb(${rgb})` }}>
-                <span>
-                  <span className="block text-sm font-black text-white">{b.label}</span>
-                  <span className="block text-[11px] font-mono tabular-nums" style={{ color: `rgb(${rgb})` }}>{formatClock(from)}–{formatClock(from + b.seconds)}</span>
-                </span>
-                <span className="text-[15px] text-white/85 leading-relaxed">{data.pitch[b.id]}</span>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-
-      <section className="ideate-rise mt-6 relative rounded-3xl p-6 sm:p-10 overflow-hidden" style={{ background: "radial-gradient(ellipse at 90% 10%, rgba(96,165,250,0.22), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(255,203,5,0.14), transparent 55%), rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", animationDelay: "320ms" }}>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-          <div className="flex-1">
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Now go record it</h2>
-            <p className="text-sm sm:text-base text-white/65 mt-2 leading-relaxed max-w-xl">
-              Pitches are best heard. Record yourself on video or audio and talk through these beats in your own words rather than reading them out. A couple of takes is normal.
+      <div className="lg:grid lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)] lg:gap-8 xl:gap-12 lg:items-start">
+        {/* The idea itself stays in view while the card scrolls. */}
+        <aside className="ideate-rise lg:sticky lg:top-[104px] lg:max-h-[calc(100dvh-128px)] lg:overflow-y-auto no-scrollbar">
+          <div
+            className="relative rounded-3xl p-6 sm:p-7 overflow-hidden"
+            style={{ background: "radial-gradient(ellipse at 0% 0%, rgba(255,203,5,0.18), transparent 55%), radial-gradient(ellipse at 100% 100%, rgba(244,114,182,0.14), transparent 55%), rgba(11,26,59,0.75)", border: "1px solid rgba(255,203,5,0.3)", "--accent-rgb": "255, 203, 5" }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.22em] font-black" style={{ background: "rgba(255,203,5,0.14)", color: MAIZE, border: "1px solid rgba(255,203,5,0.35)" }}>
+                <Icon name="star" className="w-3.5 h-3.5" strokeWidth={2.4} /> Your idea card
+              </span>
+              {saveSlot}
+            </div>
+            <p className="mt-5 text-xs text-white/40 leading-relaxed line-clamp-3">
+              Started as <span className="line-through decoration-white/30">&ldquo;{data.spark.idea}&rdquo;</span>
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <PrimaryButton onClick={copy}>
+            <Icon name="arrowDown" className="w-4 h-4 mt-2 text-white/30 ideate-bob" />
+            <div className="mt-2">
+              {chosen ? (
+                <EditableText
+                  label="Your idea"
+                  singleLine
+                  maxLength={SHORT_TEXT}
+                  value={chosen.text}
+                  onChange={(v) => update((x) => { if (x.stretch.ideas[chosenIndex]) x.stretch.ideas[chosenIndex].text = v; })}
+                  className="text-2xl sm:text-[28px] font-black text-white leading-tight tracking-tight"
+                />
+              ) : (
+                <p className="text-2xl font-black text-white leading-tight">{data.spark.idea}</p>
+              )}
+              <div className="mt-3 h-1 w-16 rounded-full" style={{ background: "linear-gradient(90deg, #FFCB05, #F472B6)" }} />
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-1.5">
+              {stats.map((st) => (
+                <span key={st.label} className="inline-flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-[11px] text-white/65" style={SUBTLE}>
+                  <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: tint(st.rgb, 0.18), color: `rgb(${st.rgb})` }}>
+                    <Icon name={st.icon} className="w-3 h-3" strokeWidth={2.2} />
+                  </span>
+                  <span className="font-black text-white tabular-nums">{st.value}</span> {st.label}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-6 grid gap-2.5">
+              <PrimaryButton onClick={copy} className="w-full">
                 <Icon name={copied ? "check" : "copy"} className="w-4 h-4" strokeWidth={2.4} />
                 {copied ? "Copied" : "Copy my idea card"}
               </PrimaryButton>
-              <GhostButton onClick={onEdit}>Keep editing</GhostButton>
+              <GhostButton onClick={onEdit} className="w-full">Back to the steps</GhostButton>
+            </div>
+
+            <div className="mt-5 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              {confirmReset ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="text-xs text-white/60">This clears everything you wrote. Start over?</span>
+                  <button type="button" onClick={onReset} className="text-xs font-bold text-red-300 hover:text-red-200">Yes, start a new idea</button>
+                  <button type="button" onClick={() => setConfirmReset(false)} className="text-xs text-white/45 hover:text-white/75">Cancel</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setConfirmReset(true)} className="inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70">
+                  <Icon name="refresh" className="w-3.5 h-3.5" /> Start a new idea
+                </button>
+              )}
             </div>
           </div>
-          <div className="hidden sm:block ideate-float" style={{ "--accent": STAGE_THEME.pitch.accent }}>
-            <StageArt stageId="pitch" className="w-44 h-36" />
+        </aside>
+
+        <div className="mt-6 lg:mt-0 min-w-0 space-y-4">
+          <p className="ideate-rise flex items-center gap-2 text-xs text-white/50 px-1">
+            <Icon name="wrench" className="w-3.5 h-3.5" style={{ color: MAIZE }} />
+            Spotted a typo? Click any text on the card to fix it. Changes save automatically.
+          </p>
+
+          <div className="ideate-rise" style={{ animationDelay: "80ms" }}>
+            <SummaryTile stageId="dig" title="The problem">
+              <div className="font-semibold">
+                <EditableText label="Who has the problem" singleLine maxLength={SHORT_TEXT} value={data.dig.who} onChange={(v) => update((x) => { x.dig.who = v; })} />
+                <Connector>struggles with</Connector>
+                <EditableText label="What they struggle with" singleLine maxLength={SHORT_TEXT} value={data.dig.what} onChange={(v) => update((x) => { x.dig.what = v; })} />
+                <Connector>because</Connector>
+                <EditableText label="Why it happens" singleLine maxLength={SHORT_TEXT} value={data.dig.why} onChange={(v) => update((x) => { x.dig.why = v; })} />
+              </div>
+            </SummaryTile>
           </div>
-        </div>
-        <div className="mt-8 pt-5" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-          {confirmReset ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs text-white/60">This clears everything you wrote. Start over?</span>
-              <button type="button" onClick={onReset} className="text-xs font-bold text-red-300 hover:text-red-200">Yes, start a new idea</button>
-              <button type="button" onClick={() => setConfirmReset(false)} className="text-xs text-white/45 hover:text-white/75">Cancel</button>
+
+          <div className="ideate-rise" style={{ animationDelay: "130ms" }}>
+            <SummaryTile stageId="who" title="The person">
+              <div className="flex items-start gap-4">
+                <Avatar text={data.who.person} size={44} rgb={STAGE_THEME.who.rgb} />
+                <div className="min-w-0 flex-1">
+                  <EditableText label="The person" value={data.who.person} onChange={(v) => update((x) => { x.who.person = v; })} />
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.2em] font-bold text-white/35">What they do today</p>
+                  <EditableText label="What they do today" value={data.who.today} onChange={(v) => update((x) => { x.who.today = v; })} className="text-sm text-white/65" />
+                </div>
+              </div>
+            </SummaryTile>
+          </div>
+
+          <div className="ideate-rise" style={{ animationDelay: "180ms" }}>
+            <SummaryTile stageId="stretch" title="The solution">
+              <EditableText label="The solution" value={data.stretch.solution} onChange={(v) => update((x) => { x.stretch.solution = v; })} />
+            </SummaryTile>
+          </div>
+
+          <div className="ideate-rise" style={{ animationDelay: "230ms" }}>
+            <SummaryTile stageId="stress" title="Riskiest assumption">
+              <EditableText label="Riskiest assumption" value={data.stress.assumption} onChange={(v) => update((x) => { x.stress.assumption = v; })} />
+              <div className="mt-3 flex items-start gap-2">
+                <Icon name="flask" className="w-4 h-4 flex-shrink-0 mt-2" style={{ color: "#34D399" }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/35 mt-1.5">Test this week</p>
+                  <EditableText label="Test this week" value={data.stress.test} onChange={(v) => update((x) => { x.stress.test = v; })} className="text-sm text-white/65" />
+                </div>
+              </div>
+            </SummaryTile>
+          </div>
+
+          <section className="ideate-rise rounded-3xl p-5 sm:p-7" style={{ ...GLASS, animationDelay: "280ms", "--accent-rgb": STAGE_THEME.pitch.rgb }}>
+            <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] font-black" style={{ color: STAGE_THEME.pitch.accent }}>Your pitch</p>
+                <p className="text-3xl sm:text-4xl font-black tabular-nums mt-1" style={{ color: `rgb(${status.rgb})` }}>{formatClock(secs)}</p>
+              </div>
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold" style={{ background: tint(status.rgb, 0.14), color: `rgb(${status.rgb})`, border: `1px solid ${tint(status.rgb, 0.35)}` }}>
+                <Icon name="clock" className="w-3.5 h-3.5" /> {status.text}
+              </span>
             </div>
-          ) : (
-            <button type="button" onClick={() => setConfirmReset(true)} className="inline-flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70">
-              <Icon name="refresh" className="w-3.5 h-3.5" /> Start a new idea
-            </button>
-          )}
+            <PitchTimeline pitch={data.pitch} />
+            <ol className="mt-6 grid gap-3">
+              {PITCH_BEATS.map((b) => {
+                const rgb = BEAT_COLORS[b.id];
+                const from = start;
+                start += b.seconds;
+                return (
+                  <li key={b.id} className="grid grid-cols-1 sm:grid-cols-[150px_minmax(0,1fr)] gap-1 sm:gap-4 rounded-xl p-3.5 sm:p-4" style={{ background: `linear-gradient(90deg, ${tint(rgb, 0.1)}, transparent 60%)`, borderLeft: `3px solid rgb(${rgb})`, "--accent-rgb": rgb }}>
+                    <span className="sm:pt-1">
+                      <span className="block text-sm font-black text-white">{b.label}</span>
+                      <span className="block text-[11px] font-mono tabular-nums" style={{ color: `rgb(${rgb})` }}>{formatClock(from)}–{formatClock(from + b.seconds)}</span>
+                    </span>
+                    <EditableText label={b.label} value={data.pitch[b.id]} onChange={(v) => update((x) => { x.pitch[b.id] = v; })} className="text-[15px] text-white/85 leading-relaxed" />
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+
+          <section className="ideate-rise relative rounded-3xl p-6 sm:p-8 overflow-hidden" style={{ background: "radial-gradient(ellipse at 90% 10%, rgba(96,165,250,0.22), transparent 55%), radial-gradient(ellipse at 0% 100%, rgba(255,203,5,0.14), transparent 55%), rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", animationDelay: "330ms" }}>
+            <div className="flex items-center gap-6">
+              <div className="flex-1">
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Now go record it</h2>
+                <p className="text-sm sm:text-base text-white/65 mt-2 leading-relaxed max-w-xl">
+                  Pitches are best heard. Record yourself on video or audio and talk through these beats in your own words rather than reading them out. A couple of takes is normal.
+                </p>
+              </div>
+              <div className="hidden sm:block ideate-float" style={{ "--accent": STAGE_THEME.pitch.accent }}>
+                <StageArt stageId="pitch" className="w-36 h-28" />
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

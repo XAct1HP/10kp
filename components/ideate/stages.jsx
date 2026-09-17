@@ -42,7 +42,8 @@ import {
   MIN_IDEAS,
   MAX_IDEAS,
   OBJECTION_COUNT,
-  PITCH_SECONDS,
+  PITCH_MIN_SECONDS,
+  PITCH_MAX_SECONDS,
   SHORT_TEXT,
   WORDS_PER_SECOND,
   answeredRungs,
@@ -367,7 +368,7 @@ function PersonaCard({ who }) {
         </span>
       </div>
       <div className="px-5 pb-5 -mt-9">
-        <div className="rounded-full p-1 inline-block" style={{ background: "rgba(11,26,59,1)" }}>
+        <div className="relative z-10 rounded-full p-1 inline-block" style={{ background: "rgba(11,26,59,1)" }}>
           <Avatar text={who.person} size={64} rgb={STAGE_THEME.who.rgb} />
         </div>
         <p className="mt-2 text-lg font-black text-white leading-tight">{name || <span className="text-white/30">Your person</span>}</p>
@@ -940,9 +941,19 @@ function NotesDrawer({ data }) {
   );
 }
 
+// Where a spoken length sits against the 60–90 second target.
+export function pitchStatus(secs) {
+  if (secs === 0) return { text: "Start writing", rgb: "255, 255, 255" };
+  if (secs < PITCH_MIN_SECONDS) return { text: "Room to say more", rgb: "255, 203, 5" };
+  if (secs <= PITCH_MAX_SECONDS) return { text: "Right on target", rgb: "52, 211, 153" };
+  return { text: "Too long, trim it", rgb: "248, 113, 113" };
+}
+
 export function PitchTimeline({ pitch, onBeat, compact = false }) {
   const secs = pitchSeconds(pitch);
-  const color = secs <= PITCH_SECONDS ? "#34D399" : secs <= PITCH_SECONDS + 10 ? MAIZE : "#F87171";
+  const status = pitchStatus(secs);
+  const minPct = (PITCH_MIN_SECONDS / PITCH_MAX_SECONDS) * 100;
+  const markerPct = Math.min(1, secs / PITCH_MAX_SECONDS) * 100;
   return (
     <div>
       <div className={`flex gap-1 ${compact ? "h-3" : "h-12 sm:h-14"}`}>
@@ -950,7 +961,7 @@ export function PitchTimeline({ pitch, onBeat, compact = false }) {
           const rgb = BEAT_COLORS[b.id];
           const s = wordCount(pitch[b.id]) / WORDS_PER_SECOND;
           const pct = Math.min(1, s / b.seconds);
-          const over = s > b.seconds * 1.5;
+          const over = s > b.seconds * 1.25;
           const Tag = onBeat ? "button" : "div";
           return (
             <Tag
@@ -977,11 +988,21 @@ export function PitchTimeline({ pitch, onBeat, compact = false }) {
         })}
       </div>
       {!compact && (
-        <div className="flex justify-between text-[10px] text-white/35 tabular-nums mt-1.5">
-          <span>0:00</span>
-          <span style={{ color }}>{formatClock(secs)}</span>
-          <span>1:00</span>
-        </div>
+        <>
+          {/* The 60–90 second target zone, with a marker for the current length. */}
+          <div className="relative h-4 mt-2">
+            <div className="absolute inset-y-1 left-0 right-0 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }} />
+            <div className="absolute inset-y-1 right-0 rounded-full" style={{ left: `${minPct}%`, background: "rgba(52,211,153,0.28)" }} />
+            {secs > 0 && (
+              <div className="absolute top-0 bottom-0 w-1 -ml-0.5 rounded-full transition-all duration-500" style={{ left: `${markerPct}%`, background: `rgb(${status.rgb})`, boxShadow: `0 0 10px rgba(${status.rgb}, 0.8)` }} />
+            )}
+          </div>
+          <div className="relative h-4 text-[10px] text-white/40 tabular-nums mt-1">
+            <span className="absolute left-0">0:00</span>
+            <span className="absolute -translate-x-1/2 font-semibold" style={{ left: `${minPct}%`, color: "rgba(52,211,153,0.9)" }}>{formatClock(PITCH_MIN_SECONDS)}</span>
+            <span className="absolute right-0 font-semibold" style={{ color: "rgba(52,211,153,0.9)" }}>{formatClock(PITCH_MAX_SECONDS)}</span>
+          </div>
+        </>
       )}
     </div>
   );
@@ -989,13 +1010,7 @@ export function PitchTimeline({ pitch, onBeat, compact = false }) {
 
 export function PitchStage({ data, update, coachProps }) {
   const secs = pitchSeconds(data.pitch);
-  const status = secs === 0
-    ? { text: "Start writing", rgb: "255, 255, 255" }
-    : secs <= PITCH_SECONDS
-    ? { text: "Fits in a minute", rgb: "52, 211, 153" }
-    : secs <= PITCH_SECONDS + 10
-    ? { text: "A little long", rgb: "255, 203, 5" }
-    : { text: "Too long, trim it", rgb: "248, 113, 113" };
+  const status = pitchStatus(secs);
 
   const focusBeat = (id) => {
     const el = document.getElementById(`ideate-beat-${id}`);
@@ -1017,7 +1032,7 @@ export function PitchStage({ data, update, coachProps }) {
             <p className="font-black tabular-nums leading-none mt-2 transition-colors" style={{ fontSize: "clamp(2.75rem, 8vw, 4.5rem)", color: secs === 0 ? "rgba(255,255,255,0.3)" : `rgb(${status.rgb})` }}>
               {formatClock(secs)}
             </p>
-            <p className="text-xs text-white/45 mt-2">of 1:00 · estimated at a relaxed speaking pace</p>
+            <p className="text-xs text-white/45 mt-2">Aim for {formatClock(PITCH_MIN_SECONDS)}–{formatClock(PITCH_MAX_SECONDS)} · estimated at a relaxed speaking pace</p>
           </div>
           <span className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold" style={{ background: tint(status.rgb, 0.14), color: `rgb(${status.rgb})`, border: `1px solid ${tint(status.rgb, 0.35)}` }}>
             <Icon name="clock" className="w-3.5 h-3.5" /> {status.text}
@@ -1051,7 +1066,7 @@ export function PitchStage({ data, update, coachProps }) {
                   </span>
                   <span className="text-[15px] sm:text-base font-black text-white">{b.label}</span>
                 </p>
-                <span className="text-[11px] font-bold tabular-nums" style={{ color: s > b.seconds * 1.5 ? "#F87171" : "rgba(255,255,255,0.4)" }}>~{s}s of {b.seconds}s</span>
+                <span className="text-[11px] font-bold tabular-nums" style={{ color: s > b.seconds * 1.25 ? "#F87171" : "rgba(255,255,255,0.4)" }}>~{s}s of up to {b.seconds}s</span>
               </div>
               <p className="text-xs text-white/50 mt-1.5 mb-3 leading-relaxed">{b.prompt}</p>
               <AutoTextarea value={data.pitch[b.id]} onChange={(v) => update((x) => { x.pitch[b.id] = v; })} placeholder="Write it the way you'd say it…" />

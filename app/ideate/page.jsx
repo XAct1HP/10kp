@@ -274,7 +274,7 @@ function IdeateWorkspace() {
         {view === "intro" && data && <Intro onStart={() => { setView("steps"); scrollToTop(); }} />}
 
         {view === "summary" && data && (
-          <Summary data={data} celebrate={celebrate} onEdit={() => goTo(STEPS.length - 1)} onReset={reset} />
+          <Summary data={data} update={update} celebrate={celebrate} saveSlot={saveSlot} onEdit={() => goTo(Math.min(STEPS.length - 1, furthest))} onReset={reset} />
         )}
 
         {view === "steps" && data && (

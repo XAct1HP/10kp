@@ -40,6 +40,23 @@
   border-bottom-color: var(--accent);
 }
 
+/* Idea card text that can be fixed in place. */
+.ideate-editable {
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.ideate-editable:hover {
+  background: rgba(255, 255, 255, 0.05);
+  cursor: text;
+}
+.ideate-editable:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.6);
+}
+.ideate-editable:placeholder-shown {
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.45);
+}
+
 /* ─── Entrances ──────────────────────────────────────────── */
 @keyframes ideate-rise {
   from { opacity: 0; transform: translateY(14px); }
