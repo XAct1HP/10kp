@@ -6,6 +6,23 @@ import Image from "next/image";
 import { useAuth } from "../lib/AuthContext";
 import { useRouter } from "next/navigation";
 
+// A "new feature" marker on a nav link. Maize on navy so it reads at a glance
+// without competing with the Sign In button, which is the only solid maize
+// element in the bar.
+function NewBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-[2px] text-[9px] font-black uppercase tracking-[0.1em] leading-none"
+      style={{ background: "#FFCB05", color: "#0B1A3B" }}
+    >
+      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2.6l2.7 6.1 6.6.6-5 4.4 1.5 6.5L12 16.8l-5.8 3.4 1.5-6.5-5-4.4 6.6-.6z" />
+      </svg>
+      New
+    </span>
+  );
+}
+
 export default function Navbar() {
   const { user, signOut, loading, isAdmin } = useAuth();
   const router = useRouter();
@@ -60,6 +77,14 @@ export default function Navbar() {
               className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
             >
               Rules / Awards
+            </Link>
+            <Link
+              href="/ideate"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold text-white transition-colors hover:bg-white/5"
+              style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.35)" }}
+            >
+              Ideate
+              <NewBadge />
             </Link>
 
             {loading ? null : user ? (
@@ -149,6 +174,15 @@ export default function Navbar() {
               className="block px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
             >
               Rules / Awards
+            </Link>
+            <Link
+              href="/ideate"
+              onClick={closeMenu}
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm font-semibold text-white transition-colors"
+              style={{ background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.35)" }}
+            >
+              <span>Ideate</span>
+              <NewBadge />
             </Link>
 
             {loading ? null : user ? (

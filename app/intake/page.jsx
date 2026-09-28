@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import { MIN_PITCH_WORDS, countWords } from "../../lib/pitchWords";
+import { takeIntakePrefill } from "../../lib/ideate/handoff";
 
 // Shown above the file picker. Uploaded files are held to the same minimum
 // as typed pitches: the document text or the spoken transcript is counted
@@ -28,6 +29,39 @@ function MinWordsCallout() {
           Pitches under {MIN_PITCH_WORDS} words are rejected automatically and won&apos;t be posted.
         </p>
       </div>
+    </div>
+  );
+}
+
+// Shown when the submitter arrived from /ideate with an idea to carry over.
+// Only the fields Ideate can fill are touched (title, description, and the
+// text pitch); everything else is still theirs to fill in. The clear action
+// exists so a prefilled field never feels like something they are stuck with.
+function PrefillBanner({ fields, onClear, compact = false }) {
+  if (!fields.length) return null;
+  const label = fields.join(", ");
+  return (
+    <div
+      className={`flex items-start gap-3 rounded-xl ${compact ? "px-3 py-2 mb-4" : "px-4 py-3 mb-6"}`}
+      style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.35)" }}
+      role="note"
+    >
+      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+      <div className="min-w-0 flex-1 text-xs leading-relaxed">
+        <p className="font-semibold" style={{ color: "#FFCB05" }}>Brought over from Ideate</p>
+        <p className="text-white/65 mt-0.5">
+          {compact ? `Already filled in: ${label}. Edit anything you like.` : `We filled in your ${label} from the idea you built. Edit anything you like as you go — nothing here is locked.`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="flex-shrink-0 text-xs text-white/40 hover:text-white/75 transition-colors"
+      >
+        Clear
+      </button>
     </div>
   );
 }
@@ -232,6 +266,9 @@ export default function IntakePage() {
   const [textContent, setTextContent] = useState("");
   // Set when the server rejects a document pitch for being under the word minimum.
   const [shortPitchRejection, setShortPitchRejection] = useState(null);
+  // Which fields arrived from /ideate, for the banner. Empty when they came
+  // straight to the form.
+  const [prefilledFields, setPrefilledFields] = useState([]);
 
   // New: optional thumbnail upload
   const [thumbnail, setThumbnail] = useState(null);
@@ -263,6 +300,39 @@ export default function IntakePage() {
       setUniqname((prev) => (prev ? prev : derived));
     }
   }, [user?.email]);
+
+  // An idea carried over from /ideate. Read once, on mount, before anything
+  // could have been typed — and the helper clears the stash as it reads, so a
+  // reload of this page does not fight with edits already made here.
+  // A hand-off is always a written pitch: there is no recording to carry.
+  useEffect(() => {
+    const prefill = takeIntakePrefill();
+    if (!prefill) return;
+    const applied = [];
+    if (prefill.title) {
+      setPitchTitle(prefill.title);
+      applied.push("pitch title");
+    }
+    if (prefill.description) {
+      setDescription(prefill.description);
+      applied.push("description");
+    }
+    if (prefill.pitchText) {
+      setPitchMode("text");
+      setFile(null);
+      setTextContent(prefill.pitchText);
+      applied.push("pitch text");
+    }
+    setPrefilledFields(applied);
+  }, []);
+
+  const clearPrefill = () => {
+    setPitchTitle("");
+    setDescription("");
+    setTextContent("");
+    setPitchMode("file");
+    setPrefilledFields([]);
+  };
 
   // Postgres undefined_column, or a PostgREST schema-cache miss, when the
   // uniqname migration has not been applied to this environment yet.
@@ -809,6 +879,11 @@ export default function IntakePage() {
         </span>
         <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       </button>
+      {prefilledFields.length > 0 && (
+        <div className="mt-8 max-w-md mx-auto text-left">
+          <PrefillBanner fields={prefilledFields} onClear={clearPrefill} />
+        </div>
+      )}
       <div className="mt-6">
         <Link href="/gallery" className="text-white/40 text-sm hover:text-white/70 transition-colors">
           or browse the Gallery
@@ -1041,6 +1116,11 @@ export default function IntakePage() {
     <div>
       <h2 className="text-2xl font-bold text-white mb-1">Floor 3 — Pitch Details</h2>
       <p className="text-white/50 text-sm mb-6">What is your big idea?</p>
+      <PrefillBanner
+        fields={prefilledFields.filter((f) => f === "pitch title" || f === "description")}
+        onClear={clearPrefill}
+        compact
+      />
       <div className="space-y-5">
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-2">
@@ -1216,11 +1296,21 @@ export default function IntakePage() {
       <h2 className="text-2xl font-bold text-white mb-1">Floor 5 — Your Pitch</h2>
       <p className="text-white/50 text-sm mb-6">How would you like to submit your pitch?</p>
 
+      <PrefillBanner
+        fields={prefilledFields.filter((f) => f === "pitch text")}
+        onClear={clearPrefill}
+        compact
+      />
+
       {/* Mode toggle */}
       <div className="flex gap-2 mb-6">
         <button
           type="button"
-          onClick={() => { setPitchMode("file"); setTextContent(""); }}
+          onClick={() => {
+            setPitchMode("file");
+            setTextContent("");
+            setPrefilledFields((prev) => prev.filter((f) => f !== "pitch text"));
+          }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
           style={{
             border: pitchMode === "file" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",

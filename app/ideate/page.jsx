@@ -1,9 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import { supabase } from "../../lib/supabase";
-import { STEPS, COACH_HISTORY, emptyIdeateData, stepReady, furthestUnlocked } from "../../lib/ideate/curriculum";
+import {
+  STEPS,
+  COACH_HISTORY,
+  emptyIdeateData,
+  stepReady,
+  stepsOf,
+  stepsFor,
+  allStepsReady,
+  normalizeTrack,
+  furthestUnlocked,
+} from "../../lib/ideate/curriculum";
+import { stashIntakePrefill } from "../../lib/ideate/handoff";
 import { Icon } from "../../components/ideate/art";
 import { stageVars } from "../../components/ideate/theme";
 import { GLASS, PrimaryButton, GhostButton } from "../../components/ideate/ui";
@@ -63,6 +75,7 @@ function SaveStatus({ state, onRetry }) {
 // ─── Workspace ─────────────────────────────────────────────────────────
 
 function IdeateWorkspace() {
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [step, setStep] = useState(0);
   const [view, setView] = useState("loading"); // loading | intro | steps | summary | error
@@ -78,7 +91,10 @@ function IdeateWorkspace() {
   const latest = useRef({ data: null, step: 0, completed: false });
   const stepperRef = useRef(null);
 
-  const allDone = useMemo(() => Boolean(data) && STEPS.every((s) => stepReady(s.id, data).ok), [data]);
+  // Everything below indexes into the TRACK's step list, which is the whole
+  // list on the full journey and four of them on express.
+  const steps = useMemo(() => (data ? stepsOf(data) : STEPS), [data]);
+  const allDone = useMemo(() => Boolean(data) && allStepsReady(data), [data]);
   const furthest = useMemo(() => (data ? furthestUnlocked(data) : 0), [data]);
   latest.current = { data, step, completed: allDone };
 
@@ -105,8 +121,7 @@ function IdeateWorkspace() {
           const d = json.session.data;
           setData(d);
           setStep(Math.min(json.session.currentStep, furthestUnlocked(d)));
-          const done = STEPS.every((s) => stepReady(s.id, d).ok);
-          setView(json.session.completedAt && done ? "summary" : "steps");
+          setView(json.session.completedAt && allStepsReady(d) ? "summary" : "steps");
           setSaveState("saved");
         } else {
           setData(emptyIdeateData());
@@ -139,6 +154,15 @@ function IdeateWorkspace() {
       }
     });
   }, []);
+
+  // Switching track, or editing an earlier step, can put the student past the
+  // end of what is open to them. Pull them back rather than rendering a step
+  // that no longer exists.
+  useEffect(() => {
+    if (!data) return;
+    const max = Math.min(steps.length - 1, furthest);
+    if (step > max) setStep(max);
+  }, [data, steps.length, furthest, step]);
 
   useEffect(() => {
     if (!data || !dirty.current) return undefined;
@@ -174,6 +198,37 @@ function IdeateWorkspace() {
 
   const scrollToTop = () => {
     if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const start = (track) => {
+    dirty.current = true;
+    setData((prev) => {
+      const next = clone(prev);
+      next.track = normalizeTrack(track);
+      return next;
+    });
+    setStep(0);
+    setView("steps");
+    scrollToTop();
+  };
+
+  // Nothing written is thrown away: express stops asking about the steps it
+  // skips, and going back to the full journey asks again. Stay on the same
+  // step by id where that step exists in the new track.
+  const switchTrack = (track) => {
+    const next = normalizeTrack(track);
+    const currentId = steps[step]?.id;
+    const nextIndex = stepsFor(next).findIndex((s) => s.id === currentId);
+    dirty.current = true;
+    setData((prev) => {
+      const d = clone(prev);
+      d.track = next;
+      return d;
+    });
+    setStep(nextIndex >= 0 ? nextIndex : 0);
+    setView("steps");
+    setBoardOpen(false);
+    scrollToTop();
   };
 
   const goTo = (i) => {
@@ -238,16 +293,24 @@ function IdeateWorkspace() {
     scrollToTop();
   };
 
+  // Carry the idea into the submission form. Written pitches only — there is
+  // no recording to hand over — so this pre-selects the form's text mode.
+  const useAsWrittenPitch = () => {
+    if (dirty.current) saveNow();
+    stashIntakePrefill(latest.current.data);
+    router.push("/intake");
+  };
+
   const closeBoard = useCallback(() => setBoardOpen(false), []);
 
-  const current = STEPS[step];
+  const current = steps[Math.min(step, steps.length - 1)] || steps[0];
   const StageView = STAGE_VIEWS[current.id];
   const ownReady = data ? stepReady(current.id, data) : { ok: false };
   // An earlier step can fall back to incomplete if the student edits it later.
-  const ready = ownReady.ok && step + 1 > furthest && step < STEPS.length - 1
-    ? { ok: false, hint: `Finish ${STEPS[furthest].label} first.` }
+  const ready = ownReady.ok && step + 1 > furthest && step < steps.length - 1
+    ? { ok: false, hint: `Finish ${steps[furthest].label} first.` }
     : ownReady;
-  const isLast = step === STEPS.length - 1;
+  const isLast = step === steps.length - 1;
   const themeStage = view === "steps" ? current.id : view === "summary" ? "pitch" : "spark";
   const saveSlot = <SaveStatus state={saveState} onRetry={saveNow} />;
 
@@ -271,17 +334,25 @@ function IdeateWorkspace() {
           </div>
         )}
 
-        {view === "intro" && data && <Intro onStart={() => { setView("steps"); scrollToTop(); }} />}
+        {view === "intro" && data && <Intro onStart={start} />}
 
         {view === "summary" && data && (
-          <Summary data={data} update={update} celebrate={celebrate} saveSlot={saveSlot} onEdit={() => goTo(Math.min(STEPS.length - 1, furthest))} onReset={reset} />
+          <Summary
+            data={data}
+            update={update}
+            celebrate={celebrate}
+            saveSlot={saveSlot}
+            onEdit={() => goTo(Math.min(steps.length - 1, furthest))}
+            onReset={reset}
+            onUseAsWrittenPitch={useAsWrittenPitch}
+          />
         )}
 
         {view === "steps" && data && (
           <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[290px_minmax(0,1fr)] lg:gap-8 xl:gap-12">
             <aside className="hidden lg:block">
               <div className="sticky top-[104px] max-h-[calc(100dvh-128px)] overflow-y-auto no-scrollbar space-y-8 pb-6">
-                <JourneyRail data={data} step={step} furthest={furthest} goTo={goTo} />
+                <JourneyRail data={data} step={step} furthest={furthest} goTo={goTo} onSwitchTrack={switchTrack} />
                 <div className="pt-6" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                   <IdeaBoard data={data} />
                 </div>
@@ -289,8 +360,8 @@ function IdeateWorkspace() {
             </aside>
 
             <div className="min-w-0">
-              <MobileStepper data={data} step={step} furthest={furthest} goTo={goTo} navRef={stepperRef} />
-              <StageHero step={step} saveSlot={saveSlot} />
+              <MobileStepper data={data} step={step} furthest={furthest} goTo={goTo} navRef={stepperRef} onSwitchTrack={switchTrack} />
+              <StageHero data={data} step={step} saveSlot={saveSlot} />
 
               <section key={current.id} className="ideate-rise rounded-3xl p-4 sm:p-8 lg:p-10" style={{ ...GLASS, animationDelay: "80ms" }}>
                 <StageView

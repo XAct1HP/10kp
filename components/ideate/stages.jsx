@@ -39,8 +39,8 @@ import {
   FALLBACK_OBJECTIONS,
   COACH_PREREQS,
   MAX_RUNGS,
-  MIN_IDEAS,
   MAX_IDEAS,
+  limitsOf,
   OBJECTION_COUNT,
   PITCH_MIN_SECONDS,
   PITCH_MAX_SECONDS,
@@ -573,7 +573,11 @@ export function StretchStage({ data, update, coachProps }) {
   const [lensDraft, setLensDraft] = useState("");
   const ideas = data.stretch.ideas;
   const count = namedIdeas(data).length;
-  const unlocked = count >= MIN_IDEAS;
+  // Express asks for fewer ideas, so the lenses have to unlock at the number
+  // the student is actually being held to — otherwise Next goes live while the
+  // lenses are still locked.
+  const needed = limitsOf(data).minIdeas;
+  const unlocked = count >= needed;
   const lens = LENSES.find((l) => l.id === lensId);
   const full = ideas.length >= MAX_IDEAS;
   const chosen = ideas[data.stretch.chosen];
@@ -597,13 +601,13 @@ export function StretchStage({ data, update, coachProps }) {
       {/* Idea wall */}
       <div>
         <div className="flex items-center gap-4 mb-4">
-          <ProgressRing value={count / MIN_IDEAS} size={52} stroke={5}>
+          <ProgressRing value={count / needed} size={52} stroke={5}>
             <span className="text-sm font-black text-white tabular-nums">{count}</span>
           </ProgressRing>
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-[0.22em] font-bold" style={{ color: "var(--accent)" }}>1 · The idea wall</p>
             <p className="text-sm text-white/60 leading-snug mt-0.5">
-              {unlocked ? "Wall unlocked. Keep going, or draw a lens for a new angle." : `Quantity first. Silly ideas count. ${MIN_IDEAS - count} more to unlock lenses.`}
+              {unlocked ? "Wall unlocked. Keep going, or draw a lens for a new angle." : `Quantity first. Silly ideas count. ${needed - count} more to unlock lenses.`}
             </p>
           </div>
         </div>
@@ -727,7 +731,7 @@ export function StretchStage({ data, update, coachProps }) {
           {!unlocked && (
             <div className="absolute inset-0 flex items-center justify-center rounded-2xl" style={{ background: "rgba(11,26,59,0.55)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" }}>
               <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold" style={{ background: "rgba(11,26,59,0.9)", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                <Icon name="lock" className="w-4 h-4" /> Add {MIN_IDEAS - count} more idea{MIN_IDEAS - count === 1 ? "" : "s"} to unlock
+                <Icon name="lock" className="w-4 h-4" /> Add {needed - count} more idea{needed - count === 1 ? "" : "s"} to unlock
               </span>
             </div>
           )}

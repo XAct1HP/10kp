@@ -6,14 +6,28 @@ import {
   sanitizeIdeateData,
   stepReady,
   furthestUnlocked,
+  allStepsReady,
+  stepsFor,
+  stepsOf,
+  trackOf,
+  limitsOf,
+  inTrack,
+  normalizeTrack,
   pitchSeconds,
+  problemSentence,
   STEPS,
   MAX_IDEAS,
+  MIN_IDEAS,
+  EXPRESS_MIN_IDEAS,
+  EXPRESS_STEP_IDS,
   COACH_HISTORY,
   FIRST_WHY,
   FALLBACK_WHY,
   FALLBACK_OBJECTIONS,
+  PITCH_BEATS,
 } from "../lib/ideate/curriculum.js";
+import { buildIntakePrefill } from "../lib/ideate/handoff.js";
+import { countWords, MIN_PITCH_WORDS } from "../lib/pitchWords.js";
 import {
   COACH_MODES,
   buildCoachMessages,
@@ -143,4 +157,141 @@ test("normalize falls back instead of breaking the UI", () => {
   assert.deepEqual(r.bullets, []);
   assert.equal(r.extra, undefined);
   assert.equal(r.mode, "who-sharpen");
+});
+
+// ─── Express track ─────────────────────────────────────────────────────
+
+// The minimum an express student has to write: the four steps express keeps,
+// each at the express limits. Deliberately built up from nothing rather than
+// trimmed from completeWorkspace(), so it proves express really does not need
+// Who, Check or Stress.
+function expressWorkspace() {
+  const d = emptyIdeateData();
+  d.track = "express";
+  d.spark = { door: "annoy", idea: "campus printers eat my money" };
+  d.dig.rungs = [{ question: FIRST_WHY, answer: "jobs fail halfway and the credit is gone" }];
+  Object.assign(d.dig, {
+    who: "students printing between classes",
+    what: "paying twice for one print job",
+    why: "failed jobs are never refunded automatically",
+  });
+  d.stretch.ideas = ["a", "b", "c"].map((text) => ({ text, lens: "", impact: 0, doable: 0, excite: 0 }));
+  d.stretch.chosen = 1;
+  d.stretch.solution = "Auto-refund a job the printer never finished";
+  d.pitch = { hook: "h", problem: "p", who: "w", solution: "s", why: "y" };
+  return d;
+}
+
+test("express walks four steps, the full journey walks seven", () => {
+  assert.deepEqual(stepsFor("express").map((s) => s.id), EXPRESS_STEP_IDS);
+  assert.equal(stepsFor("full").length, STEPS.length);
+  // Anything unrecognised is the full journey, never a half-defined track.
+  for (const junk of [undefined, null, "", "EXPRESS", "quick", 7]) {
+    assert.equal(normalizeTrack(junk), "full");
+    assert.equal(stepsFor(junk).length, STEPS.length);
+  }
+});
+
+test("express finishes without Who, Check or Stress", () => {
+  const d = expressWorkspace();
+  for (const step of stepsOf(d)) assert.equal(stepReady(step.id, d).ok, true, step.id);
+  assert.equal(allStepsReady(d), true);
+  assert.equal(furthestUnlocked(d), EXPRESS_STEP_IDS.length - 1);
+  // The steps it skips are genuinely unfinished — express just never asks.
+  for (const id of ["who", "check", "stress"]) {
+    assert.equal(stepReady(id, d).ok, false, id);
+    assert.equal(inTrack(d, id), false, id);
+  }
+});
+
+test("the same work is not finished on the full journey", () => {
+  const d = expressWorkspace();
+  d.track = "full";
+  assert.equal(allStepsReady(d), false);
+  // Dig now wants a second why, so that is where they land.
+  assert.equal(furthestUnlocked(d), STEPS.findIndex((s) => s.id === "dig"));
+});
+
+test("switching track keeps every answer, only what is asked for changes", () => {
+  const before = expressWorkspace();
+  const after = sanitizeIdeateData({ ...before, track: "full" });
+  assert.equal(after.track, "full");
+  assert.equal(after.spark.idea, before.spark.idea);
+  assert.equal(after.stretch.solution, before.stretch.solution);
+  assert.deepEqual(after.dig.rungs, before.dig.rungs);
+  assert.deepEqual(after.pitch, before.pitch);
+});
+
+test("express lowers the counts, the full journey keeps them", () => {
+  const express = expressWorkspace();
+  assert.equal(limitsOf(express).minIdeas, EXPRESS_MIN_IDEAS);
+  assert.equal(limitsOf(express).minRungs, 1);
+  assert.equal(limitsOf(emptyIdeateData()).minIdeas, MIN_IDEAS);
+
+  // One idea short of the express minimum is still short.
+  const short = expressWorkspace();
+  short.stretch.ideas = short.stretch.ideas.slice(0, EXPRESS_MIN_IDEAS - 1);
+  short.stretch.chosen = 0;
+  assert.equal(stepReady("stretch", short).ok, false);
+});
+
+test("track survives a save round trip and never comes back bogus", () => {
+  assert.equal(sanitizeIdeateData({ track: "express" }).track, "express");
+  assert.equal(sanitizeIdeateData({ track: "turbo" }).track, "full");
+  assert.equal(sanitizeIdeateData({}).track, "full");
+  assert.equal(trackOf(emptyIdeateData()), "full");
+});
+
+// ─── Intake hand-off ───────────────────────────────────────────────────
+
+test("the hand-off carries the chosen idea, the problem and the beats", () => {
+  const d = completeWorkspace();
+  const p = buildIntakePrefill(d);
+  assert.equal(p.title, d.stretch.ideas[d.stretch.chosen].text);
+  assert.match(p.description, /^The problem: /);
+  assert.ok(p.description.includes(problemSentence(d)));
+  assert.ok(p.description.includes(d.stretch.solution));
+  // Every beat, in order, as its own paragraph.
+  assert.deepEqual(p.pitchText.split("\n\n"), PITCH_BEATS.map((b) => d.pitch[b.id]));
+});
+
+test("the hand-off works from an express idea, skipping what it never asked", () => {
+  const d = expressWorkspace();
+  const p = buildIntakePrefill(d);
+  assert.equal(p.title, "b");
+  assert.ok(p.description.includes(problemSentence(d)));
+  assert.doesNotMatch(p.description, /Who it's for/);
+  assert.equal(p.pitchText, "h\n\np\n\nw\n\ns\n\ny");
+});
+
+test("the hand-off never emits half a sentence from an empty workspace", () => {
+  for (const junk of [undefined, null, {}, emptyIdeateData()]) {
+    const p = buildIntakePrefill(junk);
+    assert.equal(p.description, "");
+    assert.equal(p.pitchText, "");
+    assert.doesNotMatch(p.title + p.description, /struggles with/);
+  }
+  // A half-written problem statement is left out rather than stitched.
+  const d = emptyIdeateData();
+  d.dig.who = "students";
+  assert.equal(buildIntakePrefill(d).description, "");
+});
+
+test("a real 60-90 second pitch clears the written-pitch word minimum", () => {
+  const d = expressWorkspace();
+  // 30 words a beat is about 12 seconds of speech — a short but honest pitch.
+  for (const b of PITCH_BEATS) d.pitch[b.id] = Array(30).fill("word").join(" ");
+  assert.ok(countWords(buildIntakePrefill(d).pitchText) >= MIN_PITCH_WORDS);
+  // And the summary's guard catches one that does not.
+  const thin = expressWorkspace();
+  assert.ok(countWords(buildIntakePrefill(thin).pitchText) < MIN_PITCH_WORDS);
+});
+
+test("the hand-off collapses stray whitespace so the form gets clean fields", () => {
+  const d = expressWorkspace();
+  d.stretch.ideas[1].text = "  auto\n  refund  ";
+  d.pitch.hook = "  a   hook  ";
+  const p = buildIntakePrefill(d);
+  assert.equal(p.title, "auto refund");
+  assert.ok(p.pitchText.startsWith("a hook"));
 });

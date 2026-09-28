@@ -5,9 +5,13 @@ import { Icon, StageArt } from "./art";
 import { CoachOrb } from "./Coach";
 import { PitchTimeline, formatClock, pitchStatus } from "./stages";
 import { MAIZE, NAVY, STAGE_THEME, RATING_COLORS, BEAT_COLORS } from "./theme";
-import { GLASS, SUBTLE, PrimaryButton, GhostButton, ProgressRing, Avatar, AutoTextarea, personaName, accent, tint } from "./ui";
+import { MIN_PITCH_WORDS, countWords } from "../../lib/pitchWords";
+import { buildIntakePrefill } from "../../lib/ideate/handoff";
+import { GLASS, SUBTLE, PrimaryButton, AccentButton, GhostButton, ProgressRing, Avatar, AutoTextarea, personaName, accent, tint } from "./ui";
 import {
   STEPS,
+  TRACK_META,
+  EXPRESS_STEP_IDS,
   CHECK_RATINGS,
   PITCH_BEATS,
   DAILY_COACH_LIMIT,
@@ -15,6 +19,10 @@ import {
   LONG_TEXT,
   OBJECTION_COUNT,
   stepReady,
+  stepsOf,
+  trackOf,
+  inTrack,
+  limitsOf,
   answeredRungs,
   namedIdeas,
   pitchSeconds,
@@ -57,9 +65,11 @@ export function Backdrop({ stageId }) {
 
 // ─── Stage header ──────────────────────────────────────────────────────
 
-export function StageHero({ step, saveSlot }) {
-  const s = STEPS[step];
+export function StageHero({ data, step, saveSlot }) {
+  const steps = stepsOf(data);
+  const s = steps[step];
   const t = STAGE_THEME[s.id];
+  const express = trackOf(data) === "express";
   return (
     <div key={s.id} className="ideate-rise relative flex items-center gap-4 sm:gap-8 mb-6 sm:mb-8">
       <span
@@ -75,7 +85,7 @@ export function StageHero({ step, saveSlot }) {
             <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--accent)", color: NAVY }}>
               <Icon name={t.icon} className="w-3 h-3" strokeWidth={2.6} />
             </span>
-            Step {step + 1} of {STEPS.length}<span className="hidden sm:inline"> · {t.tagline}</span>
+            Step {step + 1} of {steps.length}<span className="hidden sm:inline"> · {t.tagline}</span>
           </span>
           <span className="sm:hidden">{saveSlot}</span>
         </div>
@@ -94,19 +104,53 @@ export function StageHero({ step, saveSlot }) {
   );
 }
 
+// ─── Track badge ───────────────────────────────────────────────────────
+// Which way through the curriculum the student is on, and the way out of it.
+// Switching keeps everything already written: express simply stops asking
+// about the steps it skips, and going back to the full journey asks again.
+
+export function TrackBadge({ data, onSwitch, className = "" }) {
+  const track = trackOf(data);
+  const express = track === "express";
+  const meta = TRACK_META[track];
+  const other = TRACK_META[express ? "full" : "express"];
+  return (
+    <div className={`rounded-xl px-2.5 py-2 ${className}`} style={express ? { background: "rgba(255,203,5,0.1)", border: "1px solid rgba(255,203,5,0.3)" } : SUBTLE}>
+      <p className="flex items-center gap-1.5 min-w-0">
+        <Icon name={express ? "bolt" : "layers"} className="w-3.5 h-3.5 flex-shrink-0" style={{ color: express ? MAIZE : "rgba(255,255,255,0.5)" }} strokeWidth={2.4} />
+        <span className="text-[11px] font-bold text-white/80 truncate">{meta.label}</span>
+        <span className="text-[11px] text-white/40 tabular-nums flex-shrink-0">· {meta.minutes}</span>
+      </p>
+      <button
+        type="button"
+        onClick={() => onSwitch(other.id)}
+        className="mt-1.5 w-full inline-flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-white/60 hover:text-white transition-colors"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+        title={express
+          ? "Adds the three steps express skips. Nothing you have written is lost."
+          : "Drops to the four steps that produce a pitch. Nothing you have written is lost."}
+      >
+        Switch to {express ? "the full journey" : "express"}
+      </button>
+    </div>
+  );
+}
+
 // ─── Journey (desktop rail) ────────────────────────────────────────────
 
-export function JourneyRail({ data, step, furthest, goTo }) {
+export function JourneyRail({ data, step, furthest, goTo, onSwitchTrack }) {
+  const steps = stepsOf(data);
   return (
     <nav aria-label="Steps">
       <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-white/35 mb-3 pl-2">Your journey</p>
+      <TrackBadge data={data} onSwitch={onSwitchTrack} className="mb-4" />
       <ol>
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const t = STAGE_THEME[s.id];
           const unlocked = i <= furthest;
           const done = stepReady(s.id, data).ok;
           const active = i === step;
-          const next = STEPS[i + 1];
+          const next = steps[i + 1];
           return (
             <li key={s.id} className="relative">
               {next && (
@@ -155,12 +199,14 @@ export function JourneyRail({ data, step, furthest, goTo }) {
 
 // ─── Stepper (phones and tablets) ──────────────────────────────────────
 
-export function MobileStepper({ data, step, furthest, goTo, navRef }) {
-  const done = STEPS.filter((s) => stepReady(s.id, data).ok).length;
+export function MobileStepper({ data, step, furthest, goTo, navRef, onSwitchTrack }) {
+  const steps = stepsOf(data);
+  const done = steps.filter((s) => stepReady(s.id, data).ok).length;
   return (
     <div className="lg:hidden mb-6">
+      <TrackBadge data={data} onSwitch={onSwitchTrack} className="mb-3" />
       <nav ref={navRef} className="relative flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 py-1.5" aria-label="Steps">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const t = STAGE_THEME[s.id];
           const unlocked = i <= furthest;
           const isDone = stepReady(s.id, data).ok;
@@ -191,7 +237,7 @@ export function MobileStepper({ data, step, furthest, goTo, navRef }) {
       <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
         <div
           className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${(done / STEPS.length) * 100}%`, background: "linear-gradient(90deg, #FFCB05, var(--accent))" }}
+          style={{ width: `${(done / steps.length) * 100}%`, background: "linear-gradient(90deg, #FFCB05, var(--accent))" }}
         />
       </div>
     </div>
@@ -222,7 +268,9 @@ function BoardItem({ stageId, title, ready, empty, children }) {
 }
 
 export function IdeaBoard({ data }) {
-  const done = STEPS.filter((s) => stepReady(s.id, data).ok).length;
+  const steps = stepsOf(data);
+  const done = steps.filter((s) => stepReady(s.id, data).ok).length;
+  const show = (stepId) => inTrack(data, stepId);
   const chosen = data.stretch.ideas[data.stretch.chosen];
   const rating = CHECK_RATINGS.find((r) => r.id === data.check.rating);
   const answered = data.stress.objections.filter((o) => filled(o.answer)).length;
@@ -232,8 +280,8 @@ export function IdeaBoard({ data }) {
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
-        <ProgressRing value={done / STEPS.length} size={40} stroke={4} color={MAIZE}>
-          <span className="text-[11px] font-black text-white tabular-nums">{done}/{STEPS.length}</span>
+        <ProgressRing value={done / steps.length} size={40} stroke={4} color={MAIZE}>
+          <span className="text-[11px] font-black text-white tabular-nums">{done}/{steps.length}</span>
         </ProgressRing>
         <div>
           <p className="text-sm font-bold text-white leading-tight">Your idea board</p>
@@ -247,12 +295,15 @@ export function IdeaBoard({ data }) {
         <BoardItem stageId="dig" title={`Root problem · ${answeredRungs(data)} deep`} ready={stepReady("dig", data).ok} empty="Unlocks when you dig">
           {problemSentence(data)}
         </BoardItem>
+        {show("who") && (
         <BoardItem stageId="who" title="Persona" ready={filled(data.who.person)} empty="Meet your person">
           <span className="flex items-center gap-2">
             <Avatar text={data.who.person} size={26} rgb={STAGE_THEME.who.rgb} />
             <span className="font-semibold truncate">{personaName(data.who.person)}</span>
           </span>
         </BoardItem>
+        )}
+        {show("check") && (
         <BoardItem stageId="check" title="Verdict" ready={Boolean(rating)} empty="Your reality check">
           <span className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: rating ? `rgb(${RATING_COLORS[rating.id]})` : "transparent", boxShadow: rating ? `0 0 10px rgb(${RATING_COLORS[rating.id]})` : "none" }} />
@@ -260,12 +311,15 @@ export function IdeaBoard({ data }) {
             <span className="text-white/40 text-[11px]">· {data.check.talkedTo} asked</span>
           </span>
         </BoardItem>
+        )}
         <BoardItem stageId="stretch" title={`Chosen from ${namedIdeas(data).length} ideas`} ready={Boolean(chosen && filled(chosen.text))} empty="Your chosen solution">
           <span className="font-semibold">{chosen?.text}</span>
         </BoardItem>
+        {show("stress") && (
         <BoardItem stageId="stress" title={`Stress-tested · ${answered}/${OBJECTION_COUNT}`} ready={answered > 0 || filled(data.stress.assumption)} empty="Survive the skeptic">
           {filled(data.stress.assumption) ? data.stress.assumption : `${answered} objection${answered === 1 ? "" : "s"} answered`}
         </BoardItem>
+        )}
         <BoardItem stageId="pitch" title={`Pitch · ${formatClock(secs)}`} ready={anyPitch} empty="Your pitch">
           <div className="pt-1"><PitchTimeline pitch={data.pitch} compact /></div>
         </BoardItem>
@@ -302,7 +356,8 @@ export function BoardSheet({ data, open, onClose }) {
 }
 
 export function BoardButton({ data, onOpen }) {
-  const done = STEPS.filter((s) => stepReady(s.id, data).ok).length;
+  const steps = stepsOf(data);
+  const done = steps.filter((s) => stepReady(s.id, data).ok).length;
   return (
     <button
       type="button"
@@ -310,7 +365,7 @@ export function BoardButton({ data, onOpen }) {
       className="lg:hidden fixed bottom-5 right-4 z-30 inline-flex items-center gap-2 rounded-full pl-1.5 pr-4 py-1.5 text-sm font-bold shadow-2xl"
       style={{ background: "rgba(15,31,66,0.92)", color: "white", border: "1px solid rgba(255,255,255,0.14)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
     >
-      <ProgressRing value={done / STEPS.length} size={34} stroke={3} color={MAIZE}>
+      <ProgressRing value={done / steps.length} size={34} stroke={3} color={MAIZE}>
         <Icon name="grid" className="w-3.5 h-3.5 text-white/80" />
       </ProgressRing>
       Board
@@ -362,6 +417,42 @@ function JourneyMap() {
   );
 }
 
+// The two ways in. The full journey is the default and keeps the primary
+// button; express sits beside it as an equal choice rather than a footnote,
+// because for a lot of students a rough idea today beats a polished one they
+// never finish.
+function TrackCard({ track, onStart }) {
+  const meta = TRACK_META[track];
+  const express = track === "express";
+  const stepCount = express ? EXPRESS_STEP_IDS.length : STEPS.length;
+  const Button = express ? AccentButton : PrimaryButton;
+  return (
+    <div
+      className="ideate-rise relative flex flex-col rounded-2xl p-5 overflow-hidden"
+      style={express
+        ? { background: "linear-gradient(160deg, rgba(255,203,5,0.13), rgba(255,255,255,0.02) 65%)", border: "1px solid rgba(255,203,5,0.35)", "--accent": MAIZE, "--accent-rgb": "255, 203, 5", animationDelay: "60ms" }
+        : { ...SUBTLE, animationDelay: "20ms" }}
+    >
+      {express && (
+        <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]" style={{ background: MAIZE, color: NAVY }}>
+          <Icon name="star" className="w-2.5 h-2.5" strokeWidth={3} /> New
+        </span>
+      )}
+      <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: express ? MAIZE : "rgba(255,255,255,0.08)", color: express ? NAVY : "rgba(255,255,255,0.7)" }}>
+        <Icon name={express ? "bolt" : "layers"} className="w-5 h-5" strokeWidth={2.2} />
+      </span>
+      <p className="mt-3 text-base font-black text-white">{meta.label}</p>
+      <p className="text-[11px] uppercase tracking-[0.16em] font-bold mt-0.5" style={{ color: express ? MAIZE : "rgba(255,255,255,0.45)" }}>
+        {meta.minutes} · {stepCount} steps
+      </p>
+      <p className="text-[13px] text-white/60 mt-2 leading-relaxed flex-1">{meta.blurb}</p>
+      <Button onClick={() => onStart(track)} className="mt-4 w-full justify-center">
+        {express ? "Expedite the process" : "Start building"} <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.4} />
+      </Button>
+    </div>
+  );
+}
+
 export function Intro({ onStart }) {
   return (
     <div className="pb-10">
@@ -375,14 +466,15 @@ export function Intro({ onStart }) {
             </span>
           </h1>
           <p className="mt-6 text-white/70 text-base sm:text-xl max-w-xl leading-relaxed">
-            Seven short stops take you from a rough idea to a real problem, a solution you&rsquo;ve stress-tested, and a 60 to 90 second pitch you can record. Your work saves as you go.
+            Seven short stops take you from a rough idea to a real problem, a solution you&rsquo;ve stress-tested, and a 60 to 90 second pitch you can record. In a hurry? Express does it in four.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <PrimaryButton onClick={onStart} className="px-7 py-4 text-base">
-              Start building <Icon name="arrowRight" className="w-5 h-5" strokeWidth={2.4} />
-            </PrimaryButton>
-            <span className="text-sm text-white/45">7 steps · saves as you go</span>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl items-stretch">
+            <TrackCard track="full" onStart={onStart} />
+            <TrackCard track="express" onStart={onStart} />
           </div>
+          <p className="mt-3 text-sm text-white/45">
+            Either way your work saves as you go, and you can switch between the two at any point without losing it.
+          </p>
           <div className="mt-8 flex items-center gap-3 max-w-lg rounded-2xl p-3.5 pr-4" style={{ background: "rgba(255,203,5,0.06)", border: "1px solid rgba(255,203,5,0.2)" }}>
             <CoachOrb size={40} />
             <p className="text-[13px] sm:text-sm text-white/75 leading-relaxed">
@@ -407,6 +499,11 @@ export function Intro({ onStart }) {
                 style={{ background: `linear-gradient(150deg, rgba(${t.rgb}, 0.14), rgba(255,255,255,0.02) 60%)`, border: `1px solid rgba(${t.rgb}, 0.22)`, animationDelay: `${i * 60}ms` }}
               >
                 <span className="absolute -right-3 -top-5 text-7xl font-black" style={{ color: "transparent", WebkitTextStroke: `1px rgba(${t.rgb}, 0.25)` }}>{i + 1}</span>
+                {EXPRESS_STEP_IDS.includes(s.id) && (
+                  <span className="absolute right-3 bottom-3 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em]" style={{ background: "rgba(255,203,5,0.16)", color: MAIZE, border: "1px solid rgba(255,203,5,0.3)" }} title="Express keeps this step">
+                    <Icon name="bolt" className="w-2.5 h-2.5" strokeWidth={3} /> Express
+                  </span>
+                )}
                 <span className="relative w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `rgb(${t.rgb})`, color: NAVY }}>
                   <Icon name={t.icon} className="w-5 h-5" strokeWidth={2.2} />
                 </span>
@@ -497,24 +594,28 @@ function Connector({ children }) {
 
 export function ideaAsText(d) {
   const chosen = d.stretch.ideas[d.stretch.chosen];
+  const line = (label, value) => (filled(value) ? `${label}: ${value}` : "");
   return [
     `IDEA: ${chosen?.text || d.spark.idea}`,
     "",
     `PROBLEM: ${problemSentence(d)}`,
-    `PERSON: ${d.who.person}`,
-    `TODAY THEY: ${d.who.today}`,
-    `SOLUTION: ${d.stretch.solution}`,
-    `RISKIEST ASSUMPTION: ${d.stress.assumption}`,
-    `TEST THIS WEEK: ${d.stress.test}`,
+    line("PERSON", d.who.person),
+    line("TODAY THEY", d.who.today),
+    line("SOLUTION", d.stretch.solution),
+    line("RISKIEST ASSUMPTION", d.stress.assumption),
+    line("TEST THIS WEEK", d.stress.test),
     "",
     "PITCH OUTLINE (60 to 90 seconds)",
     ...PITCH_BEATS.map((b) => `${b.label} (up to ${b.seconds}s): ${d.pitch[b.id]}`),
-  ].join("\n");
+  ]
+    .filter((row, i, rows) => row !== "" || rows[i - 1] !== "")
+    .join("\n");
 }
 
-export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) {
+export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset, onUseAsWrittenPitch }) {
   const [copied, setCopied] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const show = (stepId) => inTrack(data, stepId);
   const chosenIndex = data.stretch.chosen;
   const chosen = data.stretch.ideas[chosenIndex];
   const coachNotes = Object.values(data.coach || {}).reduce((n, list) => n + list.length, 0);
@@ -532,12 +633,17 @@ export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) 
   };
 
   const stats = [
-    { icon: "dig", rgb: STAGE_THEME.dig.rgb, value: answeredRungs(data), label: "whys deep" },
-    { icon: "users", rgb: STAGE_THEME.check.rgb, value: data.check.talkedTo, label: "people asked" },
-    { icon: "branch", rgb: STAGE_THEME.stretch.rgb, value: namedIdeas(data).length, label: "ideas explored" },
-    { icon: "shield", rgb: STAGE_THEME.stress.rgb, value: data.stress.objections.length, label: "objections faced" },
-    { icon: "sparkles", rgb: "255, 203, 5", value: coachNotes, label: "coach notes" },
-  ];
+    { icon: "dig", rgb: STAGE_THEME.dig.rgb, value: answeredRungs(data), label: answeredRungs(data) === 1 ? "why deep" : "whys deep", step: "dig" },
+    { icon: "users", rgb: STAGE_THEME.check.rgb, value: data.check.talkedTo, label: "people asked", step: "check" },
+    { icon: "branch", rgb: STAGE_THEME.stretch.rgb, value: namedIdeas(data).length, label: "ideas explored", step: "stretch" },
+    { icon: "shield", rgb: STAGE_THEME.stress.rgb, value: data.stress.objections.length, label: "objections faced", step: "stress" },
+    { icon: "sparkles", rgb: "255, 203, 5", value: coachNotes, label: "coach notes", step: "spark" },
+  ].filter((st) => show(st.step));
+
+  // The written-pitch hand-off carries the beats into the intake form, so it
+  // is only worth offering once they add up to a submittable pitch.
+  const prefillWords = countWords(buildIntakePrefill(data).pitchText);
+  const prefillShort = prefillWords < MIN_PITCH_WORDS;
 
   let start = 0;
   return (
@@ -630,6 +736,7 @@ export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) 
             </SummaryTile>
           </div>
 
+          {show("who") && (
           <div className="ideate-rise" style={{ animationDelay: "130ms" }}>
             <SummaryTile stageId="who" title="The person">
               <div className="flex items-start gap-4">
@@ -642,6 +749,7 @@ export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) 
               </div>
             </SummaryTile>
           </div>
+          )}
 
           <div className="ideate-rise" style={{ animationDelay: "180ms" }}>
             <SummaryTile stageId="stretch" title="The solution">
@@ -649,6 +757,7 @@ export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) 
             </SummaryTile>
           </div>
 
+          {show("stress") && (
           <div className="ideate-rise" style={{ animationDelay: "230ms" }}>
             <SummaryTile stageId="stress" title="Riskiest assumption">
               <EditableText label="Riskiest assumption" value={data.stress.assumption} onChange={(v) => update((x) => { x.stress.assumption = v; })} />
@@ -661,6 +770,7 @@ export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) 
               </div>
             </SummaryTile>
           </div>
+          )}
 
           <section className="ideate-rise rounded-3xl p-5 sm:p-7" style={{ ...GLASS, animationDelay: "280ms", "--accent-rgb": STAGE_THEME.pitch.rgb }}>
             <div className="flex items-end justify-between gap-4 flex-wrap mb-5">
@@ -702,6 +812,27 @@ export function Summary({ data, update, celebrate, saveSlot, onEdit, onReset }) 
               <div className="hidden sm:block ideate-float" style={{ "--accent": STAGE_THEME.pitch.accent }}>
                 <StageArt stageId="pitch" className="w-36 h-28" />
               </div>
+            </div>
+
+            {/* The written route. Deliberately below the recording pitch and in
+                lighter weight: a recording is what 10KP asks for, and there is
+                no way to hand a recording over from here anyway. */}
+            <div className="relative mt-6 pt-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6" style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-white">Submitting in writing instead?</p>
+                <p className="text-xs text-white/55 mt-1 leading-relaxed">
+                  {prefillShort
+                    ? `Your beats come to ${prefillWords} words, and a written pitch needs at least ${MIN_PITCH_WORDS}. Flesh them out and this will carry straight into the form.`
+                    : "We'll carry your title, description and these beats into the submission form, so the pitch content is already written when you get to it. You can edit everything there."}
+                </p>
+              </div>
+              <GhostButton
+                onClick={onUseAsWrittenPitch}
+                disabled={prefillShort}
+                className="flex-shrink-0 w-full sm:w-auto justify-center"
+              >
+                Fill in my submission <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.4} />
+              </GhostButton>
             </div>
           </section>
         </div>
