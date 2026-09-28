@@ -1,0 +1,29 @@
+/* Profile page — shared visual language with /ideate (navy + maize glass UI). */
+
+.profile-root {
+  --accent: #ffcb05;
+  --accent-rgb: 255, 203, 5;
+}
+
+.profile-input {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.profile-input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.profile-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(var(--accent-rgb), 0.65);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.14);
+}
+
+@keyframes profile-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.profile-rise {
+  animation: profile-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}

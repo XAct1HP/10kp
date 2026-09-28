@@ -434,6 +434,7 @@ export default function IntakePage() {
   }, [bgIndex]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -495,45 +496,56 @@ export default function IntakePage() {
   const goToFloor = async (newFloor) => {
     if (newFloor === floor || transitioning || preparingFloor !== null) return;
     setPreparingFloor(newFloor);
-    await preloadBackground(newFloor);
-    if (!isMountedRef.current) return;
-
-    setPreparingFloor(null);
-    setTransitioning(true);
-    const currentBgIndex = bgIndexRef.current;
-
-    runAfterDelay(() => {
-      const incomingLayer = {
-        key: backgroundLayerKeyRef.current,
-        index: newFloor,
-        state: "active",
-      };
-      backgroundLayerKeyRef.current += 1;
-
-      const nextLayers = currentBgIndex === newFloor
-        ? [incomingLayer]
-        : [
-            {
-              key: backgroundLayerKeyRef.current,
-              index: currentBgIndex,
-              state: "outgoing",
-            },
-            incomingLayer,
-          ];
-
-      if (currentBgIndex !== newFloor) {
-        backgroundLayerKeyRef.current += 1;
+    try {
+      await preloadBackground(newFloor);
+      if (!isMountedRef.current) {
+        setPreparingFloor(null);
+        return;
       }
 
-      setBackgroundLayers(nextLayers);
-      setBgIndex(newFloor);
-      setFloor(newFloor);
+      setPreparingFloor(null);
+      setTransitioning(true);
+      const currentBgIndex = bgIndexRef.current;
+
       runAfterDelay(() => {
-        setBackgroundLayers([incomingLayer]);
-      }, BACKGROUND_FADE_MS);
-      runAfterDelay(() => setTransitioning(false), CONTENT_FADE_IN_MS);
-    }, CONTENT_FADE_OUT_MS);
-    setError("");
+        const incomingLayer = {
+          key: backgroundLayerKeyRef.current,
+          index: newFloor,
+          state: "active",
+        };
+        backgroundLayerKeyRef.current += 1;
+
+        const nextLayers = currentBgIndex === newFloor
+          ? [incomingLayer]
+          : [
+              {
+                key: backgroundLayerKeyRef.current,
+                index: currentBgIndex,
+                state: "outgoing",
+              },
+              incomingLayer,
+            ];
+
+        if (currentBgIndex !== newFloor) {
+          backgroundLayerKeyRef.current += 1;
+        }
+
+        setBackgroundLayers(nextLayers);
+        setBgIndex(newFloor);
+        setFloor(newFloor);
+        runAfterDelay(() => {
+          setBackgroundLayers([incomingLayer]);
+        }, BACKGROUND_FADE_MS);
+        runAfterDelay(() => setTransitioning(false), CONTENT_FADE_IN_MS);
+      }, CONTENT_FADE_OUT_MS);
+      setError("");
+    } catch {
+      if (isMountedRef.current) {
+        setPreparingFloor(null);
+        setTransitioning(false);
+        setError("Could not load the next floor. Please try again.");
+      }
+    }
   };
 
   const nextFloor = () => {

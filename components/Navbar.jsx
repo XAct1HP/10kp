@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "../lib/AuthContext";
-import { useRouter } from "next/navigation";
 
 // A "new feature" marker on a nav link. Maize on navy so it reads at a glance
 // without competing with the Sign In button, which is the only solid maize
@@ -24,15 +23,8 @@ function NewBadge() {
 }
 
 export default function Navbar() {
-  const { user, signOut, loading, isAdmin } = useAuth();
-  const router = useRouter();
+  const { user, loading, isAdmin } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const handleSignOut = async () => {
-    setMenuOpen(false);
-    await signOut();
-    router.push("/");
-  };
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -103,13 +95,20 @@ export default function Navbar() {
                 >
                   Submit Pitch
                 </Link>
-                <span className="text-sm text-gray-300 truncate max-w-[180px]">{user.email}</span>
-                <button
-                  onClick={handleSignOut}
-                  className="px-4 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-full overflow-hidden ring-2 ring-maize/80 hover:ring-maize hover:scale-105 transition-all"
+                  aria-label="Profile"
+                  title="Profile"
                 >
-                  Sign Out
-                </button>
+                  <Image
+                    src="/profile-icon.png"
+                    alt=""
+                    width={40}
+                    height={40}
+                    className="w-10 h-10 object-cover"
+                  />
+                </Link>
               </>
             ) : (
               <Link
@@ -203,13 +202,21 @@ export default function Navbar() {
                 >
                   Submit Pitch
                 </Link>
-                <div className="px-3 py-2 text-sm text-gray-300 truncate">{user.email}</div>
-                <button
-                  onClick={handleSignOut}
-                  className="block w-full text-left px-3 py-2 text-sm font-medium text-white hover:text-gray-300 hover:bg-white/10 rounded-md transition-colors"
+                <Link
+                  href="/profile"
+                  onClick={closeMenu}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-white/10 transition-colors"
+                  aria-label="Profile"
                 >
-                  Sign Out
-                </button>
+                  <Image
+                    src="/profile-icon.png"
+                    alt=""
+                    width={36}
+                    height={36}
+                    className="w-9 h-9 rounded-full object-cover ring-2 ring-maize/80"
+                  />
+                  <span className="text-sm font-medium text-white">Profile</span>
+                </Link>
               </>
             ) : (
               <Link

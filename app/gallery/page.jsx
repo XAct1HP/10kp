@@ -5,10 +5,52 @@ import { useAuth } from "../../lib/AuthContext";
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
 import galleryHero from "../../public/gallery_hero.png";
+import PitchComments from "../../components/gallery/PitchComments";
+import { supabase } from "../../lib/supabase";
 
 const GALLERY_PAGE_SIZE = 200;
 const CARDS_PER_PAGE = 102; // 6 cols x 17 rows on desktop (first multiple of 6 above 100); wraps naturally on smaller screens
 const TOP_COUNT = 3;
+
+function getOrCreateViewerKey() {
+  if (typeof window === "undefined") return null;
+  try {
+    const keyName = "gallery_viewer_key";
+    let key = localStorage.getItem(keyName);
+    if (!key || key.length < 8) {
+      key =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `anon-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(keyName, key);
+    }
+    return key;
+  } catch {
+    return `anon-session-${Date.now()}`;
+  }
+}
+
+async function recordPitchView(pitchId) {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const headers = { "Content-Type": "application/json" };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    await fetch("/api/gallery/views", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        pitchId,
+        viewerKey: getOrCreateViewerKey(),
+      }),
+    });
+  } catch {
+    // Non-fatal — viewing still works without analytics.
+  }
+}
 
 const RANK_BADGES = [
   { label: "1ST PLACE", short: "1ST", gradient: "linear-gradient(135deg, #FFCB05 0%, #FFD876 50%, #FFCB05 100%)", shadow: "0 0 28px rgba(255,203,5,0.6)", textColor: "#0B1A3B", ring: "rgba(255,203,5,0.4)" },
@@ -250,6 +292,14 @@ export default function GalleryPage() {
     const updated = allSubmissions.find((p) => p.id === selectedPitch.id);
     if (updated) setSelectedPitch(updated);
   }, [allSubmissions]);
+
+  // Count a view once per pitch the modal opens, whichever way it opened —
+  // a card click or the ?pitch=<id> deep link. Keying the effect on the id
+  // (not the object) keeps the refresh above from re-counting the same pitch.
+  useEffect(() => {
+    if (!selectedPitch?.id) return;
+    recordPitchView(selectedPitch.id);
+  }, [selectedPitch?.id]);
 
   // ── Lane datasets: live cohort vs archived winners (seed pitches) ──
   const currentCohort = useMemo(
@@ -1414,6 +1464,8 @@ export default function GalleryPage() {
                     ))}
                   </div>
                 )}
+
+                <PitchComments pitchId={selectedPitch.id} />
 
                 {/* Sheet footer. One sticky container, not several — stacked
                     sticky siblings would pile up on the same bottom edge. */}
