@@ -6,6 +6,134 @@ import { supabase } from "../../lib/supabase";
 import Image from "next/image";
 import Link from "next/link";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { MIN_PITCH_WORDS, countWords } from "../../lib/pitchWords";
+import { takeIntakePrefill } from "../../lib/ideate/handoff";
+
+// Shown above the file picker. Uploaded files are held to the same minimum
+// as typed pitches: the document text or the spoken transcript is counted
+// after upload, and anything short is rejected automatically.
+function MinWordsCallout() {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl px-4 py-3 mb-4"
+      style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.35)" }}
+      role="note"
+    >
+      <svg className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div className="text-xs leading-relaxed">
+        <p className="font-semibold" style={{ color: "#FFCB05" }}>Minimum {MIN_PITCH_WORDS} words</p>
+        <p className="text-white/65 mt-0.5">
+          We count the words in your document, or the spoken words in your video or audio.
+          Pitches under {MIN_PITCH_WORDS} words are rejected automatically and won&apos;t be posted.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Shown when the submitter arrived from /ideate with an idea to carry over.
+// Only the fields Ideate can fill are touched (title, description, and the
+// text pitch); everything else is still theirs to fill in. The clear action
+// exists so a prefilled field never feels like something they are stuck with.
+function PrefillBanner({ fields, onClear, compact = false }) {
+  if (!fields.length) return null;
+  const label = fields.join(", ");
+  return (
+    <div
+      className={`flex items-start gap-3 rounded-xl ${compact ? "px-3 py-2 mb-4" : "px-4 py-3 mb-6"}`}
+      style={{ background: "rgba(255,203,5,0.08)", border: "1px solid rgba(255,203,5,0.35)" }}
+      role="note"
+    >
+      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+      <div className="min-w-0 flex-1 text-xs leading-relaxed">
+        <p className="font-semibold" style={{ color: "#FFCB05" }}>Brought over from Ideate</p>
+        <p className="text-white/65 mt-0.5">
+          {compact ? `Already filled in: ${label}. Edit anything you like.` : `We filled in your ${label} from the idea you built. Edit anything you like as you go — nothing here is locked.`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="flex-shrink-0 text-xs text-white/40 hover:text-white/75 transition-colors"
+      >
+        Clear
+      </button>
+    </div>
+  );
+}
+
+// Live counter under the text pitch box.
+function WordCounter({ count }) {
+  const met = count >= MIN_PITCH_WORDS;
+  const remaining = MIN_PITCH_WORDS - count;
+  return (
+    <div className="flex items-center justify-between gap-3 mt-2 text-xs" aria-live="polite">
+      <span style={{ color: met ? "#4ADE80" : "rgba(255,255,255,0.55)" }}>
+        {met
+          ? "Minimum length reached"
+          : `${remaining} more word${remaining === 1 ? "" : "s"} needed`}
+      </span>
+      <span className="tabular-nums font-semibold" style={{ color: met ? "#4ADE80" : "#FFCB05" }}>
+        {count} / {MIN_PITCH_WORDS} words
+      </span>
+    </div>
+  );
+}
+
+// Scrollable pane with the scrollbar hidden and a bottom fade that only
+// appears while there is more to scroll to. Mirrors the admin page's
+// ScrollPane — with no scrollbar to look at, the fade is the only cue that
+// the list continues.
+function ScrollPane({ children, className = "", wrapperClassName = "", style, fadeHeight = 28 }) {
+  const scrollRef = useRef(null);
+  const [showFade, setShowFade] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const update = () => {
+      setShowFade(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+
+    // Watch the pane and its content: the pane is sized in viewport units, and
+    // tags / awards arrive from the network after the first paint.
+    let observer;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(update);
+      observer.observe(el);
+      if (el.firstElementChild) observer.observe(el.firstElementChild);
+    }
+
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className={`relative ${wrapperClassName}`}>
+      <div ref={scrollRef} className={`overflow-y-auto no-scrollbar ${className}`} style={style}>
+        {children}
+      </div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 left-0 right-0 transition-opacity duration-200"
+        style={{
+          height: fadeHeight,
+          background: "linear-gradient(to bottom, rgba(11,26,59,0) 0%, rgba(11,26,59,0.85) 100%)",
+          opacity: showFade ? 1 : 0,
+        }}
+      />
+    </div>
+  );
+}
 
 const ACCEPTED_FILE_TYPES = [
   // Text/Document
@@ -93,7 +221,7 @@ const FLOOR_LABELS = [
   "Your Info",
   "School(s)",
   "Pitch Details",
-  "Tags",
+  "Tags & Awards",
   "Pitch File",
   "Review",
   "Submit",
@@ -109,10 +237,21 @@ export default function IntakePage() {
   const backgroundPreloadPromisesRef = useRef(new Map());
 
   const [name, setName] = useState("");
+  const [uniqname, setUniqname] = useState("");
+  // Teammate uniqnames. Each "Add Teammate" click appends a blank field.
+  const [teammateUniqnames, setTeammateUniqnames] = useState([]);
   const [pitchTitle, setPitchTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
+  // Award tracks the submitter is asking to be judged for. Selecting one is
+  // a request, not a guarantee — after the pitch clears moderation its
+  // content is scored against each award's criteria, and tracks it doesn't
+  // fit are dropped. The auto-entry raffle is excluded here; every approved
+  // pitch is in it already.
+  const [selectedAwards, setSelectedAwards] = useState([]);
+  const [availableAwards, setAvailableAwards] = useState([]);
+  const [raffleAward, setRaffleAward] = useState(null);
   const [role, setRole] = useState("");
   const [studentLevel, setStudentLevel] = useState("");
   const [schools, setSchools] = useState([]);
@@ -125,6 +264,11 @@ export default function IntakePage() {
   // New: text pitch mode
   const [pitchMode, setPitchMode] = useState("file"); // "file" or "text"
   const [textContent, setTextContent] = useState("");
+  // Set when the server rejects a document pitch for being under the word minimum.
+  const [shortPitchRejection, setShortPitchRejection] = useState(null);
+  // Which fields arrived from /ideate, for the banner. Empty when they came
+  // straight to the form.
+  const [prefilledFields, setPrefilledFields] = useState([]);
 
   // New: optional thumbnail upload
   const [thumbnail, setThumbnail] = useState(null);
@@ -139,6 +283,90 @@ export default function IntakePage() {
   ]);
 
   const [competitionDescription, setCompetitionDescription] = useState("");
+
+  // Uniqnames are the part of a U-M address before the @. Accept a pasted
+  // full email and reduce it, since that is the most common mistake.
+  const normalizeUniqname = (value) =>
+    String(value || "").trim().toLowerCase().split("@")[0].replace(/\s+/g, "");
+
+  const isValidUniqname = (value) => /^[a-z0-9-]{2,32}$/.test(value);
+
+  // Prefill the submitter's own uniqname from the @umich.edu account they
+  // signed in with. Only fills a blank field so a manual edit is never
+  // clobbered by a re-render.
+  useEffect(() => {
+    const derived = normalizeUniqname(user?.email);
+    if (derived && isValidUniqname(derived)) {
+      setUniqname((prev) => (prev ? prev : derived));
+    }
+  }, [user?.email]);
+
+  // An idea carried over from /ideate. Read once, on mount, before anything
+  // could have been typed — and the helper clears the stash as it reads, so a
+  // reload of this page does not fight with edits already made here.
+  // A hand-off is always a written pitch: there is no recording to carry.
+  useEffect(() => {
+    const prefill = takeIntakePrefill();
+    if (!prefill) return;
+    const applied = [];
+    if (prefill.title) {
+      setPitchTitle(prefill.title);
+      applied.push("pitch title");
+    }
+    if (prefill.description) {
+      setDescription(prefill.description);
+      applied.push("description");
+    }
+    if (prefill.pitchText) {
+      setPitchMode("text");
+      setFile(null);
+      setTextContent(prefill.pitchText);
+      applied.push("pitch text");
+    }
+    setPrefilledFields(applied);
+  }, []);
+
+  const clearPrefill = () => {
+    setPitchTitle("");
+    setDescription("");
+    setTextContent("");
+    setPitchMode("file");
+    setPrefilledFields([]);
+  };
+
+  // Postgres undefined_column, or a PostgREST schema-cache miss, when the
+  // uniqname migration has not been applied to this environment yet.
+  const isMissingColumnError = (error) =>
+    error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /column .* does not exist/i.test(error?.message || "") ||
+    /Could not find the '.*' column of '.*' in the schema cache/i.test(error?.message || "");
+
+  const addTeammate = () => setTeammateUniqnames((prev) => [...prev, ""]);
+
+  const updateTeammate = (index, value) =>
+    setTeammateUniqnames((prev) =>
+      prev.map((entry, i) => (i === index ? value : entry))
+    );
+
+  const removeTeammate = (index) =>
+    setTeammateUniqnames((prev) => prev.filter((_, i) => i !== index));
+
+  // Cleaned, de-duplicated teammate list — what gets validated, reviewed and
+  // saved. Blank rows are dropped, and the submitter's own uniqname is
+  // filtered out so they never appear as their own teammate.
+  const cleanedTeammates = () => {
+    const seen = new Set();
+    const own = normalizeUniqname(uniqname);
+    const result = [];
+    for (const entry of teammateUniqnames) {
+      const cleaned = normalizeUniqname(entry);
+      if (!cleaned || cleaned === own || seen.has(cleaned)) continue;
+      seen.add(cleaned);
+      result.push(cleaned);
+    }
+    return result;
+  };
 
   const preloadBackground = (index) => {
     if (index < 0 || index >= FLOOR_IMAGES.length) {
@@ -206,6 +434,7 @@ export default function IntakePage() {
   }, [bgIndex]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -233,6 +462,23 @@ export default function IntakePage() {
   }, []);
 
   useEffect(() => {
+    async function fetchAwards() {
+      try {
+        const res = await fetch("/api/awards");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        setAvailableAwards(data.filter((a) => !a.is_raffle));
+        setRaffleAward(data.find((a) => a.is_raffle) || null);
+      } catch {
+        // Award tracks are optional — a failure here must not block a
+        // submission. The picker simply doesn't render.
+      }
+    }
+    fetchAwards();
+  }, []);
+
+  useEffect(() => {
     async function fetchDescription() {
       try {
         const res = await fetch("/api/admin/competition-date");
@@ -250,45 +496,56 @@ export default function IntakePage() {
   const goToFloor = async (newFloor) => {
     if (newFloor === floor || transitioning || preparingFloor !== null) return;
     setPreparingFloor(newFloor);
-    await preloadBackground(newFloor);
-    if (!isMountedRef.current) return;
-
-    setPreparingFloor(null);
-    setTransitioning(true);
-    const currentBgIndex = bgIndexRef.current;
-
-    runAfterDelay(() => {
-      const incomingLayer = {
-        key: backgroundLayerKeyRef.current,
-        index: newFloor,
-        state: "active",
-      };
-      backgroundLayerKeyRef.current += 1;
-
-      const nextLayers = currentBgIndex === newFloor
-        ? [incomingLayer]
-        : [
-            {
-              key: backgroundLayerKeyRef.current,
-              index: currentBgIndex,
-              state: "outgoing",
-            },
-            incomingLayer,
-          ];
-
-      if (currentBgIndex !== newFloor) {
-        backgroundLayerKeyRef.current += 1;
+    try {
+      await preloadBackground(newFloor);
+      if (!isMountedRef.current) {
+        setPreparingFloor(null);
+        return;
       }
 
-      setBackgroundLayers(nextLayers);
-      setBgIndex(newFloor);
-      setFloor(newFloor);
+      setPreparingFloor(null);
+      setTransitioning(true);
+      const currentBgIndex = bgIndexRef.current;
+
       runAfterDelay(() => {
-        setBackgroundLayers([incomingLayer]);
-      }, BACKGROUND_FADE_MS);
-      runAfterDelay(() => setTransitioning(false), CONTENT_FADE_IN_MS);
-    }, CONTENT_FADE_OUT_MS);
-    setError("");
+        const incomingLayer = {
+          key: backgroundLayerKeyRef.current,
+          index: newFloor,
+          state: "active",
+        };
+        backgroundLayerKeyRef.current += 1;
+
+        const nextLayers = currentBgIndex === newFloor
+          ? [incomingLayer]
+          : [
+              {
+                key: backgroundLayerKeyRef.current,
+                index: currentBgIndex,
+                state: "outgoing",
+              },
+              incomingLayer,
+            ];
+
+        if (currentBgIndex !== newFloor) {
+          backgroundLayerKeyRef.current += 1;
+        }
+
+        setBackgroundLayers(nextLayers);
+        setBgIndex(newFloor);
+        setFloor(newFloor);
+        runAfterDelay(() => {
+          setBackgroundLayers([incomingLayer]);
+        }, BACKGROUND_FADE_MS);
+        runAfterDelay(() => setTransitioning(false), CONTENT_FADE_IN_MS);
+      }, CONTENT_FADE_OUT_MS);
+      setError("");
+    } catch {
+      if (isMountedRef.current) {
+        setPreparingFloor(null);
+        setTransitioning(false);
+        setError("Could not load the next floor. Please try again.");
+      }
+    }
   };
 
   const nextFloor = () => {
@@ -306,6 +563,16 @@ export default function IntakePage() {
     switch (f) {
       case 1:
         if (!name.trim()) return "Please enter your name.";
+        if (!normalizeUniqname(uniqname)) return "Please enter your uniqname.";
+        if (!isValidUniqname(normalizeUniqname(uniqname))) {
+          return "That uniqname does not look right — enter just the part of your U-M email before @umich.edu.";
+        }
+        for (const entry of teammateUniqnames) {
+          const cleaned = normalizeUniqname(entry);
+          if (entry.trim() && !isValidUniqname(cleaned)) {
+            return `"${entry.trim()}" is not a valid uniqname — enter just the part before @umich.edu.`;
+          }
+        }
         if (!role) return "Please select your role.";
         if (role === "Current student" && !studentLevel) return "Please select your student level.";
         return null;
@@ -316,6 +583,10 @@ export default function IntakePage() {
       case 5:
         if (pitchMode === "file" && !file) return "Please upload a pitch file.";
         if (pitchMode === "text" && !textContent.trim()) return "Please enter your pitch text.";
+        if (pitchMode === "text" && countWords(textContent) < MIN_PITCH_WORDS) {
+          const n = countWords(textContent);
+          return `Your pitch needs at least ${MIN_PITCH_WORDS} words. It has ${n} so far.`;
+        }
         return null;
       default:
         return null;
@@ -325,6 +596,12 @@ export default function IntakePage() {
   const toggleTag = (tagId) => {
     setSelectedTags((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const toggleAward = (awardId) => {
+    setSelectedAwards((prev) =>
+      prev.includes(awardId) ? prev.filter((id) => id !== awardId) : [...prev, awardId]
     );
   };
 
@@ -389,6 +666,11 @@ export default function IntakePage() {
 
   const handleSubmit = async () => {
     setError("");
+    if (pitchMode === "text" && countWords(textContent) < MIN_PITCH_WORDS) {
+      setError(`Your pitch needs at least ${MIN_PITCH_WORDS} words. Go back to Floor 5 to add more.`);
+      return;
+    }
+    setShortPitchRejection(null);
     setSubmitting(true);
     const isVideoUpload = file && VIDEO_FILE_TYPES.includes(file.type);
     const isAudioUpload = file && AUDIO_FILE_TYPES.includes(file.type);
@@ -399,24 +681,44 @@ export default function IntakePage() {
     let createdPitchId = null;
 
     try {
-      const { data: pitch, error: pitchError } = await supabase
+      const basePitchRow = {
+        user_id: user.id,
+        name: name.trim(),
+        role,
+        student_level: role === "Current student" ? studentLevel : null,
+        schools,
+        title: pitchTitle.trim(),
+        description: description.trim(),
+        file_type: isVideoUpload ? "video" : isAudioUpload ? "audio" : "file",
+        file_name: file ? file.name : (isTextOnly ? "Text Submission" : null),
+        text_content: pitchMode === "text" ? textContent.trim() || null : null,
+        mux_status: isMuxUpload ? "pending" : null,
+        mux_error: null,
+      };
+
+      let { data: pitch, error: pitchError } = await supabase
         .from("pitches")
         .insert({
-          user_id: user.id,
-          name: name.trim(),
-          role,
-          student_level: role === "Current student" ? studentLevel : null,
-          schools,
-          title: pitchTitle.trim(),
-          description: description.trim(),
-          file_type: isVideoUpload ? "video" : isAudioUpload ? "audio" : "file",
-          file_name: file ? file.name : (isTextOnly ? "Text Submission" : null),
-          text_content: pitchMode === "text" ? textContent.trim() || null : null,
-          mux_status: isMuxUpload ? "pending" : null,
-          mux_error: null,
+          ...basePitchRow,
+          uniqname: normalizeUniqname(uniqname) || null,
+          teammate_uniqnames: cleanedTeammates(),
         })
         .select()
         .single();
+
+      // uniqname / teammate_uniqnames arrive with
+      // migrations/20260824_add_uniqnames_to_pitches.sql. If this deploy is
+      // ahead of the database, fall back to the columns that do exist rather
+      // than failing the submission outright — losing a uniqname is recoverable,
+      // losing a pitch is not.
+      if (pitchError && isMissingColumnError(pitchError)) {
+        console.warn("Uniqname columns missing — run the 20260824 migration.");
+        ({ data: pitch, error: pitchError } = await supabase
+          .from("pitches")
+          .insert(basePitchRow)
+          .select()
+          .single());
+      }
 
       if (pitchError) throw pitchError;
       createdPitchId = pitch.id;
@@ -428,6 +730,21 @@ export default function IntakePage() {
         }));
         const { error: tagError } = await supabase.from("pitch_tags").insert(tagRows);
         if (tagError) throw tagError;
+      }
+
+      if (selectedAwards.length > 0) {
+        // status 'pending' until moderation approves the pitch and the
+        // relevance check runs. A failure here must not sink the submission —
+        // losing an award selection is recoverable, losing a pitch is not.
+        const awardRows = selectedAwards.map((awardId) => ({
+          pitch_id: pitch.id,
+          award_id: awardId,
+          status: "pending",
+        }));
+        const { error: awardError } = await supabase.from("pitch_awards").insert(awardRows);
+        if (awardError) {
+          console.warn("Award track selection failed to save:", awardError.message);
+        }
       }
 
       // Upload thumbnail if provided
@@ -496,6 +813,11 @@ export default function IntakePage() {
           });
           if (!moderationRes.ok) {
             console.warn("Initial moderation handoff failed", { pitchId: pitch.id, status: moderationRes.status });
+          } else {
+            const moderationData = await moderationRes.json().catch(() => null);
+            if (moderationData?.status === "rejected" && moderationData?.reason === "min_words") {
+              setShortPitchRejection({ wordCount: moderationData.wordCount ?? 0 });
+            }
           }
         }
       } catch {
@@ -569,6 +891,11 @@ export default function IntakePage() {
         </span>
         <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       </button>
+      {prefilledFields.length > 0 && (
+        <div className="mt-8 max-w-md mx-auto text-left">
+          <PrefillBanner fields={prefilledFields} onClear={clearPrefill} />
+        </div>
+      )}
       <div className="mt-6">
         <Link href="/gallery" className="text-white/40 text-sm hover:text-white/70 transition-colors">
           or browse the Gallery
@@ -595,6 +922,96 @@ export default function IntakePage() {
             style={inputStyle()}
           />
         </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-white/80 mb-2">
+            Your Uniqname <span className="text-maize">*</span>
+          </label>
+          <div className="flex items-stretch rounded-xl overflow-hidden" style={inputStyle()}>
+            <input
+              type="text"
+              placeholder="uniqname"
+              value={uniqname}
+              onChange={(e) => setUniqname(e.target.value)}
+              onBlur={() => setUniqname((prev) => normalizeUniqname(prev))}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="flex-1 min-w-0 px-4 py-3.5 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none"
+            />
+            <span
+              className="flex items-center px-3 text-sm text-white/40 select-none flex-shrink-0"
+              style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              @umich.edu
+            </span>
+          </div>
+          <p className="text-xs text-white/40 mt-2">
+            The part of your U-M email before @umich.edu.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-white/80 mb-2">
+            Teammates
+          </label>
+          <p className="text-xs text-white/40 mb-3">
+            Pitching with others? Add each teammate&rsquo;s uniqname. Optional.
+          </p>
+          {teammateUniqnames.length > 0 && (
+            <div className="space-y-3 mb-3">
+              {teammateUniqnames.map((entry, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div
+                    className="flex-1 min-w-0 flex items-stretch rounded-xl overflow-hidden"
+                    style={inputStyle()}
+                  >
+                    <input
+                      type="text"
+                      placeholder="uniqname"
+                      value={entry}
+                      onChange={(e) => updateTeammate(index, e.target.value)}
+                      onBlur={() => updateTeammate(index, normalizeUniqname(entry))}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="flex-1 min-w-0 px-4 py-3 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none"
+                    />
+                    <span
+                      className="flex items-center px-3 text-sm text-white/40 select-none flex-shrink-0"
+                      style={{ borderLeft: "1px solid rgba(255,255,255,0.12)" }}
+                    >
+                      @umich.edu
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeTeammate(index)}
+                    aria-label={`Remove teammate ${index + 1}`}
+                    className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+                    style={{ border: "2px solid rgba(255,255,255,0.12)" }}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={addTeammate}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:text-white transition-colors"
+            style={{ border: "2px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.03)" }}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Teammate
+          </button>
+        </div>
+
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-3">
             Are you <span className="text-maize">*</span>
@@ -711,6 +1128,11 @@ export default function IntakePage() {
     <div>
       <h2 className="text-2xl font-bold text-white mb-1">Floor 3 — Pitch Details</h2>
       <p className="text-white/50 text-sm mb-6">What is your big idea?</p>
+      <PrefillBanner
+        fields={prefilledFields.filter((f) => f === "pitch title" || f === "description")}
+        onClear={clearPrefill}
+        compact
+      />
       <div className="space-y-5">
         <div>
           <label className="block text-sm font-semibold text-white/80 mb-2">
@@ -742,30 +1164,141 @@ export default function IntakePage() {
     </div>
   );
 
+  // The shell stays pinned to one viewport so the elevator background never
+  // rescales — see .intake-shell in globals.css. That leaves this floor more
+  // content than fits, which is fine: the column scrolls (hidden bar + fade)
+  // and each pane scrolls inside it. The pane heights below are what the two
+  // lists are worth relative to each other, not an attempt to fit the budget.
+  const TAG_PANE_HEIGHT = "clamp(140px, 20vh, 224px)";   // ~3-4 rows of chips
+  const AWARD_PANE_HEIGHT = "clamp(190px, 28vh, 380px)"; // ~2-3 award cards
+
   const renderTags = () => (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-1">Floor 4 — Tags</h2>
-      <p className="text-white/50 text-sm mb-6">Categorize your pitch.</p>
-      {availableTags.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {availableTags.map((tag) => (
-            <button
-              key={tag.id}
-              type="button"
-              onClick={() => toggleTag(tag.id)}
-              className="px-4 py-2 text-sm rounded-full transition-all duration-200"
-              style={{
-                border: selectedTags.includes(tag.id) ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
-                background: selectedTags.includes(tag.id) ? "rgba(255,203,5,0.15)" : "transparent",
-                color: selectedTags.includes(tag.id) ? "#FFCB05" : "rgba(255,255,255,0.6)",
-              }}
-            >
-              {tag.name}
-            </button>
-          ))}
+      <h2 className="text-2xl font-bold text-white mb-4">Floor 4 — Tags &amp; Awards</h2>
+
+      {/* ── Tags: descriptive only ───────────────────────────────── */}
+      <div className="mb-4">
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tags</h3>
+          <span className="text-[11px] text-white/30">Optional</span>
         </div>
-      ) : (
-        <p className="text-white/40 text-sm italic">No tags available yet.</p>
+        <p className="text-white/40 text-xs mb-2 leading-relaxed">
+          How your pitch is categorized in the gallery. Tags don&rsquo;t affect awards.
+        </p>
+        {availableTags.length > 0 ? (
+          <ScrollPane style={{ maxHeight: TAG_PANE_HEIGHT }}>
+            <div className="flex flex-wrap gap-2 pb-2">
+              {availableTags.map((tag) => {
+                const on = selectedTags.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => toggleTag(tag.id)}
+                    aria-pressed={on}
+                    className="px-4 py-2 text-sm rounded-full transition-all duration-200"
+                    style={{
+                      border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.15)",
+                      background: on ? "rgba(255,203,5,0.15)" : "transparent",
+                      color: on ? "#FFCB05" : "rgba(255,255,255,0.6)",
+                    }}
+                  >
+                    {tag.name}
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollPane>
+        ) : (
+          <p className="text-white/40 text-sm italic">No tags available yet.</p>
+        )}
+      </div>
+
+      {/* ── Award tracks: what the pitch competes for ─────────────── */}
+      {availableAwards.length > 0 && (
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }} className="pt-3">
+          <div className="flex items-baseline justify-between gap-3 mb-1">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Awards</h3>
+            <span className="text-[11px] font-semibold" style={{ color: "#FFCB05" }}>
+              Highly encouraged
+            </span>
+          </div>
+          <p className="text-white/40 text-xs mb-2 leading-relaxed">
+            Pick every award your pitch genuinely fits — we check each pick against the
+            award&rsquo;s criteria after review, so extra picks gain you nothing.
+            {raffleAward && (
+              <>
+                {" "}
+                The <span className="text-white/60 font-semibold">{raffleAward.name}</span> is
+                automatic.
+              </>
+            )}
+          </p>
+
+          <ScrollPane style={{ maxHeight: AWARD_PANE_HEIGHT }}>
+            <div className="space-y-2 pb-3">
+              {availableAwards.map((award) => {
+                const on = selectedAwards.includes(award.id);
+                return (
+                  <button
+                    key={award.id}
+                    type="button"
+                    onClick={() => toggleAward(award.id)}
+                    aria-pressed={on}
+                    className="w-full text-left rounded-xl p-3.5 transition-all duration-200 flex items-start gap-3"
+                    style={{
+                      border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
+                      background: on ? "rgba(255,203,5,0.1)" : "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    <span
+                      className="mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                      style={{
+                        border: on ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.25)",
+                        background: on ? "#FFCB05" : "transparent",
+                      }}
+                      aria-hidden="true"
+                    >
+                      {on && (
+                        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="#0B1A3B">
+                          <path
+                            fillRule="evenodd"
+                            d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.8 3.8 6.8-6.8a1 1 0 011.4 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className="block text-sm font-bold"
+                        style={{ color: on ? "#FFCB05" : "rgba(255,255,255,0.85)" }}
+                      >
+                        {award.name}
+                      </span>
+                      {award.prize && (
+                        <span className="block text-[11px] font-semibold text-maize/70 mt-0.5">
+                          {award.prize}
+                        </span>
+                      )}
+                      {award.description && (
+                        <span className="block text-xs text-white/45 mt-1 leading-relaxed">
+                          {award.description}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollPane>
+
+          <p className="text-[11px] text-white/30 mt-2">
+            {selectedAwards.length === 0
+              ? "None selected — your pitch still appears in the gallery."
+              : `${selectedAwards.length} award${selectedAwards.length === 1 ? "" : "s"} selected.`}
+          </p>
+        </div>
       )}
     </div>
   );
@@ -775,11 +1308,21 @@ export default function IntakePage() {
       <h2 className="text-2xl font-bold text-white mb-1">Floor 5 — Your Pitch</h2>
       <p className="text-white/50 text-sm mb-6">How would you like to submit your pitch?</p>
 
+      <PrefillBanner
+        fields={prefilledFields.filter((f) => f === "pitch text")}
+        onClear={clearPrefill}
+        compact
+      />
+
       {/* Mode toggle */}
       <div className="flex gap-2 mb-6">
         <button
           type="button"
-          onClick={() => { setPitchMode("file"); setTextContent(""); }}
+          onClick={() => {
+            setPitchMode("file");
+            setTextContent("");
+            setPrefilledFields((prev) => prev.filter((f) => f !== "pitch text"));
+          }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200"
           style={{
             border: pitchMode === "file" ? "2px solid #FFCB05" : "2px solid rgba(255,255,255,0.12)",
@@ -814,6 +1357,7 @@ export default function IntakePage() {
           <p className="text-white/40 text-xs mb-4">
             Video (MP4, MOV, WebM), Audio (MP3, WAV, OGG, AAC), or Document (PDF, DOCX, TXT). Max 500MB.
           </p>
+          <MinWordsCallout />
           <label
             htmlFor="file-upload"
             className="flex flex-col items-center justify-center w-full py-10 rounded-xl cursor-pointer transition-all duration-200 group"
@@ -855,7 +1399,7 @@ export default function IntakePage() {
       ) : (
         <>
           <p className="text-white/40 text-xs mb-4">
-            Type or paste your pitch text below.
+            Type or paste your pitch text below. It must be at least {MIN_PITCH_WORDS} words.
           </p>
           <textarea
             placeholder="Type your pitch here..."
@@ -865,6 +1409,7 @@ export default function IntakePage() {
             className="w-full px-4 py-3.5 bg-transparent rounded-xl text-sm text-white placeholder-white/30 focus:outline-none resize-y"
             style={inputStyle()}
           />
+          <WordCounter count={countWords(textContent)} />
         </>
       )}
 
@@ -934,12 +1479,17 @@ export default function IntakePage() {
         <div className="space-y-4">
           {[
             { label: "Name", value: name },
+            { label: "Uniqname", value: normalizeUniqname(uniqname) ? `${normalizeUniqname(uniqname)}@umich.edu` : "" },
+            ...(cleanedTeammates().length > 0
+              ? [{ label: "Teammates", value: cleanedTeammates().map((u) => `${u}@umich.edu`).join(", ") }]
+              : []),
             { label: "Role", value: role },
             ...(role === "Current student" && studentLevel ? [{ label: "Student Level", value: studentLevel }] : []),
             { label: "School(s)", value: schools.length > 0 ? schools.join(", ") : "None selected" },
             { label: "Pitch Title", value: pitchTitle },
             { label: "Description", value: description },
             { label: "Tags", value: selectedTags.length > 0 ? availableTags.filter((t) => selectedTags.includes(t.id)).map((t) => t.name).join(", ") : "None" },
+            { label: "Awards Considered For", value: selectedAwards.length > 0 ? availableAwards.filter((a) => selectedAwards.includes(a.id)).map((a) => a.name).join(", ") : "None selected" },
             { label: "Pitch", value: pitchType },
             ...(pitchMode === "text" && textContent ? [{ label: "Text Content", value: textContent.length > 200 ? textContent.slice(0, 200) + "..." : textContent }] : []),
             ...(thumbnail ? [{ label: "Thumbnail", value: thumbnail.name }] : []),
@@ -987,7 +1537,25 @@ export default function IntakePage() {
     </div>
   );
 
-  const renderSuccess = () => (
+  const renderSuccess = () => shortPitchRejection ? (
+    <div className="text-center">
+      <h2 className="text-3xl font-bold text-white mb-3">Your Pitch Was Not Posted</h2>
+      <p className="text-white/60 text-sm mb-2">
+        We could only find {shortPitchRejection.wordCount} word{shortPitchRejection.wordCount === 1 ? "" : "s"} in your file.
+        Pitches must be at least {MIN_PITCH_WORDS} words, so this one was rejected automatically.
+      </p>
+      <p className="text-white/50 text-sm mb-10">
+        Expand your pitch and submit it again. If your document is a scan or an image, upload a version with selectable text.
+      </p>
+      <Link
+        href="/gallery"
+        className="inline-flex items-center justify-center px-8 py-4 text-sm font-semibold rounded-xl text-black"
+        style={{ background: "#FFCB05" }}
+      >
+        View the Gallery
+      </Link>
+    </div>
+  ) : (
     <div className="text-center">
       <svg className="w-20 h-20 mx-auto mb-6" style={{ color: "#FFCB05" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1019,7 +1587,7 @@ export default function IntakePage() {
 
   return (
     <ProtectedRoute>
-      <div className="relative min-h-[calc(100vh-5rem)] flex overflow-hidden">
+      <div className="intake-shell relative flex overflow-hidden">
         {/* Background images with crossfade */}
         <div className="absolute inset-0">
           {backgroundLayers.map((layer) => (
@@ -1036,9 +1604,9 @@ export default function IntakePage() {
         </div>
 
         {/* Glass card on the left */}
-        <div className="relative z-10 w-full lg:w-[520px] flex flex-col min-h-[calc(100vh-5rem)]">
+        <div className="relative z-10 w-full lg:w-[520px] flex flex-col h-full min-h-0">
           <div
-            className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-10"
+            className="flex-1 min-h-0 flex flex-col px-8 lg:px-12 py-10"
             style={{
               background: "rgba(11, 26, 59, 0.82)",
               backdropFilter: "blur(20px)",
@@ -1047,7 +1615,7 @@ export default function IntakePage() {
           >
             {/* Floor indicator */}
             {floor > 0 && !submitted && (
-              <div className="mb-8">
+              <div className="mb-8 flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
                   {[1, 2, 3, 4, 5, 6, 7].map((f) => (
                     <div
@@ -1082,14 +1650,23 @@ export default function IntakePage() {
               </div>
             )}
 
-            {/* Content */}
-            <div className={`transition-opacity duration-300 ${transitioning ? "opacity-0" : "opacity-100"}`}>
-              {renderFloor()}
-            </div>
+            {/* Content — scrolls as a whole, with its own hidden-bar + fade
+                treatment. `safe center` keeps short floors visually centered
+                while leaving tall ones reachable from the top. The panes inside
+                Floor 4 scroll independently; this is the outer one that absorbs
+                whatever they don't. */}
+            <ScrollPane
+              wrapperClassName="flex-1 min-h-0 flex flex-col"
+              className={`h-full flex flex-col transition-opacity duration-300 ${transitioning ? "opacity-0" : "opacity-100"}`}
+              style={{ justifyContent: "safe center" }}
+              fadeHeight={36}
+            >
+              <div className="w-full flex-shrink-0">{renderFloor()}</div>
+            </ScrollPane>
 
             {/* Navigation buttons */}
             {floor > 0 && floor <= 7 && !submitted && (
-              <div className="flex gap-3 mt-8">
+              <div className="flex gap-3 mt-8 flex-shrink-0">
                 <button
                   onClick={prevFloor}
                   className="flex items-center gap-2 px-5 py-3 text-sm font-medium rounded-xl transition-all duration-200"

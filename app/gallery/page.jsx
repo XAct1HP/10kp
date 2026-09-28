@@ -5,6 +5,8 @@ import { useAuth } from "../../lib/AuthContext";
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
 import galleryHero from "../../public/gallery_hero.png";
+import PitchComments from "../../components/gallery/PitchComments";
+import { supabase } from "../../lib/supabase";
 
 const GALLERY_PAGE_SIZE = 200;
 const CARDS_PER_PAGE = 36; // 6 cols x 6 rows on desktop; wraps naturally on smaller screens
@@ -31,6 +33,46 @@ function writePitchIdToUrl(pitchId) {
   else url.searchParams.delete("pitch");
   const next = `${url.pathname}${url.search}${url.hash}`;
   window.history.replaceState(window.history.state, "", next);
+}
+
+function getOrCreateViewerKey() {
+  if (typeof window === "undefined") return null;
+  try {
+    const keyName = "gallery_viewer_key";
+    let key = localStorage.getItem(keyName);
+    if (!key || key.length < 8) {
+      key =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `anon-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(keyName, key);
+    }
+    return key;
+  } catch {
+    return `anon-session-${Date.now()}`;
+  }
+}
+
+async function recordPitchView(pitchId) {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const headers = { "Content-Type": "application/json" };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    await fetch("/api/gallery/views", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        pitchId,
+        viewerKey: getOrCreateViewerKey(),
+      }),
+    });
+  } catch {
+    // Non-fatal — viewing still works without analytics.
+  }
 }
 
 const RANK_BADGES = [
@@ -260,6 +302,7 @@ export default function GalleryPage() {
       setGalleryLane("current");
     }
     writePitchIdToUrl(pitch.id);
+    recordPitchView(pitch.id);
   };
 
   const closePitch = () => {
@@ -1360,6 +1403,8 @@ export default function GalleryPage() {
                     ))}
                   </div>
                 )}
+
+                <PitchComments pitchId={selectedPitch.id} />
 
                 {/* Vote area — archived winners are a showcase, not a ballot,
                     so they get a closed-voting notice instead of a button. */}

@@ -32,6 +32,15 @@ select option {
   scrollbar-width: none;
 }
 
+/* Intake shell — the elevator background is `bg-cover` on this box, so the box
+   must stay exactly one viewport tall. If it grows with the floor's content,
+   the image scales up to cover it and the elevator's button panel is pushed
+   out of frame. Every floor scrolls inside the glass column instead. */
+.intake-shell {
+  height: calc(100vh - 5rem);
+  height: calc(100dvh - 5rem);
+}
+
 @keyframes elevator-bg-fade-out {
   from {
     opacity: 1;

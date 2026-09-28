@@ -4,7 +4,7 @@ import { useAuth } from "../lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, showLoading = true }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -15,6 +15,7 @@ export default function ProtectedRoute({ children }) {
   }, [user, loading, router]);
 
   if (loading) {
+    if (!showLoading) return <>{children}</>;
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-5rem)]">
         <p className="text-sm text-gray-500">Loading...</p>
