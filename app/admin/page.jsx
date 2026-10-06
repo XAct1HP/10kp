@@ -23,6 +23,7 @@ import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPa
 import SeedPitchesPanel from "../../components/admin/SeedPitchesPanel";
 import PodiumTogglePanel from "../../components/admin/PodiumTogglePanel";
 import OutreachPreviewOverlay from "../../components/admin/OutreachPreviewOverlay";
+import PitchFeedbackThread from "../../components/admin/PitchFeedbackThread";
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -3783,6 +3784,12 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+
+            {/* Feedback left on this pitch. Its own collapsed section below the
+                detail card rather than inside it — the card is already long,
+                and the full record (including blocked notes) is a separate
+                question from the pitch's own metadata. */}
+            <PitchFeedbackThread pitchId={selectedPitch.id} pitchTitle={selectedPitch.title} />
 
             </div>{/* end scrollable content */}
           </div>

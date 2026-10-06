@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { verifyUser } from "../../../../lib/userAuth";
+import { moderateCommentBody, COMMENT_STATUS } from "../../../../lib/moderation/comments";
 
 export const dynamic = "force-dynamic";
+
+// Feedback on a pitch is private. It is delivered to the pitch's owner on
+// their profile page and visible to admins; nobody else can read it, which is
+// why this route never returns another account's comments. A signed-in user
+// can see their OWN submissions here so they know a note was recorded and
+// where it stands, and that is the only read this endpoint performs.
+
+const SELECT_COLUMNS =
+  "id, pitch_id, user_id, author_name, author_email, body, created_at, updated_at, moderation_status, moderation_summary";
 
 function isUmichEmail(email) {
   return /@umich\.edu$/i.test(String(email || "").trim());
@@ -18,6 +28,18 @@ function isMissingTable(error) {
   );
 }
 
+// The moderation columns arrive in a later migration than the tables, so a
+// database that has run 20260928 but not 20261005 must not blank the feature.
+function isMissingColumn(error) {
+  if (!error) return false;
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /column .* does not exist/i.test(error.message || "") ||
+    /Could not find the '.*' column/i.test(error.message || "")
+  );
+}
+
 function displayNameFromUser(user) {
   const meta = user?.user_metadata || {};
   const fromMeta = String(meta.full_name || meta.name || "").trim();
@@ -27,82 +49,101 @@ function displayNameFromUser(user) {
   return local;
 }
 
-// GET ?pitchId= — public list of comments (newest or top).
-// Optional Authorization attaches myVote for the signed-in user.
+// What the author is told about their own comment. Deliberately vague about
+// the reason for a block: a detailed explanation is a recipe for rewording
+// the same abuse past the classifier.
+function authorFacingState(status) {
+  switch (status) {
+    case COMMENT_STATUS.APPROVED:
+      return { state: "delivered", note: "Sent to the person who made this pitch." };
+    case COMMENT_STATUS.BLOCKED:
+      return { state: "blocked", note: "This feedback was not delivered — it was flagged in review." };
+    default:
+      return { state: "in_review", note: "In review. It will reach the pitch owner once it clears." };
+  }
+}
+
+function shapeForAuthor(comment) {
+  const { state, note } = authorFacingState(comment.moderation_status);
+  return {
+    id: comment.id,
+    pitch_id: comment.pitch_id,
+    body: comment.body,
+    created_at: comment.created_at,
+    state,
+    note,
+  };
+}
+
+// GET ?pitchId= — the signed-in user's own feedback on that pitch, and
+// whether they are allowed to leave more. Never returns anyone else's.
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const pitchId = searchParams.get("pitchId");
-    const sort = (searchParams.get("sort") || "top").toLowerCase();
     if (!pitchId) {
       return NextResponse.json({ error: "pitchId is required" }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
-    let query = supabase
-      .from("pitch_comments")
-      .select(
-        "id, pitch_id, user_id, author_name, author_email, body, score, created_at, updated_at"
-      )
-      .eq("pitch_id", pitchId)
-      .eq("is_deleted", false)
-      .limit(200);
+    const auth = await verifyUser(request);
+    const signedIn = !auth.error && Boolean(auth.user);
+    const canComment = signedIn && isUmichEmail(auth.user.email);
 
-    if (sort === "new") {
-      query = query.order("created_at", { ascending: false });
-    } else {
-      query = query
-        .order("score", { ascending: false })
-        .order("created_at", { ascending: false });
+    if (!signedIn) {
+      return NextResponse.json({ mine: [], commentsReady: true, canComment: false });
     }
 
-    const { data, error } = await query;
+    const supabase = getSupabaseAdmin();
+    let { data, error } = await supabase
+      .from("pitch_comments")
+      .select(SELECT_COLUMNS)
+      .eq("pitch_id", pitchId)
+      .eq("user_id", auth.user.id)
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error && isMissingColumn(error)) {
+      // Pre-moderation schema: read what exists and treat it as delivered,
+      // which is what it was under the old public model.
+      const fallback = await supabase
+        .from("pitch_comments")
+        .select("id, pitch_id, user_id, body, created_at")
+        .eq("pitch_id", pitchId)
+        .eq("user_id", auth.user.id)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      data = (fallback.data || []).map((c) => ({
+        ...c,
+        moderation_status: COMMENT_STATUS.APPROVED,
+      }));
+      error = fallback.error;
+    }
+
     if (error) {
       if (isMissingTable(error)) {
-        return NextResponse.json({
-          comments: [],
-          commentsReady: false,
-        });
+        return NextResponse.json({ mine: [], commentsReady: false, canComment });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const comments = data || [];
-    let myVotes = {};
-
-    const auth = await verifyUser(request);
-    if (!auth.error && auth.user && comments.length) {
-      const { data: votes } = await supabase
-        .from("pitch_comment_votes")
-        .select("comment_id, value")
-        .eq("user_id", auth.user.id)
-        .in(
-          "comment_id",
-          comments.map((c) => c.id)
-        );
-      for (const v of votes || []) {
-        myVotes[v.comment_id] = v.value;
-      }
-    }
-
     return NextResponse.json({
-      comments: comments.map((c) => ({
-        ...c,
-        // Don't expose full email publicly — keep domain for trust signal only.
-        author_email: undefined,
-        author_handle: String(c.author_email || "").split("@")[0] || c.author_name,
-        myVote: myVotes[c.id] || 0,
-      })),
+      mine: (data || []).map(shapeForAuthor),
       commentsReady: true,
-      canComment: !auth.error && isUmichEmail(auth.user?.email),
+      canComment,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// POST — create a comment (requires @umich.edu login).
+// POST — leave feedback on a pitch (requires @umich.edu login).
 // Body: { pitchId, body }
+//
+// The comment is written first and classified second, so a classifier outage
+// can never lose what a student wrote. The row starts `pending`, which is not
+// visible to the pitch owner, so nothing is delivered before it is cleared.
 export async function POST(request) {
   const auth = await verifyUser(request);
   if (auth.error) {
@@ -129,7 +170,7 @@ export async function POST(request) {
   }
   if (text.length < 1 || text.length > 2000) {
     return NextResponse.json(
-      { error: "Comment must be between 1 and 2000 characters." },
+      { error: "Feedback must be between 1 and 2000 characters." },
       { status: 400 }
     );
   }
@@ -137,7 +178,7 @@ export async function POST(request) {
   const supabase = getSupabaseAdmin();
   const { data: pitch } = await supabase
     .from("pitches")
-    .select("id, moderation_status, is_seed")
+    .select("id, user_id, moderation_status, is_seed")
     .eq("id", pitchId)
     .maybeSingle();
 
@@ -145,45 +186,68 @@ export async function POST(request) {
     return NextResponse.json({ error: "Pitch not found" }, { status: 404 });
   }
 
-  const { data: comment, error } = await supabase
+  const insert = {
+    pitch_id: pitchId,
+    user_id: auth.user.id,
+    author_name: displayNameFromUser(auth.user),
+    author_email: String(auth.user.email).toLowerCase(),
+    body: text,
+    score: 0,
+  };
+
+  let created;
+  let { data: comment, error } = await supabase
     .from("pitch_comments")
-    .insert({
-      pitch_id: pitchId,
-      user_id: auth.user.id,
-      author_name: displayNameFromUser(auth.user),
-      author_email: String(auth.user.email).toLowerCase(),
-      body: text,
-      score: 0,
-    })
-    .select(
-      "id, pitch_id, user_id, author_name, author_email, body, score, created_at, updated_at"
-    )
+    .insert({ ...insert, moderation_status: COMMENT_STATUS.PENDING })
+    .select(SELECT_COLUMNS)
     .single();
 
+  if (error && isMissingColumn(error)) {
+    return NextResponse.json(
+      {
+        error:
+          "Feedback moderation isn't enabled yet. Run migrations/20261005_comment_moderation.sql.",
+      },
+      { status: 503 }
+    );
+  }
   if (error) {
     if (isMissingTable(error)) {
       return NextResponse.json(
         {
           error:
-            "Comments aren't enabled yet. Run migrations/20260928_submitter_profile_comments.sql.",
+            "Feedback isn't enabled yet. Run migrations/20260928_submitter_profile_comments.sql, then migrations/20261005_comment_moderation.sql.",
         },
         { status: 503 }
       );
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  created = comment;
 
-  return NextResponse.json({
-    comment: {
-      ...comment,
-      author_email: undefined,
-      author_handle: String(comment.author_email || "").split("@")[0],
-      myVote: 0,
-    },
-  });
+  // Classify, then record the verdict. moderateCommentBody never throws — a
+  // provider failure returns a `pending` verdict with the reason.
+  const verdict = await moderateCommentBody(text);
+
+  const { data: updated } = await supabase
+    .from("pitch_comments")
+    .update({
+      moderation_status: verdict.status,
+      moderation_summary: verdict.summary,
+      moderation_categories: verdict.categories,
+      moderation_provider: verdict.provider,
+      moderation_checked_at: verdict.checkedAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", created.id)
+    .select(SELECT_COLUMNS)
+    .maybeSingle();
+
+  return NextResponse.json({ comment: shapeForAuthor(updated || created) });
 }
 
-// DELETE — soft-delete own comment. Body/query: { id }
+// DELETE — soft-delete own feedback. Body/query: { id }
+// Soft, not hard: the row stays so the admin record for the pitch is complete.
 export async function DELETE(request) {
   const auth = await verifyUser(request);
   if (auth.error) {
@@ -217,7 +281,7 @@ export async function DELETE(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!data) {
-    return NextResponse.json({ error: "Comment not found." }, { status: 404 });
+    return NextResponse.json({ error: "Feedback not found." }, { status: 404 });
   }
   return NextResponse.json({ success: true });
 }

@@ -81,14 +81,29 @@ export async function GET(request) {
     let commentCounts = {};
     let voteCounts = {};
     if (ids.length) {
-      const [{ data: commentRows }, { data: voteRows }] = await Promise.all([
+      // Count only the feedback the submitter can actually read. Counting
+      // held or blocked comments here would tell them something was withheld,
+      // which is exactly what the moderation step is meant to avoid.
+      const [commentRes, { data: voteRows }] = await Promise.all([
         admin
           .from("pitch_comments")
           .select("pitch_id")
           .in("pitch_id", ids)
-          .eq("is_deleted", false),
+          .eq("is_deleted", false)
+          .eq("moderation_status", "approved"),
         admin.from("pitch_votes").select("pitch_id").in("pitch_id", ids),
       ]);
+      // Pre-moderation schema: every surviving comment was visible, so an
+      // unfiltered count is the honest answer there.
+      let commentRows = commentRes.data;
+      if (commentRes.error && isMissingColumnError(commentRes.error)) {
+        const legacy = await admin
+          .from("pitch_comments")
+          .select("pitch_id")
+          .in("pitch_id", ids)
+          .eq("is_deleted", false);
+        commentRows = legacy.data;
+      }
       for (const row of commentRows || []) {
         commentCounts[row.pitch_id] = (commentCounts[row.pitch_id] || 0) + 1;
       }

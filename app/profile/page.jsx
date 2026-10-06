@@ -340,8 +340,8 @@ function ProfileDashboard() {
                 </span>
               </h1>
               <p className="mt-4 text-white/65 text-base sm:text-lg max-w-xl leading-relaxed">
-                Edit your submissions, track gallery views, and read public
-                feedback from the community.
+                Edit your submissions, track gallery views, and read the
+                feedback left on your pitches. Feedback is private to you.
               </p>
               {user?.email ? (
                 <p className="mt-2 text-sm text-white/35 truncate">
@@ -715,7 +715,7 @@ function ProfileDashboard() {
                     </p>
                     {!commentsReady ? (
                       <p className="text-sm text-white/35">
-                        Comments migration not applied yet.
+                        Feedback migrations not applied yet.
                       </p>
                     ) : pitchComments.length === 0 ? (
                       <p className="text-sm text-white/35">No feedback yet.</p>
@@ -734,7 +734,7 @@ function ProfileDashboard() {
                                 </span>
                               </span>
                               <span className="text-xs text-white/30 tabular-nums">
-                                ▲ {c.score || 0}
+                                {new Date(c.created_at).toLocaleDateString()}
                               </span>
                             </div>
                             <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">

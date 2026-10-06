@@ -14,6 +14,16 @@ function isMissingTable(error) {
   );
 }
 
+function isMissingColumn(error) {
+  if (!error) return false;
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /column .* does not exist/i.test(error.message || "") ||
+    /Could not find the '.*' column/i.test(error.message || "")
+  );
+}
+
 // GET — comments across pitches owned by the signed-in submitter.
 // Optional ?pitchId= to filter one pitch.
 export async function GET(request) {
@@ -45,18 +55,27 @@ export async function GET(request) {
     return NextResponse.json({ error: "Pitch not found." }, { status: 404 });
   }
 
+  // Only approved feedback reaches the submitter. A comment that is still in
+  // review, or that moderation blocked, is deliberately invisible here — it
+  // exists only in the admin thread for the pitch.
   const supabase = getSupabaseAdmin();
-  let query = supabase
+  let { data, error } = await supabase
     .from("pitch_comments")
     .select(
-      "id, pitch_id, author_name, author_email, body, score, created_at, is_deleted"
+      "id, pitch_id, author_name, author_email, body, created_at, is_deleted, moderation_status"
     )
     .in("pitch_id", pitchId ? [pitchId] : ownedIds)
     .eq("is_deleted", false)
+    .eq("moderation_status", "approved")
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const { data, error } = await query;
+  if (error && isMissingColumn(error)) {
+    // 20261005_comment_moderation.sql has not run yet. Rather than show
+    // unmoderated feedback, show none and say the migration is pending.
+    return NextResponse.json({ comments: [], commentsReady: false });
+  }
+
   if (error) {
     if (isMissingTable(error)) {
       return NextResponse.json({ comments: [], commentsReady: false });
