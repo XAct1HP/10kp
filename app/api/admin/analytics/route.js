@@ -3,6 +3,22 @@ import { verifyAdmin } from "../../../../lib/adminAuth";
 import { getSupabaseAdmin } from "../../../../lib/supabase";
 import { getMuxClient } from "../../../../lib/mux";
 
+// PostgREST / Supabase returns at most ~1000 rows per request by default.
+// Analytics needs the full tables, so page until a short page.
+async function fetchAllRows(buildQuery, pageSize = 1000) {
+  const rows = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
 export async function GET(request) {
   const auth = await verifyAdmin(request);
   if (auth.error) {
@@ -12,33 +28,42 @@ export async function GET(request) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
 
-    // ── Parallel Supabase queries ──
-    const [pitchesRes, votesRes, tagsRes] = await Promise.all([
-      supabaseAdmin
-        .from("pitches")
-        .select("id, title, name, file_type, file_name, text_content, schools, mux_asset_id, mux_playback_id, created_at, is_seed")
-        .order("created_at", { ascending: true }),
-      supabaseAdmin
-        .from("pitch_votes")
-        .select("id, pitch_id, voter_email, voter_key, created_at")
-        // Voided votes are removed from every count, exactly like the
-        // deleted rows they replaced.
-        .is("voided_at", null)
-        .order("created_at", { ascending: true }),
-      supabaseAdmin
-        .from("pitch_tags")
-        .select("pitch_id, tag_id, tags ( id, name )")
+    // ── Parallel Supabase queries (paginated past the 1000-row cap) ──
+    const [allPitches, allVotes, allTagAssociations] = await Promise.all([
+      fetchAllRows(() =>
+        supabaseAdmin
+          .from("pitches")
+          .select(
+            "id, title, name, file_type, file_name, text_content, schools, mux_asset_id, mux_playback_id, created_at, is_seed"
+          )
+          .order("created_at", { ascending: true })
+      ),
+      fetchAllRows(() =>
+        supabaseAdmin
+          .from("pitch_votes")
+          .select("id, pitch_id, voter_email, voter_key, created_at")
+          // Voided votes are removed from every count, exactly like the
+          // deleted rows they replaced.
+          .is("voided_at", null)
+          .order("created_at", { ascending: true })
+      ),
+      fetchAllRows(() =>
+        supabaseAdmin
+          .from("pitch_tags")
+          .select("pitch_id, tag_id, tags ( id, name )")
+      ),
     ]);
 
     // Seed pitches are last year's winners, preloaded by an admin so the
     // gallery isn't empty on day one. They aren't submissions to this
     // competition, so counting them flattens the growth curve and inflates
     // every total — analytics covers the live cohort only.
-    const allPitches = pitchesRes.data || [];
     const pitches = allPitches.filter((p) => !p.is_seed);
     const livePitchIds = new Set(pitches.map((p) => p.id));
-    const votes = (votesRes.data || []).filter((v) => livePitchIds.has(v.pitch_id));
-    const tagAssociations = (tagsRes.data || []).filter((ta) => livePitchIds.has(ta.pitch_id));
+    const votes = allVotes.filter((v) => livePitchIds.has(v.pitch_id));
+    const tagAssociations = allTagAssociations.filter((ta) =>
+      livePitchIds.has(ta.pitch_id)
+    );
 
     // ── Pitch type classification ──
     const classifyType = (p) => {
