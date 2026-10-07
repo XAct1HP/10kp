@@ -47,6 +47,21 @@ async function apiFetch(url, options = {}) {
   return data;
 }
 
+async function apiUpload(url, formData) {
+  const token = await getToken();
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+const THUMBNAIL_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024;
+
 function statusChip(pitch) {
   const s = pitch.moderation_status || pitch.moderation_state || "pending";
   if (s === "approved") return { label: "Live in gallery", color: "#4ade80", rgb: "74, 222, 128" };
@@ -158,6 +173,7 @@ function ProfileDashboard() {
     tagIds: [],
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingThumbnailId, setUploadingThumbnailId] = useState(null);
   const [analytics, setAnalytics] = useState({});
   const [loadingAnalytics, setLoadingAnalytics] = useState({});
   const [signingOut, setSigningOut] = useState(false);
@@ -255,6 +271,38 @@ function ProfileDashboard() {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changeThumbnail = async (pitchId, file) => {
+    if (!file || !pitchId) return;
+    if (file.size > MAX_THUMBNAIL_SIZE) {
+      setError("Thumbnail must be 5MB or smaller.");
+      return;
+    }
+    if (!THUMBNAIL_TYPES.includes(file.type)) {
+      setError("Thumbnail must be PNG, JPG, GIF, or WebP.");
+      return;
+    }
+    setUploadingThumbnailId(pitchId);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("id", pitchId);
+      fd.append("file", file);
+      const data = await apiUpload("/api/profile/pitches/thumbnail", fd);
+      setPitches((prev) =>
+        prev.map((p) =>
+          p.id === pitchId
+            ? { ...p, thumbnail_path: data.pitch?.thumbnail_path }
+            : p
+        )
+      );
+      setSuccess("Thumbnail updated.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploadingThumbnailId(null);
     }
   };
 
@@ -412,10 +460,6 @@ function ProfileDashboard() {
               <PrimaryButton href="/intake">Start Your Pitch</PrimaryButton>
               <GhostButton href="/gallery">Browse the Gallery</GhostButton>
             </div>
-            <p className="mt-6 text-sm text-white/40">
-              Use <span className="text-white/60">Submit Pitch</span> in the nav
-              anytime to reopen the elevator.
-            </p>
           </section>
         ) : (
           <div className="space-y-5">
@@ -477,6 +521,32 @@ function ProfileDashboard() {
                             {pitch.file_type || "pitch"}
                           </span>
                         </div>
+                      )}
+                      {isEditing && (
+                        <label
+                          className="absolute inset-0 flex items-end justify-center pb-2 cursor-pointer"
+                          style={{
+                            background:
+                              "linear-gradient(to top, rgba(0,0,0,0.65), transparent 55%)",
+                          }}
+                        >
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-white/90">
+                            {uploadingThumbnailId === pitch.id
+                              ? "Uploading…"
+                              : "Change"}
+                          </span>
+                          <input
+                            type="file"
+                            accept={THUMBNAIL_TYPES.join(",")}
+                            className="sr-only"
+                            disabled={uploadingThumbnailId === pitch.id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (file) changeThumbnail(pitch.id, file);
+                            }}
+                          />
+                        </label>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -558,6 +628,52 @@ function ProfileDashboard() {
                           rows={4}
                           className="profile-input w-full px-4 py-3 rounded-xl text-sm sm:text-[15px] text-white placeholder-white/25 leading-relaxed resize-y"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-[15px] font-semibold text-white mb-2">
+                          Thumbnail
+                        </label>
+                        <p className="text-white/40 text-xs mb-3">
+                          Upload PNG, JPG, GIF, or WebP ( 5MB size maximum )
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div
+                            className="relative w-32 aspect-video rounded-xl overflow-hidden flex-shrink-0"
+                            style={SUBTLE}
+                          >
+                            {thumb ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={thumb}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white/30 uppercase tracking-wider">
+                                None
+                              </div>
+                            )}
+                          </div>
+                          <label
+                            className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                            style={{ border: "1px solid rgba(255,255,255,0.14)" }}
+                          >
+                            {uploadingThumbnailId === pitch.id
+                              ? "Uploading…"
+                              : "Choose new image"}
+                            <input
+                              type="file"
+                              accept={THUMBNAIL_TYPES.join(",")}
+                              className="sr-only"
+                              disabled={uploadingThumbnailId === pitch.id}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                if (file) changeThumbnail(pitch.id, file);
+                              }}
+                            />
+                          </label>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[15px] font-semibold text-white mb-3">
