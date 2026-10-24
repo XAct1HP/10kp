@@ -346,6 +346,92 @@ function formatTimestamp(seconds) {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+// ─── Copy to clipboard ──────────────────────────────────────────
+// Used for Mux ids in the pitch list and the pitch detail modal.
+function useCopy() {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = useCallback(async (text) => {
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // http / older-browser fallback: clipboard API needs a secure context
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.top = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  }, []);
+  return [copied, copy];
+}
+
+const CopyGlyph = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2v-2m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2h-8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+  </svg>
+);
+const CheckGlyph = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+// Labelled chip that shows the id and copies it on click (pitch detail modal).
+function CopyableId({ label, value }) {
+  const [copied, copy] = useCopy();
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); copy(value); }}
+      title={`Copy ${label.toLowerCase()} id: ${value}`}
+      className="inline-flex items-center gap-1.5 min-w-0 max-w-full px-2 py-1 rounded-lg border transition-colors"
+      style={{
+        background: copied ? "rgba(74,222,128,0.10)" : "rgba(255,255,255,0.04)",
+        borderColor: copied ? "rgba(74,222,128,0.30)" : "rgba(255,255,255,0.07)",
+      }}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/35 flex-shrink-0">{label}</span>
+      <span className="text-[11px] font-mono text-white/70 truncate">{value}</span>
+      <span className={`flex-shrink-0 ${copied ? "text-green-400" : "text-white/35"}`}>
+        {copied ? <CheckGlyph className="w-3 h-3" /> : <CopyGlyph className="w-3 h-3" />}
+      </span>
+    </button>
+  );
+}
+
+// Icon-only variant for the dense pitch list rows; reveals on row hover.
+function CopyIdButton({ value, title }) {
+  const [copied, copy] = useCopy();
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); copy(value); }}
+      title={copied ? "Copied" : title}
+      className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+        copied
+          ? "text-green-400 opacity-100"
+          : "text-white/10 hover:text-maize hover:bg-maize/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+      }`}
+    >
+      {copied ? <CheckGlyph className="w-4 h-4" /> : <CopyGlyph className="w-4 h-4" />}
+    </button>
+  );
+}
+
 // ─── Moderation report ──────────────────────────────────────────
 // Redesigned for scannability: big verdict, one-line summary, a compact
 // channel row, and detail sections that expand on click.
@@ -2301,6 +2387,7 @@ export default function AdminPage() {
                           <span className="hidden md:block text-[11px] text-white/20 tabular-nums whitespace-nowrap">
                             {new Date(pitch.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                           </span>
+                          <CopyIdButton value={pitch.mux_asset_id} title="Copy Mux asset id" />
                           <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(pitch.id); }}
                             className="p-1.5 rounded-lg text-white/10 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100" title="Delete">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -3555,6 +3642,12 @@ export default function AdminPage() {
                 </div>
                 <h2 className="text-xl font-bold text-white leading-tight truncate">{selectedPitch.title}</h2>
                 <p className="text-xs text-white/40 mt-1">by {selectedPitch.name} &middot; {selectedPitch.role || "No role"} &middot; {new Date(selectedPitch.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</p>
+                {(selectedPitch.mux_asset_id || selectedPitch.mux_playback_id) && (
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <CopyableId label="Asset" value={selectedPitch.mux_asset_id} />
+                    <CopyableId label="Playback" value={selectedPitch.mux_playback_id} />
+                  </div>
+                )}
               </div>
               <button onClick={() => setSelectedPitch(null)} className="p-2 rounded-xl text-white/30 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
