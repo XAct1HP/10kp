@@ -392,7 +392,7 @@ const CheckGlyph = ({ className = "w-3.5 h-3.5" }) => (
 function CopyableId({ label, value }) {
   const [copied, copy] = useCopy();
   if (!value) return null;
-  return (
+    return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); copy(value); }}
@@ -696,7 +696,7 @@ function AwardTrackRow({ track, onAction, busy, disabled }) {
     ? { label: "Unverified", fg: "#fcd34d", bg: "rgba(245,158,11,0.12)" }
     : { label: "In track", fg: "#86efac", bg: "rgba(34,197,94,0.12)" };
 
-  return (
+    return (
     <div
       className="rounded-lg p-3"
       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
@@ -1959,7 +1959,7 @@ export default function AdminPage() {
         setSuccess("Announcement updated.");
       } else {
         await apiFetch("/api/admin/announcements", {
-          method: "POST",
+        method: "POST",
           body: JSON.stringify(requestPayload),
         });
         setSuccess("Announcement created.");
@@ -2200,7 +2200,7 @@ export default function AdminPage() {
 
         <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-10 py-5 min-h-0">
           {/* Notifications */}
-          {error && (
+      {error && (
             <div className="mb-3 flex items-center gap-3 rounded-xl p-3 text-sm flex-shrink-0"
               style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
               <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -2213,8 +2213,8 @@ export default function AdminPage() {
               style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)" }}>
               <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               <span className="text-green-300">{success}</span>
-            </div>
-          )}
+        </div>
+      )}
 
           {/* ═══ PITCHES ═══ */}
           {activeTab === "pitches" && (
@@ -2476,7 +2476,7 @@ export default function AdminPage() {
                   ].map((view) => {
                     const active = voteView === view.id;
                     return (
-                      <button
+                <button
                         key={view.id}
                         onClick={() => setVoteView(view.id)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${active ? "text-navy" : "text-white/40 hover:text-white/70"}`}
@@ -2491,7 +2491,7 @@ export default function AdminPage() {
                             {openFlagCount}
                           </span>
                         )}
-                      </button>
+                </button>
                     );
                   })}
                 </div>
@@ -2500,33 +2500,33 @@ export default function AdminPage() {
                     {["all", "live", "voided"].map((scope) => {
                       const active = trailScope === scope;
                       return (
-                        <button
+                <button
                           key={scope}
                           onClick={() => { setTrailScope(scope); setVoidDraft(null); }}
                           className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${active ? "text-maize" : "text-white/30 hover:text-white/60"}`}
                           style={active ? { background: "rgba(255,203,5,0.12)" } : undefined}
                         >
                           {scope}
-                        </button>
+                </button>
                       );
                     })}
                     {votes.length > 0 && (
                       <span className="ml-1 text-[11px] text-white/30 tabular-nums">{votes.length.toLocaleString()} shown</span>
                     )}
-                  </div>
-                ) : (
+              </div>
+            ) : (
                   <div className="flex items-center gap-1.5">
                     {["open", "confirmed", "actioned", "dismissed", "all"].map((status) => {
                       const active = voteFlagFilter === status;
                       return (
-                        <button
+              <button
                           key={status}
                           onClick={() => { setVoteFlagFilter(status); setExpandedFlagId(null); }}
                           className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-colors ${active ? "text-maize" : "text-white/30 hover:text-white/60"}`}
                           style={active ? { background: "rgba(255,203,5,0.12)" } : undefined}
                         >
                           {status}
-                        </button>
+              </button>
                       );
                     })}
                     <button
@@ -2576,8 +2576,8 @@ export default function AdminPage() {
                                       title={`Same mailbox as ${v.voter_inbox}`}
                                     >
                                       alias
-                                    </span>
-                                  )}
+            </span>
+          )}
                                   {v.inbox_votes_in_window > 1 && (
                                     <span
                                       className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold tabular-nums text-red-300 align-middle"
@@ -2665,7 +2665,7 @@ export default function AdminPage() {
                                       {v.void_reason ? ` — ${v.void_reason}` : ""}
                                     </span>
                                   </td>
-                                </tr>
+                </tr>
                               )}
                             </Fragment>
                           );
@@ -3046,11 +3046,11 @@ export default function AdminPage() {
                                       Admin
                                     </span>
                                   )}
-                                </div>
-                              </td>
+                      </div>
+                    </td>
                               <td className="px-5 py-2.5 text-white/35 tabular-nums">
                                 {account.created_at ? new Date(account.created_at).toLocaleString() : "—"}
-                              </td>
+                    </td>
                               <td className="px-5 py-2.5">
                                 <span className={`text-xs font-semibold ${account.confirmed ? "text-green-300" : "text-white/40"}`}>
                                   {account.confirmed ? "Confirmed" : "Pending"}
@@ -3071,11 +3071,11 @@ export default function AdminPage() {
                                 >
                                   Add winner
                                 </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
                     </ScrollPane>
                   )}
 
@@ -3086,14 +3086,14 @@ export default function AdminPage() {
                           <h3 className="text-sm font-semibold text-white">Outreach History</h3>
                           <p className="text-xs text-white/30 mt-1">
                             Recent broadcasts and winner notifications recorded by this app.
-                          </p>
-                        </div>
+                </p>
+              </div>
                         {!broadcastHistoryEnabled && (
                           <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full bg-amber-500/10 text-amber-300">
                             Run migration
                           </span>
-                        )}
-                      </div>
+            )}
+          </div>
                     </div>
                     {broadcastHistoryLoading ? (
                       <p className="text-white/30 text-sm px-5 pb-5">Loading history...</p>
@@ -3315,7 +3315,7 @@ export default function AdminPage() {
                                 }}>
                                 {t.label}
                                 {active && <span className="absolute left-2 right-2 bottom-0 h-0.5 rounded-full" style={{ background: "#FFCB05" }} />}
-                              </button>
+                    </button>
                             );
                           })}
                         </div>
@@ -3478,7 +3478,7 @@ export default function AdminPage() {
                                           <span className="text-[12px] font-bold text-white tabular-nums">{seg.value}</span>
                                           <span className="text-[11px] text-white/30 tabular-nums w-11 text-right">
                                             {share.toFixed(share >= 10 ? 0 : 1)}%
-                                          </span>
+                  </span>
                                         </div>
                                         <div className="h-1 rounded-full mt-1.5" style={{ background: "rgba(255,255,255,0.05)", marginLeft: "18px" }}>
                                           <div className="h-full rounded-full transition-all duration-300" style={{ width: `${share}%`, background: seg.color }} />
@@ -3685,13 +3685,13 @@ export default function AdminPage() {
                     )}
                   </div>
                   <div className="flex flex-col gap-2 flex-shrink-0 min-w-[140px]">
-                    <button
+              <button
                       disabled={moderationSubmitting !== null}
                       onClick={() => handleModerationDecision(selectedPitch.id, "approve")}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold text-black bg-green-400 hover:bg-green-300 transition-colors disabled:opacity-50"
-                    >
+              >
                       {moderationSubmitting === "approve" ? "Approving..." : "Approve"}
-                    </button>
+              </button>
                     <button
                       disabled={moderationSubmitting !== null}
                       onClick={() => handleModerationDecision(selectedPitch.id, "reject")}

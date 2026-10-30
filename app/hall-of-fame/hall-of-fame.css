@@ -1,0 +1,120 @@
+@keyframes hof-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hof-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+.hof-rise {
+  animation: hof-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hof-card {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.hof-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 203, 5, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hof-card:hover .hof-thumb img {
+  transform: scale(1.05);
+}
+
+.hof-thumb img {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hof-ribbon {
+  background: linear-gradient(
+    110deg,
+    #ffcb05 0%,
+    #ffe17a 35%,
+    #ffcb05 55%,
+    #e8a84c 100%
+  );
+  background-size: 200% 100%;
+  animation: hof-shimmer 4.5s ease-in-out infinite alternate;
+}
+
+/* Side cannons — burst inward from left/right edges, then fall. */
+@keyframes hof-confetti-left {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--dx, 40vw), var(--dy, 40vh), 0)
+      rotate(var(--spin, 540deg));
+    opacity: 0;
+  }
+}
+
+@keyframes hof-confetti-right {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(calc(-1 * var(--dx, 40vw)), var(--dy, 40vh), 0)
+      rotate(var(--spin, 540deg));
+    opacity: 0;
+  }
+}
+
+.hof-confetti {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation-duration: var(--dur, 3s);
+  animation-timing-function: cubic-bezier(0.15, 0.7, 0.25, 1);
+  animation-delay: var(--delay, 0s);
+  animation-fill-mode: both;
+}
+
+.hof-confetti--left {
+  left: -12px;
+  animation-name: hof-confetti-left;
+}
+
+.hof-confetti--right {
+  right: -12px;
+  animation-name: hof-confetti-right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hof-rise,
+  .hof-ribbon,
+  .hof-card,
+  .hof-thumb img {
+    animation: none !important;
+    transition: none !important;
+  }
+  .hof-confetti {
+    display: none;
+  }
+}
