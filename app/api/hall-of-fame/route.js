@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../lib/supabase";
+import { verifyAdmin } from "../../../lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -44,7 +45,14 @@ function thumbDefaults(settings) {
 // award announcements (Record Winners flow). Seed / archive pitches with a
 // matching winner_year are included as a fallback for years that were
 // archived without announcements.
-export async function GET() {
+//
+// Temporarily admin-only until winners are ready to publish publicly.
+export async function GET(request) {
+  const auth = await verifyAdmin(request);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const supabaseAdmin = getSupabaseAdmin();
 

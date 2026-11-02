@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import PageBackground from "../../components/PageBackground";
+import { useAuth } from "../../lib/AuthContext";
+import { supabase } from "../../lib/supabase";
 import galleryHero from "../../public/gallery_hero.png";
 import "./hall-of-fame.css";
 
@@ -197,6 +200,8 @@ function WinnerCard({ winner, defaults, index }) {
 }
 
 export default function HallOfFamePage() {
+  const router = useRouter();
+  const { user, loading: authLoading, isAdmin, adminChecked } = useAuth();
   const [year, setYear] = useState(null);
   const [winners, setWinners] = useState([]);
   const [defaults, setDefaults] = useState({});
@@ -209,13 +214,29 @@ export default function HallOfFamePage() {
   const burstSeqRef = useRef(0);
   const winnersSeenRef = useRef(false);
 
+  // Private for now — admins only. Public visitors are sent home.
   useEffect(() => {
+    if (authLoading || !adminChecked) return;
+    if (!user || !isAdmin) router.replace("/");
+  }, [authLoading, adminChecked, user, isAdmin, router]);
+
+  useEffect(() => {
+    if (authLoading || !adminChecked || !user || !isAdmin) return undefined;
+
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("/api/hall-of-fame", { cache: "no-store" });
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const res = await fetch("/api/hall-of-fame", {
+          cache: "no-store",
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {},
+        });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Failed to load winners.");
         if (cancelled) return;
@@ -231,7 +252,7 @@ export default function HallOfFamePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, adminChecked, user, isAdmin]);
 
   const fireConfetti = (force = false) => {
     const reducedMotion =
@@ -252,9 +273,11 @@ export default function HallOfFamePage() {
     }, 5200);
   };
 
+  const accessPending = authLoading || !adminChecked || !user || !isAdmin;
+
   // First burst when the winners grid enters the viewport.
   useEffect(() => {
-    if (loading || error || winners.length === 0) return undefined;
+    if (accessPending || loading || error || winners.length === 0) return undefined;
     const node = winnersRef.current;
     if (!node) return undefined;
 
@@ -270,11 +293,11 @@ export default function HallOfFamePage() {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [loading, error, winners.length]);
+  }, [accessPending, loading, error, winners.length]);
 
   // Keep celebrating as the viewer scrolls through the page.
   useEffect(() => {
-    if (loading || error || winners.length === 0) return undefined;
+    if (accessPending || loading || error || winners.length === 0) return undefined;
 
     lastScrollYRef.current =
       typeof window !== "undefined" ? window.scrollY || 0 : 0;
@@ -292,7 +315,23 @@ export default function HallOfFamePage() {
 
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [loading, error, winners.length]);
+  }, [accessPending, loading, error, winners.length]);
+
+  if (accessPending) {
+    return (
+      <div className="relative min-h-[calc(100vh-5rem)] flex items-center justify-center text-sm text-white/50">
+        <PageBackground src={galleryHero} priority quality={70} objectPosition="center" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(6,14,33,0.72) 0%, rgba(11,26,59,0.88) 40%, rgba(11,26,59,0.97) 100%)",
+          }}
+        />
+        <p className="relative z-10">Checking access…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)]">
