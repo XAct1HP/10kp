@@ -53,21 +53,58 @@ function isMissingColumnError(error) {
   );
 }
 
-// PostgREST / Supabase returns at most ~1000 rows per request by default.
-// Gallery vote tallies need every live vote for the page's pitches, so page
-// until a short batch — same pattern as /api/admin/analytics.
-async function fetchAllRows(buildQuery, pageSize = 1000) {
-  const rows = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
-    if (error) throw error;
-    const batch = data || [];
-    rows.push(...batch);
-    if (batch.length < pageSize) break;
-    from += pageSize;
+function isMissingRpcError(error) {
+  if (!error) return false;
+  return (
+    error.code === "PGRST202" ||
+    error.code === "42883" ||
+    /could not find the function/i.test(error.message || "") ||
+    /function .* does not exist/i.test(error.message || "")
+  );
+}
+
+// One round-trip GROUP BY via RPC. Avoids paging every pitch_votes row
+// (that pattern exhausted the Supabase connection pool under gallery load).
+async function loadVoteCountsByPitch(supabaseAdmin, pitchIds) {
+  const counts = {};
+  if (!pitchIds.length) return counts;
+
+  const { data, error } = await supabaseAdmin.rpc("gallery_vote_counts", {
+    p_pitch_ids: pitchIds,
+  });
+
+  if (!error) {
+    for (const row of data || []) {
+      counts[row.pitch_id] = Number(row.vote_count) || 0;
+    }
+    return counts;
   }
-  return rows;
+
+  if (!isMissingRpcError(error)) {
+    throw error;
+  }
+
+  // Fallback before migrations/20261102_gallery_vote_counts.sql is applied:
+  // exact head counts in small parallel batches (no row download, limited pool use).
+  const CONCURRENCY = 8;
+  for (let i = 0; i < pitchIds.length; i += CONCURRENCY) {
+    const chunk = pitchIds.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map(async (id) => {
+        const { count, error: countError } = await supabaseAdmin
+          .from("pitch_votes")
+          .select("id", { count: "exact", head: true })
+          .eq("pitch_id", id)
+          .is("voided_at", null);
+        if (countError) throw countError;
+        return [id, count || 0];
+      })
+    );
+    for (const [id, voteCount] of results) {
+      counts[id] = voteCount;
+    }
+  }
+  return counts;
 }
 
 // Public gallery feed of all submissions.
@@ -136,25 +173,10 @@ export async function GET(request) {
     }));
 
     const pitchIds = submissions.map((pitch) => pitch.id);
-    const voteCountsByPitch = {};
-
-    if (pitchIds.length > 0) {
-      // Order is required for stable .range() paging across the 1000-row cap.
-      const voteRows = await fetchAllRows(() =>
-        supabaseAdmin
-          .from("pitch_votes")
-          .select("pitch_id")
-          .in("pitch_id", pitchIds)
-          .is("voided_at", null)
-          .order("pitch_id", { ascending: true })
-          .order("id", { ascending: true })
-      );
-
-      voteRows.forEach((row) => {
-        voteCountsByPitch[row.pitch_id] =
-          (voteCountsByPitch[row.pitch_id] || 0) + 1;
-      });
-    }
+    const voteCountsByPitch =
+      pitchIds.length > 0
+        ? await loadVoteCountsByPitch(supabaseAdmin, pitchIds)
+        : {};
 
     const voterEmail = normalizeEmail(searchParams.get("voterEmail"));
     // Match the ballot: one mailbox, one allowance. Looking this up by
@@ -166,18 +188,17 @@ export async function GET(request) {
     let userVoteCount = 0;
 
     if (voterKey && pitchIds.length > 0) {
-      const userVotes = await fetchAllRows(() =>
-        supabaseAdmin
-          .from("pitch_votes")
-          .select("pitch_id")
-          .eq("voter_inbox", voterKey)
-          .in("pitch_id", pitchIds)
-          .is("voided_at", null)
-          .order("pitch_id", { ascending: true })
-          .order("id", { ascending: true })
-      );
+      // Voters are capped (default 5), so a single page of matches is enough.
+      const { data: userVotes, error: userVotesError } = await supabaseAdmin
+        .from("pitch_votes")
+        .select("pitch_id")
+        .eq("voter_inbox", voterKey)
+        .in("pitch_id", pitchIds)
+        .is("voided_at", null)
+        .limit(100);
 
-      userVotedPitchIds = new Set(userVotes.map((row) => row.pitch_id));
+      if (userVotesError) throw userVotesError;
+      userVotedPitchIds = new Set((userVotes || []).map((row) => row.pitch_id));
 
       const { count: voteCount } = await supabaseAdmin
         .from("pitch_votes")
