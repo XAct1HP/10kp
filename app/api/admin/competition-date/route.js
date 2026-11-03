@@ -9,7 +9,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
       .from("competition_settings")
       .select(
-        "competition_date, submission_deadline, competition_description, seeds_visible, podium_visible"
+        "competition_date, submission_deadline, competition_description, seeds_visible, podium_visible, voting_enabled"
       )
       .limit(1)
       .single();
@@ -26,6 +26,9 @@ export async function GET() {
       // seed pitches / podium show in the gallery by default.
       seeds_visible: data?.seeds_visible !== false,
       podium_visible: data?.podium_visible !== false,
+      // Same default-open convention: undefined column (pre-migration) or
+      // NULL both mean the gallery ballot is open.
+      voting_enabled: data?.voting_enabled !== false,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -57,6 +60,9 @@ export async function POST(request) {
     }
     if (body.podium_visible !== undefined) {
       updates.podium_visible = !!body.podium_visible;
+    }
+    if (body.voting_enabled !== undefined) {
+      updates.voting_enabled = !!body.voting_enabled;
     }
 
     if (Object.keys(updates).length === 1) {

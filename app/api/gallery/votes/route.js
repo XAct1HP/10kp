@@ -12,6 +12,24 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+const VOTING_CLOSED_MESSAGE = "Voting is closed. Vote counts are final.";
+
+// The ballot can be closed from the top row of the admin Votes tab. Enforced
+// here, not just hidden in the gallery: the ballot is unauthenticated on
+// purpose, so a closed ballot that only hides its button is not closed at all
+// — a curl loop would still land votes. Both POST and DELETE check it, so the
+// tally is frozen rather than one-way.
+async function votingIsEnabled(supabaseAdmin) {
+  const { data } = await supabaseAdmin
+    .from("competition_settings")
+    .select("voting_enabled")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  // Undefined column (pre-migration) or NULL both mean open.
+  return data?.voting_enabled !== false;
+}
+
 // The vote budget is enforced per MAILBOX, not per address string.
 // mziaulh+mark@ and mziaulh+omair@ are the same inbox — that is how mail
 // delivery works, not a guess — so they share one allowance. Counting by
@@ -63,6 +81,10 @@ export async function POST(request) {
     const normalizedEmail = normalizeEmail(voterEmail);
     if (!isValidEmail(normalizedEmail)) {
       return NextResponse.json({ error: "A valid voterEmail is required" }, { status: 400 });
+    }
+
+    if (!(await votingIsEnabled(supabaseAdmin))) {
+      return NextResponse.json({ error: VOTING_CLOSED_MESSAGE }, { status: 403 });
     }
 
     // Use admin client so vote eligibility does not depend on pitch RLS visibility.
@@ -177,6 +199,10 @@ export async function DELETE(request) {
     const normalizedEmail = normalizeEmail(voterEmail);
     if (!isValidEmail(normalizedEmail)) {
       return NextResponse.json({ error: "A valid voterEmail is required" }, { status: 400 });
+    }
+
+    if (!(await votingIsEnabled(supabaseAdmin))) {
+      return NextResponse.json({ error: VOTING_CLOSED_MESSAGE }, { status: 403 });
     }
 
     // Scoped to live votes on purpose: a voided vote is an admin

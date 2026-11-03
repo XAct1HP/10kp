@@ -125,12 +125,15 @@ export async function GET(request) {
     // conditionally. Undefined column (pre-migration) is treated as true.
     const { data: settingsRow } = await supabaseAdmin
       .from("competition_settings")
-      .select("seeds_visible, podium_visible")
+      .select("seeds_visible, podium_visible, voting_enabled")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     const seedsVisible = settingsRow?.seeds_visible !== false;
     const podiumVisible = settingsRow?.podium_visible !== false;
+    // Master ballot switch (admin Votes tab). Counts keep being returned
+    // either way — closing the ballot freezes the tally, it does not hide it.
+    const votingEnabled = settingsRow?.voting_enabled !== false;
 
     const runQuery = (columns) => {
       let query = supabaseAdmin
@@ -229,6 +232,7 @@ export async function GET(request) {
       {
         submissions: submissionsWithVotes,
         voting: {
+          votingEnabled,
           maxVotesPerUser,
           userVoteCount,
           remainingVotes: Math.max(maxVotesPerUser - userVoteCount, 0),

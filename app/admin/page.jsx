@@ -22,6 +22,7 @@ import SettingsPanel from "../../components/admin/SettingsPanel";
 import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPanel";
 import SeedPitchesPanel from "../../components/admin/SeedPitchesPanel";
 import PodiumTogglePanel from "../../components/admin/PodiumTogglePanel";
+import VotingToggle from "../../components/admin/VotingToggle";
 import OutreachPreviewOverlay from "../../components/admin/OutreachPreviewOverlay";
 import PitchFeedbackThread from "../../components/admin/PitchFeedbackThread";
 
@@ -2539,6 +2540,7 @@ export default function AdminPage() {
                     </button>
                   </div>
                 )}
+                <VotingToggle apiFetch={apiFetch} onError={setError} onSuccess={setSuccess} />
               </div>
 
               {voteView === "trail" ? (
