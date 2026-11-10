@@ -20,6 +20,7 @@ import PageBackground from "../../components/PageBackground";
 import adminBg from "../../public/admin_bg.png";
 import SettingsPanel from "../../components/admin/SettingsPanel";
 import AnnouncementsAdminPanel from "../../components/admin/AnnouncementsAdminPanel";
+import HallOfFameAdminPanel from "../../components/admin/HallOfFameAdminPanel";
 import SeedPitchesPanel from "../../components/admin/SeedPitchesPanel";
 import PodiumTogglePanel from "../../components/admin/PodiumTogglePanel";
 import VotingToggle from "../../components/admin/VotingToggle";
@@ -2125,6 +2126,7 @@ export default function AdminPage() {
     { id: "votes", label: "Votes", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
     { id: "outreach", label: "Outreach", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /> },
     { id: "announcements", label: "Announcements", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /> },
+    { id: "hall-of-fame", label: "Hall of Fame", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /> },
     { id: "newspaper", label: "Weekly Digest", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 5H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2zM7 9h10M7 13h6M7 17h4" /> },
     { id: "analytics", label: "Analytics", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
     { id: "settings", label: "Settings", icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /> },
@@ -3180,6 +3182,15 @@ export default function AdminPage() {
                     {/* ═══ ANNOUNCEMENTS ═══ */}
           {activeTab === "announcements" && (
             <AnnouncementsAdminPanel
+              apiFetch={apiFetch}
+              onError={(m) => setError(m)}
+              onSuccess={(m) => setSuccess(m)}
+            />
+          )}
+
+          {/* ═══ HALL OF FAME ═══ */}
+          {activeTab === "hall-of-fame" && (
+            <HallOfFameAdminPanel
               apiFetch={apiFetch}
               onError={(m) => setError(m)}
               onSuccess={(m) => setSuccess(m)}

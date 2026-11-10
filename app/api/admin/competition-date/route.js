@@ -9,7 +9,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
       .from("competition_settings")
       .select(
-        "competition_date, submission_deadline, competition_description, seeds_visible, podium_visible, voting_enabled"
+        "competition_date, submission_deadline, competition_description, seeds_visible, podium_visible, voting_enabled, hall_of_fame_public"
       )
       .limit(1)
       .single();
@@ -29,6 +29,9 @@ export async function GET() {
       // Same default-open convention: undefined column (pre-migration) or
       // NULL both mean the gallery ballot is open.
       voting_enabled: data?.voting_enabled !== false,
+      // Hall of Fame stays private until an admin flips this (default false
+      // / missing column both mean private).
+      hall_of_fame_public: data?.hall_of_fame_public === true,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -63,6 +66,9 @@ export async function POST(request) {
     }
     if (body.voting_enabled !== undefined) {
       updates.voting_enabled = !!body.voting_enabled;
+    }
+    if (body.hall_of_fame_public !== undefined) {
+      updates.hall_of_fame_public = !!body.hall_of_fame_public;
     }
 
     if (Object.keys(updates).length === 1) {

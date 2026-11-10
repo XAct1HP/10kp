@@ -202,6 +202,7 @@ function WinnerCard({ winner, defaults, index }) {
 export default function HallOfFamePage() {
   const router = useRouter();
   const { user, loading: authLoading, isAdmin, adminChecked } = useAuth();
+  const [hofPublic, setHofPublic] = useState(null); // null until settings load
   const [year, setYear] = useState(null);
   const [winners, setWinners] = useState([]);
   const [defaults, setDefaults] = useState({});
@@ -214,14 +215,31 @@ export default function HallOfFamePage() {
   const burstSeqRef = useRef(0);
   const winnersSeenRef = useRef(false);
 
-  // Private for now — admins only. Public visitors are sent home.
   useEffect(() => {
-    if (authLoading || !adminChecked) return;
-    if (!user || !isAdmin) router.replace("/");
-  }, [authLoading, adminChecked, user, isAdmin, router]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/competition-date", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setHofPublic(data.hall_of_fame_public === true);
+      } catch {
+        if (!cancelled) setHofPublic(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Private unless hall_of_fame_public — non-admins are sent home.
+  useEffect(() => {
+    if (hofPublic === null || authLoading || !adminChecked) return;
+    if (!hofPublic && (!user || !isAdmin)) router.replace("/");
+  }, [hofPublic, authLoading, adminChecked, user, isAdmin, router]);
 
   useEffect(() => {
-    if (authLoading || !adminChecked || !user || !isAdmin) return undefined;
+    if (hofPublic === null || authLoading || !adminChecked) return undefined;
+    if (!hofPublic && (!user || !isAdmin)) return undefined;
 
     let cancelled = false;
     (async () => {
@@ -243,6 +261,7 @@ export default function HallOfFamePage() {
         setYear(data.year);
         setWinners(data.winners || []);
         setDefaults(data.defaults || {});
+        if (typeof data.isPublic === "boolean") setHofPublic(data.isPublic);
       } catch (err) {
         if (!cancelled) setError(err.message || "Failed to load winners.");
       } finally {
@@ -252,7 +271,7 @@ export default function HallOfFamePage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, adminChecked, user, isAdmin]);
+  }, [hofPublic, authLoading, adminChecked, user, isAdmin]);
 
   const fireConfetti = (force = false) => {
     const reducedMotion =
@@ -273,7 +292,11 @@ export default function HallOfFamePage() {
     }, 5200);
   };
 
-  const accessPending = authLoading || !adminChecked || !user || !isAdmin;
+  const accessPending =
+    hofPublic === null ||
+    authLoading ||
+    !adminChecked ||
+    (!hofPublic && (!user || !isAdmin));
 
   // First burst when the winners grid enters the viewport.
   useEffect(() => {

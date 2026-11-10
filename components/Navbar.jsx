@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "../lib/AuthContext";
@@ -25,8 +25,26 @@ function NewBadge() {
 export default function Navbar() {
   const { user, loading, isAdmin } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [hofPublic, setHofPublic] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
+  const showHallOfFame = hofPublic || isAdmin;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/competition-date", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setHofPublic(data.hall_of_fame_public === true);
+      } catch {
+        if (!cancelled) setHofPublic(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <nav className="sticky top-0 z-20 w-full bg-navy">
@@ -58,7 +76,7 @@ export default function Navbar() {
             >
               View Gallery / Vote
             </Link>
-            {isAdmin && (
+            {showHallOfFame && (
               <Link
                 href="/hall-of-fame"
                 className="px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors"
@@ -168,7 +186,7 @@ export default function Navbar() {
             >
               View Gallery / Vote
             </Link>
-            {isAdmin && (
+            {showHallOfFame && (
               <Link
                 href="/hall-of-fame"
                 onClick={closeMenu}
