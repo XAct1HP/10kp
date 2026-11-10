@@ -8,7 +8,9 @@ const {
   formatModerationResult,
   formatTeammates,
   formatUniqnameEmail,
+  buildSchoolDistributionCsv,
   PITCH_CSV_HEADERS,
+  SCHOOL_CSV_HEADERS,
 } = await import("../lib/pitchExport.js");
 
 const ORIGIN = "https://10kp.example.edu";
@@ -136,4 +138,36 @@ test("csv tolerates a sparse pitch row", () => {
   const csv = buildPitchCsv([{ id: "x" }], ORIGIN);
   const [, row] = csv.split("\n");
   assert.equal(row.split('","').length, PITCH_CSV_HEADERS.length);
+});
+
+const SCHOOL_ROWS = [
+  { name: "College of Engineering", count: 42 },
+  { name: 'Ross School of "Business"', count: 17 },
+  { name: "LSA", count: 3 },
+];
+
+test("school csv carries one row per school with no top-N cap", () => {
+  const lines = buildSchoolDistributionCsv(SCHOOL_ROWS, 60).split("\n");
+  assert.equal(lines.length, SCHOOL_ROWS.length + 1);
+  assert.equal(lines[0], SCHOOL_CSV_HEADERS.join(","));
+  assert.ok(lines[1].startsWith('"1","College of Engineering","42"'));
+  assert.ok(lines[2].includes('Ross School of ""Business""'));
+});
+
+test("school csv shares are of pitches, so multi-school pitches can exceed 100%", () => {
+  // 42 + 17 + 3 = 62 school picks across 60 pitches, because a pitch may name
+  // more than one school. Each share stays relative to the pitch count.
+  const lines = buildSchoolDistributionCsv(SCHOOL_ROWS, 60).split("\n");
+  assert.ok(lines[1].endsWith('"70%"'));
+  assert.ok(lines[2].endsWith('"28.3%"'));
+});
+
+test("school csv leaves the share blank when there are no pitches", () => {
+  const [, row] = buildSchoolDistributionCsv([{ name: "LSA", count: 0 }], 0).split("\n");
+  assert.equal(row, '"1","LSA","0",""');
+});
+
+test("school csv returns headers alone for an empty distribution", () => {
+  assert.equal(buildSchoolDistributionCsv([], 10), SCHOOL_CSV_HEADERS.join(","));
+  assert.equal(buildSchoolDistributionCsv(null, 10), SCHOOL_CSV_HEADERS.join(","));
 });

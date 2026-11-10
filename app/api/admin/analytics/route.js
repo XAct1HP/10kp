@@ -128,10 +128,16 @@ export async function GET(request) {
         schoolCounts[s] = (schoolCounts[s] || 0) + 1;
       });
     });
+    // Every school, not a top-N slice — the admin UI scrolls the list and
+    // exports it, so a truncated distribution hides the long tail that
+    // outreach actually needs to see.
     const schoolDistribution = Object.entries(schoolCounts)
       .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+    // Pitches can list more than one school, so this is not a partition of
+    // totalPitches — it is how many pitches named each school at all.
+    const pitchesWithSchool = pitches.filter((p) => (p.schools || []).length > 0).length;
 
     // ── Unique voters ──
     const uniqueVoters = new Set(votes.map((v) => v.voter_key || v.voter_email)).size;
@@ -197,6 +203,11 @@ export async function GET(request) {
       topPitchesByVotes,
       tagPopularity,
       schoolDistribution,
+      schoolSummary: {
+        totalSchools: schoolDistribution.length,
+        pitchesWithSchool,
+        pitchesWithoutSchool: pitches.length - pitchesWithSchool,
+      },
       mux: muxData,
     });
   } catch (err) {

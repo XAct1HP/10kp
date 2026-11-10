@@ -14,7 +14,7 @@ import {
   parseEmailList,
   WINNER_SURVEY_URL,
 } from "../../lib/outreach";
-import { buildPitchCsv } from "../../lib/pitchExport";
+import { buildPitchCsv, buildSchoolDistributionCsv } from "../../lib/pitchExport";
 import MuxPlayer from "@mux/mux-player-react";
 import PageBackground from "../../components/PageBackground";
 import adminBg from "../../public/admin_bg.png";
@@ -154,7 +154,7 @@ function formatAxisTick(v) {
 // measured value axis with gridlines, bars scaled against a rounded-up max,
 // and the figure plus its share of the total spelled out rather than left to
 // be eyeballed off the bar. Rows: { key, label, sublabel, value, note, color }.
-function RankedBarChart({ rows = [], accent = "rgba(255,203,5,0.65)", unit = "", emptyLabel = "No data yet", showRank = false, footnote }) {
+function RankedBarChart({ rows = [], accent = "rgba(255,203,5,0.65)", unit = "", emptyLabel = "No data yet", showRank = false, footnote, showScrollbar = false }) {
   if (!rows.length) {
     return <p className="h-full flex items-center justify-center text-xs text-white/25">{emptyLabel}</p>;
   }
@@ -168,8 +168,15 @@ function RankedBarChart({ rows = [], accent = "rgba(255,203,5,0.65)", unit = "",
   return (
     <div className="h-full flex flex-col min-h-0">
       <div
-        className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-1.5 py-1"
-        style={{ justifyContent: "safe center" }}
+        className={`flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 py-1${showScrollbar ? "" : " no-scrollbar"}`}
+        style={{
+          justifyContent: "safe center",
+          // A list long enough to scroll needs a visible track, or the rows
+          // past the fold look like they don't exist.
+          ...(showScrollbar
+            ? { scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.2) transparent" }
+            : {}),
+        }}
       >
         {rows.map((row, i) => {
           const value = row.value || 0;
@@ -1783,6 +1790,20 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
     setSuccess("Accounts CSV exported.");
   };
+  const handleExportSchoolsCsv = () => {
+    const schools = analytics?.schoolDistribution || [];
+    if (!schools.length) { setError("No school data to export."); return; }
+    const csv = buildSchoolDistributionCsv(schools, analytics?.summary?.totalPitches || 0);
+    // BOM so Excel reads the file as UTF-8 rather than mangling school names.
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `schools_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setSuccess(`Schools CSV exported — ${schools.length} school${schools.length === 1 ? "" : "s"}.`);
+  };
   const handleAddWinnerEmails = (emails) => {
     setWinnerForm((prev) => ({
       ...prev,
@@ -3297,7 +3318,11 @@ export default function AdminPage() {
                       { id: "types", label: "Pitch Types", subtitle: "Video / Audio / Text" },
                       { id: "topPitches", label: "Top Pitches", subtitle: "Votes received" },
                       { id: "tags", label: "Tags", subtitle: "Pitches per tag" },
-                      { id: "schools", label: "Schools", subtitle: "Pitches per school" },
+                      {
+                        id: "schools",
+                        label: "Schools",
+                        subtitle: `Pitches per school · all ${(analytics.schoolDistribution || []).length}`,
+                      },
                       { id: "videoViews", label: "Video Views", subtitle: "Views, last 30 days" },
                     ];
                     const current = chartTabs.find((t) => t.id === chartTab) || chartTabs[0];
@@ -3339,6 +3364,29 @@ export default function AdminPage() {
                               <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(99,102,241,0.7)" }} />Video</span>
                               <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(236,72,153,0.7)" }} />Audio</span>
                               <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(34,197,94,0.7)" }} />Text</span>
+                            </div>
+                          )}
+                          {chartTab === "schools" && (
+                            <div className="flex items-center gap-3">
+                              {analytics.schoolSummary?.pitchesWithoutSchool > 0 && (
+                                <span className="text-[10px] text-white/30">
+                                  {analytics.schoolSummary.pitchesWithoutSchool} pitch
+                                  {analytics.schoolSummary.pitchesWithoutSchool === 1 ? "" : "es"} with no school
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={handleExportSchoolsCsv}
+                                disabled={!(analytics.schoolDistribution || []).length}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                style={{
+                                  color: "#FFCB05",
+                                  background: "rgba(255,203,5,0.08)",
+                                  border: "1px solid rgba(255,203,5,0.25)",
+                                }}
+                              >
+                                Export CSV
+                              </button>
                             </div>
                           )}
                           {chartTab === "videoViews" && analytics.mux.totalWatchTime != null && (
@@ -3556,6 +3604,7 @@ export default function AdminPage() {
                                 rows={rows}
                                 emptyLabel="No school data"
                                 footnote="Of pitches"
+                                showScrollbar
                               />
                             );
                           })()}
